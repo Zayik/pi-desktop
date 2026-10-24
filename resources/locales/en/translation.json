@@ -56,29 +56,23 @@
     "contextPanel": {
       "agents": {
         "card": {
+          "breakdown": "Breakdown",
           "cost": "Cost",
-          "details": "Cache, billing and context breakdown",
-          "detailsNoCache": "Billing and context breakdown",
-          "effort": "Effort",
-          "hideDetails": "Hide details",
-          "inOut": "in / out",
+          "details": "Details",
+          "inOutNote": "(in {{input}} · out {{output}})",
           "lastTool": "last: {{tool}}",
-          "model": "Model",
-          "nextCold": "Next call {{cost}}",
           "nextWarm": "Next if warm {{cost}}",
           "noSessionFile": "Live figures only: this run has no saved session to read yet.",
-          "otherModels_one": "+{{count}} other model",
-          "otherModels_other": "+{{count}} other models",
           "time": "Time",
-          "tools": "Tool calls"
+          "toolCount_one": "{{count}} tool call",
+          "toolCount_other": "{{count}} tool calls"
         },
-        "finished_one": "Finished · {{count}}",
-        "finished_other": "Finished · {{count}}",
+        "finishedLabel": "Finished",
         "kind": {
-          "child": "Child session",
-          "main": "Main",
-          "subagent": "Subagent",
-          "worktree": "Worktree"
+          "child": "child session",
+          "main": "main",
+          "subagent": "subagent",
+          "worktree": "worktree"
         },
         "main": "Main agent",
         "models": {
@@ -93,8 +87,13 @@
           "show_other": "View model breakdown ({{count}} models)",
           "tokens": "In / out"
         },
-        "running_one": "Running · {{count}}",
-        "running_other": "Running · {{count}}",
+        "runningLabel": "Running",
+        "status": {
+          "done": "Done",
+          "failed": "Failed",
+          "running": "Running",
+          "stopped": "Stopped"
+        },
         "tiles": {
           "agentCount_one": "{{count}} agent",
           "agentCount_other": "{{count}} agents",

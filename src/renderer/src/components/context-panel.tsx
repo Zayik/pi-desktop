@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
-import { ChevronDown, X } from 'lucide-react'
+import { Bot, ChevronDown, X } from 'lucide-react'
 import type { ContextCategory, ContextCategoryId, ContextSnapshot, SnapshotModel } from '../../../../resources/context-snapshot'
 import {
   boardTotals,
@@ -16,7 +16,6 @@ import {
 } from '../../../shared/agent-board'
 import { pathsEqual } from '../../../shared/path-compare'
 import type { SubagentTask, SubagentTaskStatus } from '../../../shared/subagent-task'
-import { SubagentStatusIcon } from './subagent-task-row'
 import {
   billingTable,
   cacheHitRate,
@@ -337,9 +336,7 @@ function AgentBoardView({ snapshot, board, tasks }: {
       )}
       {(runningCards.length > 0 || runningTasks.length > 0) && (
         <section className="flex flex-col gap-2">
-          <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">
-            {t('chat.contextPanel.agents.running', { count: runningCards.length + runningTasks.length })}
-          </h3>
+          <GroupHeading label={t('chat.contextPanel.agents.runningLabel')} count={runningCards.length + runningTasks.length} />
           {runningCards.map((card) => <AgentCard key={card.key} card={card} now={now} />)}
           {runningTasks.map((task) => <TaskCard key={task.id} task={task} />)}
         </section>
@@ -350,12 +347,12 @@ function AgentBoardView({ snapshot, board, tasks }: {
             type="button"
             onClick={() => setFinishedOpen((value) => !value)}
             aria-expanded={finishedOpen}
-            className="flex items-center gap-1 text-left text-[10px] font-medium uppercase tracking-wide text-dim hover:text-muted"
+            className="flex items-center gap-1 text-left hover:opacity-80"
           >
-            <ChevronDown size={11} className={clsx('transition-transform duration-150', finishedOpen ? 'rotate-0' : '-rotate-90')} />
-            {t('chat.contextPanel.agents.finished', { count: finishedCards.length + finishedTasks.length })}
+            <ChevronDown size={11} className={clsx('text-dim transition-transform duration-150', finishedOpen ? 'rotate-0' : '-rotate-90')} />
+            <GroupHeading label={t('chat.contextPanel.agents.finishedLabel')} count={finishedCards.length + finishedTasks.length} />
             {!finishedOpen && (
-              <span className="ml-auto normal-case tracking-normal tabular-nums">
+              <span className="ml-auto text-[11px] text-dim tabular-nums">
                 {formatUsd(finishedCards.reduce((sum, card) => sum + (card.summary?.cost ?? 0), 0))}
               </span>
             )}
@@ -368,12 +365,28 @@ function AgentBoardView({ snapshot, board, tasks }: {
   )
 }
 
-function Tile({ label, value, detail, tone }: { label: string; value: string; detail?: string; tone?: 'warning' }): React.JSX.Element {
+function GroupHeading({ label, count }: { label: string; count: number }): React.JSX.Element {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-surface px-2.5 py-2">
+    <h3 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-dim">
+      {label}
+      <span className="rounded-full bg-card px-1.5 py-px text-[10px] font-medium tracking-normal text-secondary tabular-nums">{count}</span>
+    </h3>
+  )
+}
+
+function Tile({ label, value, detail, tone, children }: {
+  label: string
+  value: string
+  detail?: string
+  tone?: 'warning' | 'success'
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-surface px-3 py-2">
       <div className="truncate text-[10px] font-medium uppercase tracking-wide text-dim">{label}</div>
-      <div className={clsx('mt-0.5 truncate text-sm font-semibold tabular-nums', tone === 'warning' ? 'text-warning' : 'text-primary')}>{value}</div>
+      <div className={clsx('mt-0.5 truncate text-base font-semibold tabular-nums', tone === 'warning' ? 'text-warning' : 'text-primary')}>{value}</div>
       {detail && <div className="truncate text-[11px] text-dim tabular-nums">{detail}</div>}
+      {children}
     </div>
   )
 }
@@ -396,38 +409,37 @@ function BoardTiles({ totals, totalTurns, running, mainSnapshot, fallbackCost }:
   const context = mainSnapshot ? contextFigures(mainSnapshot) : null
   const agents = Math.max(1, totals.agents)
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-2">
-        <Tile
-          label={t('chat.contextPanel.agents.tiles.cost')}
-          value={formatUsd(totals.agents > 0 ? totals.cost : fallbackCost)}
-          detail={`${t('chat.contextPanel.agents.tiles.agentCount', { count: agents })} · ${t('chat.contextPanel.agents.tiles.turns', { count: totalTurns })}`}
-        />
-        <Tile
-          label={t('chat.contextPanel.agents.tiles.tokens')}
-          value={formatCompact(totals.tokensIn + totals.tokensOut)}
-          detail={t('chat.contextPanel.tiles.tokensDetail', { input: formatCompact(totals.tokensIn), output: formatCompact(totals.tokensOut) })}
-        />
-        <Tile
-          label={t('chat.contextPanel.agents.tiles.time')}
-          value={formatDuration(totals.activeMs)}
-          detail={t('chat.contextPanel.agents.tiles.running', { count: running })}
-        />
-        <Tile
-          label={t('chat.contextPanel.agents.tiles.mainContext')}
-          value={context?.percent != null ? `${Math.round(context.percent)}%` : context?.tokens != null ? formatCompact(context.tokens) : '–'}
-          detail={context?.tokens != null && context.windowTokens ? t('chat.contextPanel.tiles.contextOfWindow', { tokens: formatCompact(context.tokens), window: formatCompact(context.windowTokens) }) : undefined}
-          tone={context?.high ? 'warning' : undefined}
-        />
-      </div>
-      {context?.percent != null && <ContextBar percent={context.percent} high={context.high} />}
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-2">
+      <Tile
+        label={t('chat.contextPanel.agents.tiles.cost')}
+        value={formatUsd(totals.agents > 0 ? totals.cost : fallbackCost)}
+        detail={`${t('chat.contextPanel.agents.tiles.agentCount', { count: agents })} · ${t('chat.contextPanel.agents.tiles.turns', { count: totalTurns })}`}
+      />
+      <Tile
+        label={t('chat.contextPanel.agents.tiles.tokens')}
+        value={formatCompact(totals.tokensIn + totals.tokensOut)}
+        detail={t('chat.contextPanel.tiles.tokensDetail', { input: formatCompact(totals.tokensIn), output: formatCompact(totals.tokensOut) })}
+      />
+      <Tile
+        label={t('chat.contextPanel.agents.tiles.time')}
+        value={formatDuration(totals.activeMs)}
+        detail={t('chat.contextPanel.agents.tiles.running', { count: running })}
+      />
+      <Tile
+        label={t('chat.contextPanel.agents.tiles.mainContext')}
+        value={context?.percent != null ? `${Math.round(context.percent)}%` : context?.tokens != null ? formatCompact(context.tokens) : '–'}
+        detail={context?.tokens != null && context.windowTokens ? t('chat.contextPanel.tiles.contextOfWindow', { tokens: formatCompact(context.tokens), window: formatCompact(context.windowTokens) }) : undefined}
+        tone={context?.high ? 'warning' : undefined}
+      >
+        {context?.percent != null && <div className="mt-1.5"><ContextBar percent={context.percent} high={context.high} /></div>}
+      </Tile>
     </div>
   )
 }
 
 function ContextBar({ percent, high }: { percent: number; high: boolean }): React.JSX.Element {
   return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-card" aria-hidden="true">
+    <div className="h-1 overflow-hidden rounded-full bg-card" aria-hidden="true">
       <div className={clsx('h-full rounded-full', high ? 'bg-warning' : 'bg-success')} style={{ width: `${percent}%` }} />
     </div>
   )
@@ -485,29 +497,77 @@ const KIND_LABEL_KEYS = {
   child: 'chat.contextPanel.agents.kind.child',
 } as const satisfies Record<AgentKind, string>
 
-function InfoBlock({ label, value, detail, title }: { label: string; value: string; detail?: string; title?: string }): React.JSX.Element {
+const STATUS_LABEL_KEYS = {
+  running: 'chat.contextPanel.agents.status.running',
+  done: 'chat.contextPanel.agents.status.done',
+  failed: 'chat.contextPanel.agents.status.failed',
+  stopped: 'chat.contextPanel.agents.status.stopped',
+} as const satisfies Record<SubagentTaskStatus, string>
+
+function StatusPill({ status }: { status: SubagentTaskStatus }): React.JSX.Element {
+  const { t } = useTranslation()
   return (
-    <div className="min-w-0 rounded border border-border bg-card/40 px-2 py-1" title={title}>
-      <div className="truncate text-[10px] uppercase tracking-wide text-dim">{label}</div>
-      <div className="truncate text-xs font-semibold text-primary">{value}</div>
-      {detail && <div className="truncate text-[10px] text-dim">{detail}</div>}
+    <span
+      className={clsx(
+        'flex shrink-0 items-center gap-1 rounded-full border px-2 py-px text-[11px] font-medium',
+        status === 'running' && 'border-accent text-accent-fg',
+        status === 'done' && 'border-success text-success',
+        status === 'failed' && 'border-error text-error',
+        status === 'stopped' && 'border-border text-dim'
+      )}
+    >
+      {status === 'running' && <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />}
+      {t(STATUS_LABEL_KEYS[status])}
+    </span>
+  )
+}
+
+function Chip({ children, tone = 'plain', title }: { children: React.ReactNode; tone?: 'plain' | 'kind' | 'effort'; title?: string }): React.JSX.Element {
+  return (
+    <span
+      title={title}
+      className={clsx(
+        'max-w-full truncate rounded px-1.5 py-px text-[11px]',
+        tone === 'plain' && 'bg-card font-mono text-secondary',
+        tone === 'kind' && 'bg-accent/10 font-mono text-accent-fg',
+        tone === 'effort' && 'bg-warning/15 text-warning'
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** One figure in a card's stats row: a small label over the value, with an optional quiet note. */
+function Stat({ label, value, note, below, tone }: {
+  label: string
+  value: string
+  note?: string
+  below?: string
+  tone?: 'warning' | 'success'
+}): React.JSX.Element {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wide text-dim">{label}</div>
+      <div className="truncate text-sm tabular-nums">
+        <span className={clsx('font-semibold', tone === 'warning' ? 'text-warning' : tone === 'success' ? 'text-success' : 'text-primary')}>{value}</span>
+        {note && <span className="ml-1 text-[11px] text-dim">{note}</span>}
+      </div>
+      {below && <div className="truncate text-[11px] text-dim tabular-nums">{below}</div>}
     </div>
   )
 }
 
-function Metric({ label, value, detail, tone }: { label: string; value: string; detail?: string; tone?: 'warning' }): React.JSX.Element {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-[10px] uppercase tracking-wide text-dim">{label}</div>
-      <div className={clsx('truncate text-xs font-semibold tabular-nums', tone === 'warning' ? 'text-warning' : 'text-primary')}>{value}</div>
-      {detail && <div className="truncate text-[10px] text-dim">{detail}</div>}
-    </div>
-  )
+function cardAccent(card: CardModel): string {
+  if (card.status === 'failed') return 'border-l-error'
+  if (card.status === 'running' || card.kind === 'main') return 'border-l-accent'
+  return 'border-l-border'
 }
 
 /**
- * One agent at a glance: models, context, tokens, cost, time, tools and its
- * prompt cache; the full cache, billing and context breakdown open below.
+ * One agent at a glance: kind, model and effort chips, status, context,
+ * tokens, cost, time and tools. The main agent shows its prompt cache and
+ * billing inline; every card opens to its context breakdown.
  */
 function AgentCard({ card, now, subagents }: {
   card: CardModel
@@ -521,81 +581,86 @@ function AgentCard({ card, now, subagents }: {
   const cache = cacheState(snapshot, now)
   const estimate = nextCallEstimate(snapshot)
   const live = cache.status === 'warm' || cache.status === 'expiring'
+  const isMain = card.kind === 'main'
   // A finished subagent's cache is never read again, and one with no known lifetime has no countdown.
-  const showCache = card.kind === 'main' || (card.status === 'running' && cache.status !== 'unknown')
+  const showCache = isMain || (card.status === 'running' && cache.status !== 'unknown')
   const models = (summary?.models ?? []).filter((model) => model.model)
   // The model the next call goes to: the recorder knows it, else the last call or switch.
   const currentId = (card.recorded ? snapshot.model?.id : null) ?? summary?.lastCall?.model ?? summary?.selectedModel?.model ?? snapshot.model?.id ?? null
-  const currentModel = snapshot.model && snapshot.model.id === currentId ? snapshot.model.name : currentId
   const otherModels = models.filter((model) => model.model !== currentId).length
   const cost = summary?.cost ?? snapshot.totals.cost
   const tokensIn = summary ? summary.input + summary.cacheRead + summary.cacheWrite : snapshot.totals.input + snapshot.totals.cacheRead + snapshot.totals.cacheWrite
   const tokensOut = summary?.output ?? snapshot.totals.output
+  const toolLine = summary
+    ? [
+        t('chat.contextPanel.agents.card.toolCount', { count: summary.toolCalls }),
+        summary.lastTool ? t('chat.contextPanel.agents.card.lastTool', { tool: summary.lastTool }) : null,
+        t('chat.contextPanel.agents.tiles.turns', { count: summary.turns }),
+      ].filter(Boolean).join(' · ')
+    : null
 
   return (
-    <article className={clsx('rounded-md border bg-surface px-2.5 py-2', card.kind === 'main' ? 'border-accent/40' : 'border-border')}>
-      <header className="flex items-center gap-1.5">
-        <SubagentStatusIcon status={card.status} />
-        <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-primary" title={card.title}>{card.title}</h4>
-        {card.kind !== 'main' && (
-          <span className="shrink-0 rounded bg-card px-1.5 py-px text-[10px] text-dim">{t(KIND_LABEL_KEYS[card.kind])}</span>
-        )}
-      </header>
-      {card.subtitle && <p className="mt-0.5 truncate text-[11px] text-dim" title={card.subtitle}>{card.subtitle}</p>}
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <InfoBlock
-          label={t('chat.contextPanel.agents.card.model')}
-          value={currentModel ?? '–'}
-          detail={otherModels > 0 ? t('chat.contextPanel.agents.card.otherModels', { count: otherModels }) : undefined}
-          title={models.map((model) => model.model).join('\n') || undefined}
-        />
-        <InfoBlock label={t('chat.contextPanel.agents.card.effort')} value={card.effort ?? '–'} />
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1.5">
-        <Metric
-          label={t('chat.contextPanel.tiles.context')}
-          value={context.percent !== null ? `${Math.round(context.percent)}%` : context.tokens !== null ? formatCompact(context.tokens) : '–'}
-          detail={context.percent !== null && context.tokens !== null ? formatCompact(context.tokens) : undefined}
-          tone={context.high ? 'warning' : undefined}
-        />
-        <Metric
-          label={t('chat.contextPanel.tiles.tokens')}
-          value={`${formatCompact(tokensIn)} / ${formatCompact(tokensOut)}`}
-          detail={t('chat.contextPanel.agents.card.inOut')}
-        />
-        <Metric label={t('chat.contextPanel.agents.card.cost')} value={formatUsd(cost)} detail={summary ? t('chat.contextPanel.agents.tiles.turns', { count: summary.turns }) : undefined} />
-        <Metric label={t('chat.contextPanel.agents.card.time')} value={summary ? formatDuration(summary.activeMs) : '–'} />
-        <div className="col-span-2 min-w-0">
-          <Metric
-            label={t('chat.contextPanel.agents.card.tools')}
-            value={summary ? String(summary.toolCalls) : '–'}
-            detail={summary?.lastTool ? t('chat.contextPanel.agents.card.lastTool', { tool: summary.lastTool }) : undefined}
-          />
+    <article className={clsx('rounded-lg border border-l-[3px] border-border bg-surface px-3 py-2.5', cardAccent(card))}>
+      <header className="flex items-start gap-2">
+        <Bot size={15} className="mt-0.5 shrink-0 text-accent-fg" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-[13px] font-semibold text-primary" title={card.title}>{card.title}</h4>
+          {card.subtitle && <p className="truncate text-[11px] text-dim" title={card.subtitle}>{card.subtitle}</p>}
         </div>
+        <StatusPill status={card.status} />
+      </header>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        <Chip tone="kind">{t(KIND_LABEL_KEYS[card.kind])}</Chip>
+        {currentId && <Chip title={models.map((model) => model.model).join('\n') || undefined}>{currentId}</Chip>}
+        {otherModels > 0 && <Chip title={models.map((model) => model.model).join('\n')}>{`+${otherModels}`}</Chip>}
+        {card.effort && <Chip tone="effort">{card.effort}</Chip>}
       </div>
-      {context.percent !== null && <div className="mt-1.5"><ContextBar percent={context.percent} high={context.high} /></div>}
-      {showCache && <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5 text-[11px] tabular-nums">
-        <span className={clsx('font-medium', cache.status === 'warm' ? 'text-success' : cache.status === 'expiring' ? 'text-warning' : 'text-dim')} role="timer" aria-live="off">
-          {cacheStatusText(cache, t)}
-        </span>
-        <span className="truncate text-dim">
-          {live
-            ? t('chat.contextPanel.agents.card.nextWarm', { cost: estimate.warm !== null ? formatUsd(estimate.warm) : '–' })
-            : cache.status !== 'none' ? t('chat.contextPanel.agents.card.nextCold', { cost: estimate.cold !== null ? formatUsd(estimate.cold) : '–' }) : ''}
-        </span>
-      </div>}
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        className="mt-1.5 flex items-center gap-1 text-[11px] text-accent-fg hover:underline"
-      >
-        <ChevronDown size={11} className={clsx('transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
-        {open ? t('chat.contextPanel.agents.card.hideDetails') : showCache ? t('chat.contextPanel.agents.card.details') : t('chat.contextPanel.agents.card.detailsNoCache')}
-      </button>
+
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
+        {(context.percent !== null || context.tokens !== null) && (
+          <Stat
+            label={t('chat.contextPanel.tiles.context')}
+            value={context.percent !== null ? `${Math.round(context.percent)}%` : formatCompact(context.tokens ?? 0)}
+            below={context.percent !== null && context.tokens !== null && context.windowTokens
+              ? `${formatCompact(context.tokens)} / ${formatCompact(context.windowTokens)}`
+              : undefined}
+            tone={context.high ? 'warning' : context.percent !== null ? 'success' : undefined}
+          />
+        )}
+        <Stat
+          label={t('chat.contextPanel.tiles.tokens')}
+          value={formatCompact(tokensIn + tokensOut)}
+          note={t('chat.contextPanel.agents.card.inOutNote', { input: formatCompact(tokensIn), output: formatCompact(tokensOut) })}
+        />
+        <Stat label={t('chat.contextPanel.agents.card.cost')} value={formatUsd(cost)} />
+        <Stat label={t('chat.contextPanel.agents.card.time')} value={summary ? formatDuration(summary.activeMs) : '–'} />
+      </div>
+      {context.percent !== null && <div className="mt-2"><ContextBar percent={context.percent} high={context.high} /></div>}
+
+      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-dim">
+        <span className="min-w-0 flex-1 truncate">{toolLine}</span>
+        {showCache && !isMain && (
+          <span className={clsx('shrink-0 tabular-nums', cache.status === 'warm' ? 'text-success' : cache.status === 'expiring' ? 'text-warning' : '')} role="timer" aria-live="off">
+            {cacheStatusText(cache, t)}
+            {live && estimate.warm !== null ? ` · ${t('chat.contextPanel.agents.card.nextWarm', { cost: formatUsd(estimate.warm) })}` : ''}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="flex shrink-0 items-center gap-0.5 text-accent-fg hover:underline"
+        >
+          <ChevronDown size={11} className={clsx('transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
+          {isMain ? t('chat.contextPanel.agents.card.breakdown') : t('chat.contextPanel.agents.card.details')}
+        </button>
+      </div>
+
+      {isMain && <PromptCacheBlock snapshot={snapshot} cache={cache} subagents={subagents} inset />}
       {open && (
         <div className="mt-2 flex flex-col gap-3">
-          <PromptCacheBlock snapshot={snapshot} cache={cache} subagents={subagents} showCache={showCache} />
+          {!isMain && <PromptCacheBlock snapshot={snapshot} cache={cache} showCache={showCache} inset />}
           <ContextBreakdownView snapshot={snapshot} partial={!card.recorded} />
         </div>
       )}
@@ -607,23 +672,26 @@ function AgentCard({ card, now, subagents }: {
 function TaskCard({ task }: { task: SubagentTask }): React.JSX.Element {
   const { t } = useTranslation()
   return (
-    <article className="rounded-md border border-border bg-surface px-2.5 py-2">
-      <header className="flex items-center gap-1.5">
-        <SubagentStatusIcon status={task.status} />
-        <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-primary">{task.agent}</h4>
-        <span className="shrink-0 rounded bg-card px-1.5 py-px text-[10px] text-dim">{t(KIND_LABEL_KEYS.subagent)}</span>
+    <article className={clsx('rounded-lg border border-l-[3px] border-border bg-surface px-3 py-2.5', task.status === 'running' ? 'border-l-accent' : 'border-l-border')}>
+      <header className="flex items-start gap-2">
+        <Bot size={15} className="mt-0.5 shrink-0 text-accent-fg" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-[13px] font-semibold text-primary">{task.agent}</h4>
+          {task.label && <p className="truncate text-[11px] text-dim" title={task.label}>{task.label}</p>}
+        </div>
+        <StatusPill status={task.status} />
       </header>
-      {task.label && <p className="mt-0.5 truncate text-[11px] text-dim" title={task.label}>{task.label}</p>}
-      <div className="mt-2 grid grid-cols-3 gap-x-2">
-        <Metric label={t('chat.contextPanel.tiles.tokens')} value={task.tokens !== undefined ? formatCompact(task.tokens) : '–'} />
-        <Metric label={t('chat.contextPanel.agents.card.time')} value={task.durationMs !== undefined ? formatDuration(task.durationMs) : '–'} />
-        <Metric
-          label={t('chat.contextPanel.agents.card.tools')}
-          value={task.toolCount !== undefined ? String(task.toolCount) : '–'}
-          detail={task.currentTool ? t('chat.contextPanel.agents.card.lastTool', { tool: task.currentTool }) : undefined}
-        />
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5">
+        <Stat label={t('chat.contextPanel.tiles.tokens')} value={task.tokens !== undefined ? formatCompact(task.tokens) : '–'} />
+        <Stat label={t('chat.contextPanel.agents.card.time')} value={task.durationMs !== undefined ? formatDuration(task.durationMs) : '–'} />
       </div>
-      <p className="mt-1.5 text-[10px] text-faint">{t('chat.contextPanel.agents.card.noSessionFile')}</p>
+      <div className="mt-1.5 truncate text-[11px] text-dim">
+        {[
+          task.toolCount !== undefined ? t('chat.contextPanel.agents.card.toolCount', { count: task.toolCount }) : null,
+          task.currentTool ? t('chat.contextPanel.agents.card.lastTool', { tool: task.currentTool }) : null,
+          t('chat.contextPanel.agents.card.noSessionFile'),
+        ].filter(Boolean).join(' · ')}
+      </div>
     </article>
   )
 }
@@ -650,12 +718,15 @@ interface SubagentCost {
   turnCost: number
 }
 
-function PromptCacheBlock({ snapshot, cache, subagents, showCache = true }: {
+function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset = false }: {
   snapshot: ContextSnapshot
   cache: CacheState
   subagents?: SubagentCost
   showCache?: boolean
+  /** Inside a card: a tinted box instead of a bordered one. */
+  inset?: boolean
 }): React.JSX.Element {
+  const box = inset ? 'mt-2 rounded-md bg-card/60 px-2.5 py-2' : 'rounded-md border border-border bg-surface px-2.5 py-2.5'
   const { t } = useTranslation()
   const estimate = nextCallEstimate(snapshot)
   const billing = billingTable(snapshot)
@@ -668,7 +739,7 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true }: {
 
   if (!showCache) {
     return (
-      <section className="rounded-md border border-border bg-surface px-2.5 py-2.5">
+      <section className={box}>
         <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">{t('chat.contextPanel.billing.title')}</h3>
         <BillingTableView rows={billing.rows} lastTotal={billing.lastTotal} turnTotal={billing.turnTotal} />
       </section>
@@ -676,7 +747,7 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true }: {
   }
 
   return (
-    <section className="rounded-md border border-border bg-surface px-2.5 py-2.5">
+    <section className={box}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">
           {cache.lifetimeSeconds

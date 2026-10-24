@@ -56,22 +56,17 @@
     "contextPanel": {
       "agents": {
         "card": {
+          "breakdown": "",
           "cost": "",
           "details": "",
-          "detailsNoCache": "",
-          "effort": "",
-          "hideDetails": "",
-          "inOut": "",
+          "inOutNote": "",
           "lastTool": "",
-          "model": "",
-          "nextCold": "",
           "nextWarm": "",
           "noSessionFile": "",
-          "otherModels_other": "",
           "time": "",
-          "tools": ""
+          "toolCount_other": ""
         },
-        "finished_other": "",
+        "finishedLabel": "",
         "kind": {
           "child": "",
           "main": "",
@@ -90,7 +85,13 @@
           "show_other": "",
           "tokens": ""
         },
-        "running_other": "",
+        "runningLabel": "",
+        "status": {
+          "done": "",
+          "failed": "",
+          "running": "",
+          "stopped": ""
+        },
         "tiles": {
           "agentCount_other": "",
           "cost": "",
