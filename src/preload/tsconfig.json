@@ -23,6 +23,8 @@
     "../../resources/next-steps.test.ts",
     "../../resources/system-prompt.ts",
     "../../resources/system-prompt.test.ts",
+    "../../resources/context-snapshot.ts",
+    "../../resources/context-snapshot.test.ts",
     "../../resources/locales/*/translation.json"
   ]
 }

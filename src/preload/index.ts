@@ -92,6 +92,7 @@ import type {
 } from '../shared/ipc-contracts'
 import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
+import type { ContextSnapshot } from '../../resources/context-snapshot'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -389,6 +390,12 @@ interface PiDesktopAPI {
     /** Both calls answer only while `runtimeId` is the active session runtime. */
     list(runtimeId: string): Promise<SubagentListResult>
     getTranscript(runtimeId: string, ref: SubagentTranscriptRef, cursor: number): Promise<SubagentTranscriptResult>
+  }
+
+  // Context panel: what fills a session's context and what its model calls cost
+  context: {
+    /** Null until the session's agent has written a snapshot. */
+    getSnapshot(sessionId: string): Promise<ContextSnapshot | null>
   }
 
   // Diagnostics report
@@ -691,6 +698,10 @@ const api: PiDesktopAPI = {
   subagents: {
     list: (runtimeId) => ipcRenderer.invoke(IPC_CHANNELS.SUBAGENT_LIST, runtimeId),
     getTranscript: (runtimeId, ref, cursor) => ipcRenderer.invoke(IPC_CHANNELS.SUBAGENT_GET_TRANSCRIPT, runtimeId, ref, cursor),
+  },
+
+  context: {
+    getSnapshot: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, sessionId),
   },
 
   diagnostics: {

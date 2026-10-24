@@ -53,6 +53,75 @@
       "placeholderNotRunning": "{{agent}} 智能体未在运行…",
       "placeholderQueue": "输入消息以加入队列 — Ctrl+Enter 立即发送"
     },
+    "contextPanel": {
+      "billing": {
+        "cacheRead": "",
+        "cacheWrite": "",
+        "caption": "",
+        "input": "",
+        "lastCall": "",
+        "output": "",
+        "rate": "",
+        "thisTurn": "",
+        "tokenType": "",
+        "total": ""
+      },
+      "breakdown": {
+        "barLabel": "",
+        "count_other": "",
+        "empty": "",
+        "estimated": "",
+        "free": "",
+        "fromSession": "",
+        "note": "",
+        "title": ""
+      },
+      "cache": {
+        "cold": "",
+        "hitRate": "",
+        "modelChanged": "",
+        "nextCold": "",
+        "nextColdDetail": "",
+        "nextWarm": "",
+        "nextWarmDetail": "",
+        "none": "",
+        "thisTurn": "",
+        "title": "",
+        "titleWithLifetime": "",
+        "unknown": "",
+        "warming": "",
+        "warmLeft": ""
+      },
+      "category": {
+        "assistantMessages": "",
+        "assistantThinking": "",
+        "builtInTools": "",
+        "compacted": "",
+        "contextFiles": "",
+        "customTools": "",
+        "extensionMessages": "",
+        "mcpTools": "",
+        "skills": "",
+        "systemPrompt": "",
+        "toolCalls": "",
+        "toolResults": "",
+        "userMessages": ""
+      },
+      "close": "",
+      "loading": "",
+      "noSession": "",
+      "noSnapshot": "",
+      "tiles": {
+        "calls_other": "",
+        "context": "",
+        "contextOfWindow": "",
+        "cost": "",
+        "model": "",
+        "tokens": "",
+        "tokensDetail": ""
+      },
+      "title": ""
+    },
     "council": {
       "planWithCouncil": "使用委员会规划",
       "startEngineFirst": "请先启动 Pi/OMP 再使用委员会规划"
@@ -163,6 +232,7 @@
       "viewSource": "查看源码"
     },
     "toolbar": {
+      "context": "",
       "diffViewer": "差异查看器",
       "fileTree": "文件树",
       "reviewPanel": "审查面板",

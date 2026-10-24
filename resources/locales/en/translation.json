@@ -53,6 +53,77 @@
       "placeholderNotRunning": "{{agent}} agent is not running...",
       "placeholderQueue": "Type to queue a message — Ctrl+Enter sends it now"
     },
+    "contextPanel": {
+      "billing": {
+        "cacheRead": "Cache read",
+        "cacheWrite": "Cache write",
+        "caption": "Tokens and cost by token type, for the last call and this turn",
+        "input": "Input (new)",
+        "lastCall": "Last call",
+        "output": "Output",
+        "rate": "Rate /1M",
+        "thisTurn": "This turn",
+        "tokenType": "Token type",
+        "total": "Total"
+      },
+      "breakdown": {
+        "barLabel": "Context window by category",
+        "count_one": "×{{count}}",
+        "count_other": "×{{count}}",
+        "empty": "Shows after the next request.",
+        "estimated": "≈ {{tokens}} estimated",
+        "free": "Free space",
+        "fromSession": "Rebuilt from the saved session. It updates on the next request.",
+        "note": "Estimated at 4 characters a token from the latest request. Hover an item for a preview.",
+        "title": "What fills the context"
+      },
+      "cache": {
+        "cold": "Cold",
+        "hitRate": "Last call {{percent}}% from cache",
+        "modelChanged": "Cold · model changed",
+        "nextCold": "Next if expired",
+        "nextColdDetail": "rewrites context",
+        "nextWarm": "Next if warm",
+        "nextWarmDetail": "reads context",
+        "none": "No calls yet",
+        "thisTurn": "This turn",
+        "title": "Prompt cache",
+        "titleWithLifetime": "Prompt cache · {{lifetime}}",
+        "unknown": "Lifetime unknown",
+        "warming": "Cache warming: {{mode}}",
+        "warmLeft": "Warm · {{time}} left"
+      },
+      "category": {
+        "assistantMessages": "Assistant replies",
+        "assistantThinking": "Assistant thinking",
+        "builtInTools": "Built-in tools",
+        "compacted": "Compaction summaries",
+        "contextFiles": "Instruction files",
+        "customTools": "Extension tools",
+        "extensionMessages": "Extension messages",
+        "mcpTools": "MCP tools",
+        "skills": "Skills",
+        "systemPrompt": "System prompt",
+        "toolCalls": "Tool calls",
+        "toolResults": "Tool results",
+        "userMessages": "User messages"
+      },
+      "close": "Close",
+      "loading": "Loading…",
+      "noSession": "Open a session to see its context.",
+      "noSnapshot": "Nothing recorded for this session yet. Recording starts when its agent starts, so send a message or restart the agent.",
+      "tiles": {
+        "calls_one": "{{count}} call",
+        "calls_other": "{{count}} calls",
+        "context": "Context",
+        "contextOfWindow": "{{tokens}} of {{window}}",
+        "cost": "Session cost",
+        "model": "Model",
+        "tokens": "Tokens",
+        "tokensDetail": "in {{input}} · out {{output}}"
+      },
+      "title": "Context"
+    },
     "council": {
       "planWithCouncil": "Plan with Council",
       "startEngineFirst": "Start Pi/OMP before planning with Council"
@@ -168,6 +239,7 @@
       "viewSource": "View source"
     },
     "toolbar": {
+      "context": "Context",
       "diffViewer": "Diff viewer",
       "fileTree": "File tree",
       "reviewPanel": "Review panel",

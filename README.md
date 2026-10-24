@@ -16,6 +16,7 @@ Pi Desktop is in alpha, so expect rough edges.
 - [Linked tasks](#linked-tasks): one task across several Git repositories, shipped as linked pull requests
 - Right-edge tool rail that opens the Review panel, file tree, diff viewer, and terminal
 - Subagents panel with a live, read-only transcript for each subagent the chat starts (OMP, or Pi with pi-subagents)
+- [Context panel](#context-panel): what fills the session's context window, a prompt-cache countdown, and what each call and turn cost
 - Diff viewer with a filter for the files the session touched, per-file discard, and a Git bar with Commit, Commit + Push, Push, and PR (it becomes Open PR #N when the branch has an open pull request). In the Commit dialog, **Suggest message** asks the session's model for a commit message, and new files are committed only if you check them. The status bar has a branch menu to switch branches or create a new one
 - Code, image, PDF, and HTML previews, a CodeMirror 6 editor with Git change markers, and workspace file search
 - Resizable terminal, one per workspace
@@ -46,6 +47,19 @@ Changed files use these status badges:
 | `ADD` | New file staged in git |
 | `STG` | Modified file staged in git |
 | `REN` | File was renamed |
+
+## Context panel
+
+The Context panel shows what the active session sends the model and what it costs. Open it from the gauge button on the right-edge tool rail.
+
+![Context panel with the prompt cache countdown and context breakdown](docs/screenshots/context-panel.png)
+
+- **Tiles**: context used against the model's window (highlighted from 70% or 300k tokens, since every call resends it), session cost and calls, tokens, and the model.
+- **Prompt cache**: a countdown from the last request, using the model's declared cache lifetime (`promptCache` in the model definition; Anthropic models ship 5m and 1h, and `PI_CACHE_RETENTION=long` picks the long tier). A cache-warming refresh restarts it, and a model switch shows it cold. Under it, what the next call costs to resend the context while the cache is warm (cache-read rate) and after it expires (cache-write rate), and this turn's cost. Rates are the ones the last calls were billed at when known, else the model's listed prices.
+- **Billing table**: new input, cache read, cache write, and output for the last call and for the whole turn (every call since your last prompt).
+- **What fills the context**: the latest request split into the system prompt sections, instruction files, skills, built-in, extension, and MCP tool definitions, and the conversation (user messages, replies, thinking, tool calls and results, extension messages, compaction summaries). Click a category to list its largest items. Sizes are estimated at 4 characters a token.
+
+The bundled `pi-desktop-context.ts` extension records this. It only observes: it adds nothing to the context and changes no request. It writes one JSON snapshot per session to `<GUI data dir>/context-snapshots/`, rebuilt from the saved session when one is resumed. The category breakdown follows [pi-context-view](https://github.com/dimk90/pi-context-view).
 
 ## Pi and OMP engines
 

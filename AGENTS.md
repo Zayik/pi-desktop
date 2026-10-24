@@ -232,6 +232,7 @@ src/
             ├── model-selector.tsx # Composer model picker (searchable, keyboard-driven)
             ├── subagent-progress.tsx # Compact live subagent strip on the composer
             ├── subagent-panel.tsx # Right-side Subagents panel: the chat's subagents and one live transcript
+            ├── context-panel.tsx  # Right-side Context panel: context breakdown, prompt cache countdown, billing
             ├── subagent-task-row.tsx # One subagent row with its status icon
             ├── voice-mic-button.tsx # Composer mic button for voice dictation
             ├── chat-code-highlight.ts # Fenced-code syntax highlighting -> HTML
@@ -392,7 +393,8 @@ resources/
 
 ### Chat tool rail and side panels
 
-- The right-edge tool rail (`chat-tool-rail.tsx`) toggles the Review panel, file tree, diff viewer, and terminal. It has no workflow button
+- The right-edge tool rail (`chat-tool-rail.tsx`) toggles the Review panel, file tree, diff viewer, Subagents, Context, and terminal. It has no workflow button
+- The Context panel (`context-panel.tsx`) polls the active session's snapshot (`context:get-snapshot`) every 2s. `resources/context-snapshot.ts` holds the snapshot format and the breakdown; `src/shared/context-view.ts` derives the cache countdown, next-call estimates, and billing table
 - The Review panel (`review-rail.tsx`) shows the permission mode, pending approvals, changed files, and session status. It is hidden by default
 - Click a workspace file link (chat or file tree) to open it in a side pane: code (CodeMirror), image, PDF, or HTML. HTML runs in a sandboxed `<webview>` (no Node access, isolated partition, `file://` source only). HTML preview runs scripts and network only when the workspace is trusted; an untrusted workspace gets a static preview with a "Trust workspace" banner. A PDF preview gets plugins and scripts only when its URL loads a .pdf file, and for an untrusted workspace its partition loads only PDF files and the built-in viewer's own files (`preview-guest.ts`)
 
@@ -537,6 +539,7 @@ The GUI data dir is `<appData>/pi-desktop` (on Linux, `~/.config/pi-desktop`). `
 | `<GUI data dir>/permission-rules.json` | Global permission rules |
 | `<GUI data dir>/repo-sets.json` | Saved repo sets for linked tasks |
 | `<GUI data dir>/repo-maps/` | One repo map per running linked task, read by the agent extensions |
+| `<GUI data dir>/context-snapshots/` | One context snapshot per session, written by `pi-desktop-context.ts`, read by the Context panel; pruned after 30 days |
 | `<GUI data dir>/themes/` | User theme files |
 | `<GUI data dir>/typesafe-api-key` | TypeSafe API key (owner-only file) |
 | `<GUI data dir>/speech-models/` | Downloaded voice dictation models |
@@ -589,13 +592,14 @@ npm run package       # Create installer
 The agent runs in RPC mode as a subprocess; one `PiRpcManager` is kept for each live session runtime. The binary is `pi` or `omp`, depending on the session's engine (see Engines above):
 
 ```
-pi --mode rpc [--no-session] [--provider <name>] [--model <id>] [--thinking <level>] [--fork <session-file> | --session <session-file> | --continue] [--tools <list>] [-e <pi-desktop-permissions.ts>] [-e <pi-desktop-next-steps.ts>] [-e <pi-desktop-repo-set.ts>]
+pi --mode rpc [--no-session] [--provider <name>] [--model <id>] [--thinking <level>] [--fork <session-file> | --session <session-file> | --continue] [--tools <list>] [-e <pi-desktop-permissions.ts>] [-e <pi-desktop-next-steps.ts>] [-e <pi-desktop-context.ts>] [-e <pi-desktop-repo-set.ts>]
 ```
 
 - `buildPiArgs` in `pi-rpc-manager.ts` builds the argv. `--thinking` carries the default thinking level for a new session only. `--continue` resumes the latest session when Resume Last Session is on
 - `--tools` is added in Plan / Read-only mode with the engine's read-only tools. `-e` loads the bundled permissions extension whenever it exists on disk (`ipc/pi-start-options.ts`)
 - The extension reads its settings from `PI_DESKTOP_*` environment variables (mode, agent label, language, rules path, workspace trust)
 - While Suggest Next Steps is on, `-e` also loads `pi-desktop-next-steps.ts`, and Plan / Read-only mode adds `suggest_next_steps` to `--tools`. The agent may end a turn with up to three steps; the chat hides the call and shows the steps as buttons that fill the composer. With its `tools.xdev` setting on, OMP sends the call as a `write` to `xd://suggest_next_steps`: the chat reads that form too, and the permission and linked-task checks treat it as no file write (`resources/next-steps.ts`)
+- `-e` always loads `pi-desktop-context.ts` when it exists on disk, with `PI_DESKTOP_CONTEXT_DIR` set to `<GUI data dir>/context-snapshots/`. It only observes events (`context_with_system`, `before_provider_request`, `message_end`, `cache_warming_decision`, ...) and writes one snapshot per session for the Context panel
 - A linked task's runtime also loads `pi-desktop-repo-set.ts` and gets `PI_DESKTOP_REPO_MAP_PATH`, its repo map under `<GUI data dir>/repo-maps/` (`WorkspaceManager.startSessionRuntime`)
 - No `--session-dir` is added; each engine uses its own default store. A caller-supplied `--session-dir` in extra args still wins
 
