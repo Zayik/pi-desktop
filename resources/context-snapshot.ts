@@ -19,6 +19,8 @@ export const CONTEXT_EXTENSION_FILE = 'pi-desktop-context.ts'
 export const CONTEXT_DIR_ENV = 'PI_DESKTOP_CONTEXT_DIR'
 /** Set by the recorder to its session id, so a Pi process it spawns (a subagent) can name its parent. */
 export const PARENT_SESSION_ENV = 'PI_DESKTOP_PARENT_SESSION_ID'
+/** The cache mode a new session starts in (the app's last choice); a session's mode file wins. */
+export const CACHE_MODE_ENV = 'PI_DESKTOP_CACHE_MODE'
 export const CONTEXT_SNAPSHOT_VERSION = 1
 /** Newest model calls kept in a snapshot; older ones only count in the session totals. */
 export const MAX_RECORDED_CALLS = 200
@@ -131,10 +133,14 @@ export interface ContextSnapshot {
   catalog?: SnapshotModel[]
   updatedAt: number
   model: SnapshotModel | null
-  /** Which prompt cache tier requests ask for (`PI_CACHE_RETENTION=long` picks long). */
+  /** The prompt cache tier the latest request asked for (`PI_CACHE_RETENTION=long` picks long). */
   cacheRetention: 'short' | 'long'
   /** Pi's `cacheWarming` setting (`off`, `streaming`, `idle`), when it has one. */
   cacheWarming: string | null
+  /** The session's cache mode, when the recorder applies one. */
+  cacheMode?: CacheMode
+  /** When the mode was last switched; null while the session keeps the mode it started with. */
+  cacheModeChangedAt?: number | null
   breakdown: ContextBreakdown | null
   /** Pi's own estimate of the context the next request sends, from the last reported usage. */
   reportedTokens: number | null
@@ -148,6 +154,59 @@ export interface ContextSnapshot {
   lastRequestAt: number | null
   /** When Pi last sent a cache-warming refresh. */
   lastWarmAt: number | null
+}
+
+// ─── Cache modes ────────────────────────────────────────────────────────────
+
+/**
+ * How a session uses the prompt cache, picked per session in the app:
+ * - focus: the 5-minute cache, kept alive only while the agent works;
+ * - keep-warm: the 5-minute cache, also kept alive for a while after the
+ *   agent stops (needs Pi's global `cacheWarming: "idle"`);
+ * - long: the 1-hour cache (`PI_CACHE_RETENTION=long`), never refreshed idle.
+ */
+export const CACHE_MODES = ['focus', 'keep-warm', 'long'] as const
+export type CacheMode = typeof CACHE_MODES[number]
+export const DEFAULT_CACHE_MODE: CacheMode = 'focus'
+const CACHE_MODE_SUFFIX = '.mode'
+
+export interface CacheModeChoice {
+  mode: CacheMode
+  /** When it was picked (ms since epoch). */
+  changedAt: number
+}
+
+export function isCacheMode(value: unknown): value is CacheMode {
+  return typeof value === 'string' && (CACHE_MODES as readonly string[]).includes(value)
+}
+
+export function isCacheModeChoice(value: unknown): value is CacheModeChoice {
+  return isRecord(value) && isCacheMode(value.mode) && typeof value.changedAt === 'number' && Number.isFinite(value.changedAt)
+}
+
+/** The file beside a session's snapshot that holds the mode picked for it. */
+export function cacheModeFileName(sessionId: string): string {
+  return snapshotFileName(sessionId).replace(/\.json$/, CACHE_MODE_SUFFIX)
+}
+
+export function isCacheModeFileName(name: string): boolean {
+  return name.endsWith(CACHE_MODE_SUFFIX)
+}
+
+/** The cache tier requests ask for in a mode. */
+export function cacheRetentionFor(mode: CacheMode): 'short' | 'long' {
+  return mode === 'long' ? 'long' : 'short'
+}
+
+/**
+ * The mode's answer to one of Pi's cache-warming decisions, or null to leave
+ * Pi's own. While the agent works Pi expects the next request for sure
+ * (continuation probability 1) and decides by price; once it stops, only
+ * keep-warm refreshes, and the others stop so they never pay for idle time.
+ */
+export function cacheWarmingOverride(mode: CacheMode, continuationProbability: number): 'warm' | 'stop' | null {
+  if (continuationProbability >= 1) return null
+  return mode === 'keep-warm' ? 'warm' : 'stop'
 }
 
 // ─── Estimation ─────────────────────────────────────────────────────────────

@@ -75,3 +75,9 @@ test('normalizeStoredSettings resets an invalid voice device', () => {
   const settings = normalizeStoredSettings({ voiceDevice: 'npu' }, LANGUAGES)
   assert.equal(settings.voiceDevice, DEFAULT_SETTINGS.voiceDevice)
 })
+
+test('the cache mode defaults to focus and keeps a known mode', () => {
+  assert.equal(normalizeStoredSettings({}, LANGUAGES).cacheMode, 'focus')
+  assert.equal(normalizeStoredSettings({ cacheMode: 'long' }, LANGUAGES).cacheMode, 'long')
+  assert.equal(normalizeStoredSettings({ cacheMode: 'forever' }, LANGUAGES).cacheMode, 'focus')
+})

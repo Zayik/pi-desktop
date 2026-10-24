@@ -1,6 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
-import type { ContextSnapshot } from '../../../resources/context-snapshot'
+import { isCacheMode, type CacheModeChoice, type ContextSnapshot } from '../../../resources/context-snapshot'
+import { enableIdleCacheWarming, readCacheMode, readPiCacheWarming, writeCacheMode } from '../cache-modes'
 import { pruneContextSnapshots, readContextSnapshot } from '../context-snapshots'
 import { readAgentBoard } from '../agent-board'
 import type { AgentBoard, AgentBoardRequest } from '../../shared/agent-board'
@@ -17,14 +18,39 @@ export function registerContextHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<ContextSnapshot | null> => {
     assertTrustedSender(event)
-    if (!isString(sessionId) || !sessionId) throw new Error('sessionId must be a non-empty string')
-    return readContextSnapshot(sessionId)
+    return readContextSnapshot(parseSessionId(sessionId))
   })
 
   ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_AGENT_BOARD, async (event: IpcMainInvokeEvent, request: unknown): Promise<AgentBoard> => {
     assertTrustedSender(event)
     return readAgentBoard(parseBoardRequest(request))
   })
+
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_MODE, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<CacheModeChoice | null> => {
+    assertTrustedSender(event)
+    return readCacheMode(parseSessionId(sessionId))
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, async (event: IpcMainInvokeEvent, sessionId: unknown, mode: unknown): Promise<CacheModeChoice> => {
+    assertTrustedSender(event)
+    if (!isCacheMode(mode)) throw new Error('mode must be a cache mode')
+    return writeCacheMode(parseSessionId(sessionId), mode)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<string | null> => {
+    assertTrustedSender(event)
+    return readPiCacheWarming()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<void> => {
+    assertTrustedSender(event)
+    await enableIdleCacheWarming()
+  })
+}
+
+function parseSessionId(value: unknown): string {
+  if (!isString(value) || !value) throw new Error('sessionId must be a non-empty string')
+  return value
 }
 
 function parseBoardRequest(value: unknown): AgentBoardRequest {

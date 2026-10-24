@@ -38,7 +38,7 @@ export function ThinkingLevelSelector({ className }: ThinkingLevelSelectorProps)
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         className={clsx(
-          'flex h-7 items-center justify-center gap-1 rounded-l-none rounded-r-[7px] px-2 text-[11px] transition-colors active:scale-[0.98] @max-sm/composer:w-7 @max-sm/composer:gap-0 @max-sm/composer:px-0',
+          'flex h-7 items-center justify-center gap-1 rounded-none px-2 text-[11px] transition-colors active:scale-[0.98] @max-sm/composer:w-7 @max-sm/composer:gap-0 @max-sm/composer:px-0',
           isOpen ? 'bg-surface-hover text-primary' : 'text-dim hover:bg-surface-hover hover:text-secondary',
         )}
         title={t('thinking.effortWithLevel', { level: currentLevel })}
