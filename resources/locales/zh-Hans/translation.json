@@ -58,12 +58,16 @@
         "card": {
           "cost": "",
           "details": "",
+          "detailsNoCache": "",
+          "effort": "",
           "hideDetails": "",
           "inOut": "",
           "lastTool": "",
+          "model": "",
           "nextCold": "",
           "nextWarm": "",
           "noSessionFile": "",
+          "otherModels_other": "",
           "time": "",
           "tools": ""
         },
@@ -93,7 +97,8 @@
           "mainContext": "",
           "running_other": "",
           "time": "",
-          "tokens": ""
+          "tokens": "",
+          "turns_other": ""
         }
       },
       "billing": {
@@ -106,6 +111,7 @@
         "rate": "",
         "subagents_other": "",
         "thisTurn": "",
+        "title": "",
         "tokenType": "",
         "total": "",
         "totalWithSubagents": ""

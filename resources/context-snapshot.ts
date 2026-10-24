@@ -22,6 +22,7 @@ export const PARENT_SESSION_ENV = 'PI_DESKTOP_PARENT_SESSION_ID'
 export const CONTEXT_SNAPSHOT_VERSION = 1
 /** Newest model calls kept in a snapshot; older ones only count in the session totals. */
 export const MAX_RECORDED_CALLS = 200
+export const MAX_CATALOG_MODELS = 400
 /** Largest items listed under one category; the rest are folded into one "more" item. */
 export const MAX_CATEGORY_ITEMS = 40
 export const MAX_PREVIEW_CHARS = 240
@@ -122,6 +123,12 @@ export interface ContextSnapshot {
   sessionFile: string | null
   /** The recorder session that spawned this one, when it ran under one. */
   parentSessionId?: string | null
+  /**
+   * Every model the session could call, so a subagent's cache lifetime,
+   * window and rates can be looked up by the model it reports. At most
+   * `MAX_CATALOG_MODELS`.
+   */
+  catalog?: SnapshotModel[]
   updatedAt: number
   model: SnapshotModel | null
   /** Which prompt cache tier requests ask for (`PI_CACHE_RETENTION=long` picks long). */

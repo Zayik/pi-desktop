@@ -42,6 +42,7 @@ test('summarizes cost, models, tools and active time from a session file', () =>
   assert.equal(summary.parentSession, '/s/main.jsonl')
   assert.equal(summary.label, 'Implement task 3')
   assert.equal(summary.calls, 2)
+  assert.equal(summary.turns, 2)
   assert.ok(Math.abs(summary.cost - 0.02) < 1e-12)
   assert.equal(summary.toolCalls, 3)
   assert.equal(summary.lastTool, 'edit')
@@ -91,8 +92,8 @@ test('after a compaction the breakdown holds its summary and the kept messages',
 
 function summary(overrides: Partial<AgentSessionSummary>): AgentSessionSummary {
   return {
-    sessionId: 's', sessionFile: '/s.jsonl', cwd: null, parentSession: null, label: null, name: null, delegateRuns: [], startedAt: 0, lastActivityAt: 0,
-    activeMs: 0, calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, models: [], toolCalls: 0,
+    sessionId: 's', sessionFile: '/s.jsonl', cwd: null, parentSession: null, label: null, name: null, thinkingLevel: null, selectedModel: null, delegateRuns: [], startedAt: 0, lastActivityAt: 0,
+    activeMs: 0, turns: 0, calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, models: [], toolCalls: 0,
     lastTool: null, lastCall: null, lastRequestAt: null, turnStartedAt: null, turnCalls: [], callCosts: [],
     contextTokens: null, breakdown: null, ...overrides,
   }
@@ -138,4 +139,16 @@ test('records the request time, the turn, and builds a snapshot for the cache an
   const unknown = snapshotFromSummary(result, { ...model, id: 'other' }, 'short')
   assert.equal(unknown.model?.contextWindow, null)
   assert.equal(cacheState(unknown, T0 + 80_000).status, 'unknown')
+})
+
+test('keeps the latest effort and selected model', () => {
+  const entries = [
+    header,
+    { type: 'thinking_level_change', id: 't1', parentId: null, timestamp: iso(100), thinkingLevel: 'medium' },
+    { type: 'model_change', id: 'm1', parentId: 't1', timestamp: iso(200), provider: 'anthropic', modelId: 'claude-sonnet-5-5' },
+    { type: 'thinking_level_change', id: 't2', parentId: 'm1', timestamp: iso(300), thinkingLevel: 'high' },
+  ]
+  const result = summarizeSession(entries, '/x.jsonl')
+  assert.equal(result?.thinkingLevel, 'high')
+  assert.deepEqual(result?.selectedModel, { provider: 'anthropic', model: 'claude-sonnet-5-5' })
 })

@@ -50,12 +50,19 @@ export interface AgentSessionSummary {
   label: string | null
   /** The session's display name (`/name`, or the name a subagent extension gave its child). */
   name: string | null
+  /** The latest thinking level the session recorded (Pi's effort setting). */
+  thinkingLevel: string | null
+  /** The latest model the session switched to, for a session with no call yet. */
+  selectedModel: { provider: string; model: string } | null
   /** billion-context `acp_delegate` runs this session started, oldest first. */
   delegateRuns: DelegateRun[]
   startedAt: number | null
   lastActivityAt: number | null
   /** Sum of the gaps between entries shorter than `ACTIVE_GAP_MS`. */
   activeMs: number
+  /** User prompts: a subagent's task is one turn, however many requests its tool loop makes. */
+  turns: number
+  /** Model requests: one per step of each turn's tool loop. */
   calls: number
   input: number
   output: number
@@ -222,10 +229,13 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
     parentSession: str(header.parentSession),
     label: null,
     name: null,
+    thinkingLevel: null,
+    selectedModel: null,
     delegateRuns: [],
     startedAt: entryTime(header),
     lastActivityAt: entryTime(header),
     activeMs: 0,
+    turns: 0,
     calls: 0,
     input: 0,
     output: 0,
@@ -259,6 +269,15 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
       if (call) addCall(summary, call, false, sentAt)
       continue
     }
+    if (entry.type === 'thinking_level_change') {
+      summary.thinkingLevel = str(entry.thinkingLevel) ?? summary.thinkingLevel
+      continue
+    }
+    if (entry.type === 'model_change') {
+      const model = str(entry.modelId)
+      if (model) summary.selectedModel = { provider: str(entry.provider) ?? '', model }
+      continue
+    }
     if (entry.type === 'session_info') {
       summary.name = str(entry.name) ?? summary.name
       continue
@@ -275,6 +294,7 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
       continue
     }
     if (message.role === 'user') {
+      summary.turns++
       if (summary.label === null) summary.label = firstTextLine(message.content)
       summary.turnStartedAt = at
       summary.turnCalls = []

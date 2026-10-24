@@ -58,12 +58,17 @@
         "card": {
           "cost": "Cost",
           "details": "Cache, billing and context breakdown",
+          "detailsNoCache": "Billing and context breakdown",
+          "effort": "Effort",
           "hideDetails": "Hide details",
           "inOut": "in / out",
           "lastTool": "last: {{tool}}",
+          "model": "Model",
           "nextCold": "Next call {{cost}}",
           "nextWarm": "Next if warm {{cost}}",
           "noSessionFile": "Live figures only: this run has no saved session to read yet.",
+          "otherModels_one": "+{{count}} other model",
+          "otherModels_other": "+{{count}} other models",
           "time": "Time",
           "tools": "Tool calls"
         },
@@ -78,7 +83,7 @@
         "main": "Main agent",
         "models": {
           "agents": "Agents",
-          "calls": "Calls",
+          "calls": "Requests",
           "caption": "Calls, tokens and cost per model across all agents",
           "compaction": "compaction",
           "cost": "Cost",
@@ -98,7 +103,9 @@
           "running_one": "{{count}} running",
           "running_other": "{{count}} running",
           "time": "Active time",
-          "tokens": "Tokens · all agents"
+          "tokens": "Tokens · all agents",
+          "turns_one": "{{count}} turn",
+          "turns_other": "{{count}} turns"
         }
       },
       "billing": {
@@ -112,6 +119,7 @@
         "subagents_one": "Subagents ({{count}})",
         "subagents_other": "Subagents ({{count}})",
         "thisTurn": "This turn",
+        "title": "Billing",
         "tokenType": "Token type",
         "total": "Total",
         "totalWithSubagents": "Total with subagents"
@@ -166,8 +174,8 @@
       "noSession": "Open a session to see its context.",
       "noSnapshot": "Nothing recorded for this session yet. Recording starts when its agent starts, so send a message or restart the agent.",
       "tiles": {
-        "calls_one": "{{count}} call",
-        "calls_other": "{{count}} calls",
+        "calls_one": "{{count}} request",
+        "calls_other": "{{count}} requests",
         "context": "Context",
         "contextOfWindow": "{{tokens}} of {{window}}",
         "tokens": "Tokens",

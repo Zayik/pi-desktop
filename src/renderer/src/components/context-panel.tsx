@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
 import { ChevronDown, X } from 'lucide-react'
-import type { ContextCategory, ContextCategoryId, ContextSnapshot } from '../../../../resources/context-snapshot'
+import type { ContextCategory, ContextCategoryId, ContextSnapshot, SnapshotModel } from '../../../../resources/context-snapshot'
 import {
   boardTotals,
   childIsRunning,
@@ -184,6 +184,18 @@ function useAgentBoard(request: AgentBoardRequest | null): AgentBoard | null {
   return request && state.sessionId === request.sessionId ? state.board : null
 }
 
+/**
+ * The model details for a subagent's last call, from the models the main
+ * session could call: subagents inherit the main session's model list and
+ * cache retention.
+ */
+function catalogModel(mainSnapshot: ContextSnapshot | null, summary: AgentSessionSummary): SnapshotModel | null {
+  const call = summary.lastCall
+  if (!mainSnapshot || !call) return mainSnapshot?.model ?? null
+  const matches = (model: SnapshotModel): boolean => model.id === call.model && (!call.provider || !model.provider || model.provider === call.provider)
+  return mainSnapshot.catalog?.find(matches) ?? (mainSnapshot.model && matches(mainSnapshot.model) ? mainSnapshot.model : null)
+}
+
 /** The session file a subagent row's transcript lives in, when it has one. */
 function taskSessionFile(task: SubagentTask): string | null {
   return task.transcriptRef.kind === 'pi-foreground' ? task.transcriptRef.sessionFile ?? null : null
@@ -246,6 +258,8 @@ interface CardModel {
   summary: AgentSessionSummary | null
   /** True when the snapshot came from the recorder, so the breakdown includes the prompt and tools. */
   recorded: boolean
+  /** Thinking level. */
+  effort: string | null
 }
 
 function AgentBoardView({ snapshot, board, tasks }: {
@@ -256,6 +270,8 @@ function AgentBoardView({ snapshot, board, tasks }: {
   const { t } = useTranslation()
   const now = useNow(1_000)
   const isStreaming = useAppStore((state) => state.isStreaming)
+  const [finishedOpen, setFinishedOpen] = useState(true)
+  const mainEffort = useAppStore((state) => state.sessionState?.thinkingLevel || null)
   const main = board?.main ?? null
   const mainSnapshot = snapshot ?? (main ? snapshotFromSummary(main, null, 'short') : null)
   const children = board?.children ?? []
@@ -276,9 +292,10 @@ function AgentBoardView({ snapshot, board, tasks }: {
       title: child.summary.name ?? (agentName ? agentName : child.summary.label ?? child.summary.sessionId),
       subtitle: child.kind === 'worktree' && child.summary.cwd ? child.summary.cwd : child.summary.name ? null : agentName ? child.summary.label : null,
       status,
-      snapshot: child.snapshot ?? snapshotFromSummary(child.summary, mainSnapshot?.model ?? null, mainSnapshot?.cacheRetention ?? 'short'),
+      snapshot: child.snapshot ?? snapshotFromSummary(child.summary, catalogModel(mainSnapshot, child.summary), mainSnapshot?.cacheRetention ?? 'short'),
       summary: child.summary,
       recorded: child.snapshot !== null,
+      effort: child.summary.thinkingLevel,
     }
   })
   const liveTasks = tasks.filter((task) => !matchedTaskIds.has(task.id))
@@ -295,7 +312,7 @@ function AgentBoardView({ snapshot, board, tasks }: {
     <div className="flex flex-col gap-3">
       <BoardTiles
         totals={totals}
-        totalCalls={summaries.reduce((sum, summary) => sum + summary.calls, 0)}
+        totalTurns={summaries.reduce((sum, summary) => sum + summary.turns, 0)}
         running={runningCards.length + runningTasks.length + (isStreaming ? 1 : 0)}
         mainSnapshot={mainSnapshot}
         fallbackCost={mainSnapshot?.totals.cost ?? 0}
@@ -312,6 +329,7 @@ function AgentBoardView({ snapshot, board, tasks }: {
             snapshot: mainSnapshot,
             summary: main,
             recorded: snapshot !== null,
+            effort: mainEffort ?? main?.thinkingLevel ?? null,
           }}
           now={now}
           subagents={children.length > 0 ? { count: children.length, turnCost: subagentTurnCost } : undefined}
@@ -328,11 +346,22 @@ function AgentBoardView({ snapshot, board, tasks }: {
       )}
       {(finishedCards.length > 0 || finishedTasks.length > 0) && (
         <section className="flex flex-col gap-2">
-          <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">
+          <button
+            type="button"
+            onClick={() => setFinishedOpen((value) => !value)}
+            aria-expanded={finishedOpen}
+            className="flex items-center gap-1 text-left text-[10px] font-medium uppercase tracking-wide text-dim hover:text-muted"
+          >
+            <ChevronDown size={11} className={clsx('transition-transform duration-150', finishedOpen ? 'rotate-0' : '-rotate-90')} />
             {t('chat.contextPanel.agents.finished', { count: finishedCards.length + finishedTasks.length })}
-          </h3>
-          {[...finishedCards].reverse().map((card) => <AgentCard key={card.key} card={card} now={now} />)}
-          {finishedTasks.map((task) => <TaskCard key={task.id} task={task} />)}
+            {!finishedOpen && (
+              <span className="ml-auto normal-case tracking-normal tabular-nums">
+                {formatUsd(finishedCards.reduce((sum, card) => sum + (card.summary?.cost ?? 0), 0))}
+              </span>
+            )}
+          </button>
+          {finishedOpen && [...finishedCards].reverse().map((card) => <AgentCard key={card.key} card={card} now={now} />)}
+          {finishedOpen && finishedTasks.map((task) => <TaskCard key={task.id} task={task} />)}
         </section>
       )}
     </div>
@@ -356,9 +385,9 @@ function contextFigures(snapshot: ContextSnapshot): { tokens: number | null; win
   return { tokens, windowTokens, percent, high: contextIsHigh(tokens, windowTokens) }
 }
 
-function BoardTiles({ totals, totalCalls, running, mainSnapshot, fallbackCost }: {
+function BoardTiles({ totals, totalTurns, running, mainSnapshot, fallbackCost }: {
   totals: BoardTotals
-  totalCalls: number
+  totalTurns: number
   running: number
   mainSnapshot: ContextSnapshot | null
   fallbackCost: number
@@ -372,7 +401,7 @@ function BoardTiles({ totals, totalCalls, running, mainSnapshot, fallbackCost }:
         <Tile
           label={t('chat.contextPanel.agents.tiles.cost')}
           value={formatUsd(totals.agents > 0 ? totals.cost : fallbackCost)}
-          detail={`${t('chat.contextPanel.agents.tiles.agentCount', { count: agents })} · ${t('chat.contextPanel.tiles.calls', { count: totalCalls })}`}
+          detail={`${t('chat.contextPanel.agents.tiles.agentCount', { count: agents })} · ${t('chat.contextPanel.agents.tiles.turns', { count: totalTurns })}`}
         />
         <Tile
           label={t('chat.contextPanel.agents.tiles.tokens')}
@@ -456,6 +485,16 @@ const KIND_LABEL_KEYS = {
   child: 'chat.contextPanel.agents.kind.child',
 } as const satisfies Record<AgentKind, string>
 
+function InfoBlock({ label, value, detail, title }: { label: string; value: string; detail?: string; title?: string }): React.JSX.Element {
+  return (
+    <div className="min-w-0 rounded border border-border bg-card/40 px-2 py-1" title={title}>
+      <div className="truncate text-[10px] uppercase tracking-wide text-dim">{label}</div>
+      <div className="truncate text-xs font-semibold text-primary">{value}</div>
+      {detail && <div className="truncate text-[10px] text-dim">{detail}</div>}
+    </div>
+  )
+}
+
 function Metric({ label, value, detail, tone }: { label: string; value: string; detail?: string; tone?: 'warning' }): React.JSX.Element {
   return (
     <div className="min-w-0">
@@ -482,7 +521,13 @@ function AgentCard({ card, now, subagents }: {
   const cache = cacheState(snapshot, now)
   const estimate = nextCallEstimate(snapshot)
   const live = cache.status === 'warm' || cache.status === 'expiring'
-  const models = summary?.models ?? []
+  // A finished subagent's cache is never read again, and one with no known lifetime has no countdown.
+  const showCache = card.kind === 'main' || (card.status === 'running' && cache.status !== 'unknown')
+  const models = (summary?.models ?? []).filter((model) => model.model)
+  // The model the next call goes to: the recorder knows it, else the last call or switch.
+  const currentId = (card.recorded ? snapshot.model?.id : null) ?? summary?.lastCall?.model ?? summary?.selectedModel?.model ?? snapshot.model?.id ?? null
+  const currentModel = snapshot.model && snapshot.model.id === currentId ? snapshot.model.name : currentId
+  const otherModels = models.filter((model) => model.model !== currentId).length
   const cost = summary?.cost ?? snapshot.totals.cost
   const tokensIn = summary ? summary.input + summary.cacheRead + summary.cacheWrite : snapshot.totals.input + snapshot.totals.cacheRead + snapshot.totals.cacheWrite
   const tokensOut = summary?.output ?? snapshot.totals.output
@@ -497,19 +542,15 @@ function AgentCard({ card, now, subagents }: {
         )}
       </header>
       {card.subtitle && <p className="mt-0.5 truncate text-[11px] text-dim" title={card.subtitle}>{card.subtitle}</p>}
-      {models.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {models.map((model) => (
-            <span
-              key={`${model.provider}/${model.model}`}
-              className="max-w-full truncate rounded-full border border-border px-1.5 py-px text-[10px] text-secondary tabular-nums"
-              title={model.provider ? `${model.provider}/${model.model}` : model.model}
-            >
-              {`${model.model || t('chat.contextPanel.agents.models.compaction')} ×${model.calls}`}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <InfoBlock
+          label={t('chat.contextPanel.agents.card.model')}
+          value={currentModel ?? '–'}
+          detail={otherModels > 0 ? t('chat.contextPanel.agents.card.otherModels', { count: otherModels }) : undefined}
+          title={models.map((model) => model.model).join('\n') || undefined}
+        />
+        <InfoBlock label={t('chat.contextPanel.agents.card.effort')} value={card.effort ?? '–'} />
+      </div>
       <div className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1.5">
         <Metric
           label={t('chat.contextPanel.tiles.context')}
@@ -522,7 +563,7 @@ function AgentCard({ card, now, subagents }: {
           value={`${formatCompact(tokensIn)} / ${formatCompact(tokensOut)}`}
           detail={t('chat.contextPanel.agents.card.inOut')}
         />
-        <Metric label={t('chat.contextPanel.agents.card.cost')} value={formatUsd(cost)} detail={t('chat.contextPanel.tiles.calls', { count: summary?.calls ?? snapshot.totals.calls })} />
+        <Metric label={t('chat.contextPanel.agents.card.cost')} value={formatUsd(cost)} detail={summary ? t('chat.contextPanel.agents.tiles.turns', { count: summary.turns }) : undefined} />
         <Metric label={t('chat.contextPanel.agents.card.time')} value={summary ? formatDuration(summary.activeMs) : '–'} />
         <div className="col-span-2 min-w-0">
           <Metric
@@ -533,7 +574,7 @@ function AgentCard({ card, now, subagents }: {
         </div>
       </div>
       {context.percent !== null && <div className="mt-1.5"><ContextBar percent={context.percent} high={context.high} /></div>}
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5 text-[11px] tabular-nums">
+      {showCache && <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5 text-[11px] tabular-nums">
         <span className={clsx('font-medium', cache.status === 'warm' ? 'text-success' : cache.status === 'expiring' ? 'text-warning' : 'text-dim')} role="timer" aria-live="off">
           {cacheStatusText(cache, t)}
         </span>
@@ -542,7 +583,7 @@ function AgentCard({ card, now, subagents }: {
             ? t('chat.contextPanel.agents.card.nextWarm', { cost: estimate.warm !== null ? formatUsd(estimate.warm) : '–' })
             : cache.status !== 'none' ? t('chat.contextPanel.agents.card.nextCold', { cost: estimate.cold !== null ? formatUsd(estimate.cold) : '–' }) : ''}
         </span>
-      </div>
+      </div>}
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -550,11 +591,11 @@ function AgentCard({ card, now, subagents }: {
         className="mt-1.5 flex items-center gap-1 text-[11px] text-accent-fg hover:underline"
       >
         <ChevronDown size={11} className={clsx('transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
-        {open ? t('chat.contextPanel.agents.card.hideDetails') : t('chat.contextPanel.agents.card.details')}
+        {open ? t('chat.contextPanel.agents.card.hideDetails') : showCache ? t('chat.contextPanel.agents.card.details') : t('chat.contextPanel.agents.card.detailsNoCache')}
       </button>
       {open && (
         <div className="mt-2 flex flex-col gap-3">
-          <PromptCacheBlock snapshot={snapshot} cache={cache} subagents={subagents} />
+          <PromptCacheBlock snapshot={snapshot} cache={cache} subagents={subagents} showCache={showCache} />
           <ContextBreakdownView snapshot={snapshot} partial={!card.recorded} />
         </div>
       )}
@@ -609,7 +650,12 @@ interface SubagentCost {
   turnCost: number
 }
 
-function PromptCacheBlock({ snapshot, cache, subagents }: { snapshot: ContextSnapshot; cache: CacheState; subagents?: SubagentCost }): React.JSX.Element {
+function PromptCacheBlock({ snapshot, cache, subagents, showCache = true }: {
+  snapshot: ContextSnapshot
+  cache: CacheState
+  subagents?: SubagentCost
+  showCache?: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const estimate = nextCallEstimate(snapshot)
   const billing = billingTable(snapshot)
@@ -619,6 +665,15 @@ function PromptCacheBlock({ snapshot, cache, subagents }: { snapshot: ContextSna
     ? cache.remainingMs / (cache.lifetimeSeconds * 1000)
     : 0
   const live = cache.status === 'warm' || cache.status === 'expiring'
+
+  if (!showCache) {
+    return (
+      <section className="rounded-md border border-border bg-surface px-2.5 py-2.5">
+        <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">{t('chat.contextPanel.billing.title')}</h3>
+        <BillingTableView rows={billing.rows} lastTotal={billing.lastTotal} turnTotal={billing.turnTotal} />
+      </section>
+    )
+  }
 
   return (
     <section className="rounded-md border border-border bg-surface px-2.5 py-2.5">

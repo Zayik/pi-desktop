@@ -4,6 +4,7 @@ import { join } from 'path'
 import {
   CONTEXT_DIR_ENV,
   CONTEXT_SNAPSHOT_VERSION,
+  MAX_CATALOG_MODELS,
   PARENT_SESSION_ENV,
   buildBreakdown,
   callFromMessage,
@@ -12,6 +13,7 @@ import {
   snapshotFileName,
   snapshotModel,
   type ContextSnapshot,
+  type SnapshotModel,
   type ToolDefinitionInput,
 } from './context-snapshot'
 
@@ -57,6 +59,17 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
 
   const scheduleWrite = (): void => {
     if (!timer) timer = setTimeout(write, WRITE_DELAY_MS)
+  }
+
+  const modelCatalog = (ctx: ExtensionContext): SnapshotModel[] => {
+    try {
+      return ctx.modelRegistry.getAvailable()
+        .map(snapshotModel)
+        .filter((model): model is SnapshotModel => model !== null)
+        .slice(0, MAX_CATALOG_MODELS)
+    } catch {
+      return []
+    }
   }
 
   const refreshModel = (ctx: ExtensionContext): void => {
@@ -113,6 +126,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
       fromSession: true,
     })
     refreshModel(ctx)
+    snapshot.catalog = modelCatalog(ctx)
     scheduleWrite()
   }
 
