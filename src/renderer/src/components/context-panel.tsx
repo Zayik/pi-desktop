@@ -529,8 +529,8 @@ function Chip({ children, tone = 'plain', title }: { children: React.ReactNode; 
       className={clsx(
         'max-w-full truncate rounded px-1.5 py-px text-[11px]',
         tone === 'plain' && 'bg-card font-mono text-secondary',
-        tone === 'kind' && 'bg-accent/10 font-mono text-accent-fg',
-        tone === 'effort' && 'bg-warning/15 text-warning'
+        tone === 'kind' && 'bg-accent-bg font-mono text-accent-fg',
+        tone === 'effort' && 'bg-warning-bg text-warning'
       )}
     >
       {children}
