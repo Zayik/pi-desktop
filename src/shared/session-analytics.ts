@@ -10,7 +10,7 @@
  * the prompt price of each later call on the same branch.
  */
 import { callFromMessage, estimateTextTokens, type ModelCall } from '../../resources/context-snapshot'
-import { ACTIVE_GAP_MS, DELEGATE_RUN_ID, addModelUsage, callCost, type DelegateRun, type ModelUsage } from './agent-board'
+import { ACTIVE_GAP_MS, DELEGATE_RUN_ID, TOOL_WAIT_GAP_MS, addModelUsage, callCost, type DelegateRun, type ModelUsage } from './agent-board'
 
 /** Bump when the facts change shape or meaning, so the index reads every file again. */
 export const SESSION_ANALYTICS_VERSION = 1
@@ -27,8 +27,6 @@ const MAX_TEST_RUNS = 200
 const MAX_TURNS = 300
 const MAX_SLOW_CALLS = 10
 const MAX_FAILED_COMMANDS = 20
-/** A tool call this long is work however quiet the session was; longer, it was probably left hanging. */
-const MAX_TOOL_WAIT_MS = 3 * 60 * 60_000
 
 export interface ToolStat {
   tool: string
@@ -353,7 +351,7 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
     const inherited = forkedAt !== null && at !== null && at < forkedAt
     // Waiting on a running tool (a 20-minute test run) is work, not idle time.
     const waitedOnTool = isRecord(entry.message) && entry.message.role === 'toolResult' && pending.has(String(entry.message.toolCallId))
-    const activeGap = waitedOnTool ? MAX_TOOL_WAIT_MS : ACTIVE_GAP_MS
+    const activeGap = waitedOnTool ? TOOL_WAIT_GAP_MS : ACTIVE_GAP_MS
     if (at !== null && !inherited) {
       if (previousAt !== null && at > previousAt && at - previousAt < activeGap) {
         facts.activeMs += at - previousAt
