@@ -18,6 +18,8 @@ import { promptTokens } from './context-view'
 
 /** Gaps between entries longer than this are idle time, not work. */
 export const ACTIVE_GAP_MS = 5 * 60_000
+/** A tool result can follow a long run (a test suite, a build); waiting on a tool is work up to this long. */
+export const TOOL_WAIT_GAP_MS = 3 * 60 * 60_000
 /** A session with no matching task counts as running while it wrote within this window. */
 export const RECENT_ACTIVITY_MS = 45_000
 const MAX_LABEL_CHARS = 120
@@ -58,7 +60,7 @@ export interface AgentSessionSummary {
   delegateRuns: DelegateRun[]
   startedAt: number | null
   lastActivityAt: number | null
-  /** Sum of the gaps between entries shorter than `ACTIVE_GAP_MS`. */
+  /** Sum of the gaps between entries shorter than `ACTIVE_GAP_MS`, or `TOOL_WAIT_GAP_MS` before a tool result. */
   activeMs: number
   /** User prompts: a subagent's task is one turn, however many requests its tool loop makes. */
   turns: number
@@ -133,6 +135,10 @@ function entryTime(entry: UnknownRecord): number | null {
   if (typeof entry.timestamp !== 'string') return null
   const parsed = Date.parse(entry.timestamp)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function isToolResult(entry: UnknownRecord): boolean {
+  return entry.type === 'message' && isRecord(entry.message) && entry.message.role === 'toolResult'
 }
 
 function contentText(content: unknown): string {
@@ -260,7 +266,8 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
     const at = entryTime(entry)
     const sentAt = previousAt
     if (at !== null) {
-      if (previousAt !== null && at > previousAt && at - previousAt < ACTIVE_GAP_MS) summary.activeMs += at - previousAt
+      const maxGap = isToolResult(entry) ? TOOL_WAIT_GAP_MS : ACTIVE_GAP_MS
+      if (previousAt !== null && at > previousAt && at - previousAt < maxGap) summary.activeMs += at - previousAt
       if (previousAt === null || at > previousAt) previousAt = at
       if (summary.lastActivityAt === null || at > summary.lastActivityAt) summary.lastActivityAt = at
     }

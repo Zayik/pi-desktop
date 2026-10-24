@@ -152,3 +152,15 @@ test('keeps the latest effort and selected model', () => {
   assert.equal(result?.thinkingLevel, 'high')
   assert.deepEqual(result?.selectedModel, { provider: 'anthropic', model: 'claude-sonnet-5-5' })
 })
+
+test('time spent waiting on a running tool counts as active', () => {
+  const entries = [
+    header,
+    user('u1', null, 1_000, 'run the tests'),
+    assistant('a1', 'u1', 2_000, 'm', ['bash']),
+    // A ten-minute test run, then the reply.
+    { type: 'message', id: 't1', parentId: 'a1', timestamp: iso(602_000), message: { role: 'toolResult', toolName: 'bash', content: [{ type: 'text', text: 'ok' }] } },
+    assistant('a2', 't1', 605_000, 'm'),
+  ]
+  assert.equal(summarizeSession(entries, '/x.jsonl')?.activeMs, 1_000 + 1_000 + 600_000 + 3_000)
+})
