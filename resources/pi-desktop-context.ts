@@ -4,6 +4,7 @@ import { join } from 'path'
 import {
   CONTEXT_DIR_ENV,
   CONTEXT_SNAPSHOT_VERSION,
+  PARENT_SESSION_ENV,
   buildBreakdown,
   callFromMessage,
   emptyTotals,
@@ -15,6 +16,8 @@ import {
 } from './context-snapshot'
 
 const contextDir = process.env[CONTEXT_DIR_ENV] ?? null
+// Read once at load: start() then overwrites it for the processes this one spawns.
+const parentSessionId = process.env[PARENT_SESSION_ENV] || null
 // Writes are coalesced: a turn fires several events within a few milliseconds.
 const WRITE_DELAY_MS = 200
 
@@ -65,10 +68,14 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
   /** Rebuild calls and the turn start from the saved session, so a resumed session shows its history. */
   const start = (ctx: ExtensionContext): void => {
     const settings = pi.getSettings() as { cacheWarming?: unknown }
+    const sessionId = ctx.sessionManager.getSessionId()
+    // A subagent Pi process started from here inherits the environment.
+    process.env[PARENT_SESSION_ENV] = sessionId
     snapshot = {
       version: CONTEXT_SNAPSHOT_VERSION,
-      sessionId: ctx.sessionManager.getSessionId(),
+      sessionId,
       sessionFile: ctx.sessionManager.getSessionFile() ?? null,
+      parentSessionId: parentSessionId !== sessionId ? parentSessionId : null,
       updatedAt: Date.now(),
       model: null,
       cacheRetention: process.env.PI_CACHE_RETENTION === 'long' ? 'long' : 'short',

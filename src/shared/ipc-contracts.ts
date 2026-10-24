@@ -105,6 +105,7 @@ export const IPC_CHANNELS = {
 
   // Context panel
   CONTEXT_GET_SNAPSHOT: 'context:get-snapshot',
+  CONTEXT_GET_AGENT_BOARD: 'context:get-agent-board',
 
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',

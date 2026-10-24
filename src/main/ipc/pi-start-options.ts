@@ -12,7 +12,7 @@ import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../shared/agent
 import { i18n } from '../../shared/i18n'
 import { typeSafeKeyEnv, typeSafeKeyStore } from '../typesafe-key-store'
 import { agentResourcePath } from '../agent-resources'
-import { CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE } from '../../../resources/context-snapshot'
+import { CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
 import { getContextSnapshotDir } from '../context-snapshots'
 
 const READ_ONLY_TOOLS = 'read,grep,find,ls'
@@ -131,7 +131,8 @@ export function applyPermissionModeToStartOptions(
       // The API key saved in Settings, so the TypeSafe agent skill never has to
       // ask for it. A key already in the app's own environment wins.
       ...typeSafeKeyEnv(typeSafeKeyStore.getSavedKey(), process.env),
-      ...(recordsContext ? { [CONTEXT_DIR_ENV]: getContextSnapshotDir() } : {}),
+      // A chat started here is a root, even when the app itself was launched from a Pi session.
+      ...(recordsContext ? { [CONTEXT_DIR_ENV]: getContextSnapshotDir(), [PARENT_SESSION_ENV]: '' } : {}),
     },
   }
 }

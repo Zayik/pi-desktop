@@ -93,6 +93,7 @@ import type {
 import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
 import type { ContextSnapshot } from '../../resources/context-snapshot'
+import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -396,6 +397,8 @@ interface PiDesktopAPI {
   context: {
     /** Null until the session's agent has written a snapshot. */
     getSnapshot(sessionId: string): Promise<ContextSnapshot | null>
+    /** The chat and the subagent and worktree sessions that belong to it. */
+    getAgentBoard(request: AgentBoardRequest): Promise<AgentBoard>
   }
 
   // Diagnostics report
@@ -702,6 +705,7 @@ const api: PiDesktopAPI = {
 
   context: {
     getSnapshot: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, sessionId),
+    getAgentBoard: (request) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AGENT_BOARD, request),
   },
 
   diagnostics: {

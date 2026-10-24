@@ -29,7 +29,12 @@ const cache = new Map<string, CachedSnapshot>()
  * Context panel polls.
  */
 export async function readContextSnapshot(sessionId: string, dir = getContextSnapshotDir()): Promise<ContextSnapshot | null> {
-  const path = join(dir, snapshotFileName(sessionId))
+  const snapshot = await readSnapshotFile(join(dir, snapshotFileName(sessionId)))
+  // The file name is derived from the id, so check the id inside matches.
+  return snapshot && snapshot.sessionId === sessionId ? snapshot : null
+}
+
+async function readSnapshotFile(path: string): Promise<ContextSnapshot | null> {
   let info
   try {
     info = await stat(path)
@@ -43,13 +48,32 @@ export async function readContextSnapshot(sessionId: string, dir = getContextSna
   let value: ContextSnapshot | null
   try {
     const parsed: unknown = JSON.parse(await readFile(path, 'utf8'))
-    // The file name is derived from the id, so check the id inside matches.
-    value = isContextSnapshot(parsed) && parsed.sessionId === sessionId ? parsed : null
+    value = isContextSnapshot(parsed) ? parsed : null
   } catch {
     value = null
   }
   cache.set(path, { mtimeMs: info.mtimeMs, size: info.size, value })
   return value
+}
+
+/** Every snapshot written since `since`, for finding the sessions a chat spawned. */
+export async function listContextSnapshots(dir = getContextSnapshotDir(), since = 0): Promise<ContextSnapshot[]> {
+  let names: string[]
+  try {
+    names = await readdir(dir)
+  } catch {
+    return []
+  }
+  const snapshots = await Promise.all(names.filter((name) => name.endsWith('.json')).map(async (name) => {
+    const path = join(dir, name)
+    try {
+      if ((await stat(path)).mtimeMs < since) return null
+    } catch {
+      return null
+    }
+    return readSnapshotFile(path)
+  }))
+  return snapshots.filter((snapshot): snapshot is ContextSnapshot => snapshot !== null)
 }
 
 /** Remove snapshots (and temp files a crash left behind) older than the retention window. */

@@ -17,6 +17,8 @@
 export const CONTEXT_EXTENSION_FILE = 'pi-desktop-context.ts'
 /** Environment variable naming the folder the extension writes snapshots to. */
 export const CONTEXT_DIR_ENV = 'PI_DESKTOP_CONTEXT_DIR'
+/** Set by the recorder to its session id, so a Pi process it spawns (a subagent) can name its parent. */
+export const PARENT_SESSION_ENV = 'PI_DESKTOP_PARENT_SESSION_ID'
 export const CONTEXT_SNAPSHOT_VERSION = 1
 /** Newest model calls kept in a snapshot; older ones only count in the session totals. */
 export const MAX_RECORDED_CALLS = 200
@@ -118,6 +120,8 @@ export interface ContextSnapshot {
   version: typeof CONTEXT_SNAPSHOT_VERSION
   sessionId: string
   sessionFile: string | null
+  /** The recorder session that spawned this one, when it ran under one. */
+  parentSessionId?: string | null
   updatedAt: number
   model: SnapshotModel | null
   /** Which prompt cache tier requests ask for (`PI_CACHE_RETENTION=long` picks long). */
