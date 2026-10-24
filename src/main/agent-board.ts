@@ -140,7 +140,7 @@ export function delegateSessionFile(runId: string, tempDir = tmpdir()): string |
 async function otherWorktrees(cwd: string, now: number): Promise<string[]> {
   const cached = worktreeCache.get(cwd)
   if (cached && now - cached.at < WORKTREE_CACHE_MS) return cached.paths
-  let paths: string[] = []
+  let paths: string[]
   try {
     paths = (await listGitWorktrees(cwd)).filter((entry) => !entry.bare && !pathsEqual(entry.path, cwd)).map((entry) => entry.path)
   } catch {

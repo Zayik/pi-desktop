@@ -54,6 +54,53 @@
       "placeholderQueue": "Type to queue a message — Ctrl+Enter sends it now"
     },
     "contextPanel": {
+      "agents": {
+        "card": {
+          "cost": "Cost",
+          "details": "Cache, billing and context breakdown",
+          "hideDetails": "Hide details",
+          "inOut": "in / out",
+          "lastTool": "last: {{tool}}",
+          "nextCold": "Next call {{cost}}",
+          "nextWarm": "Next if warm {{cost}}",
+          "noSessionFile": "Live figures only: this run has no saved session to read yet.",
+          "time": "Time",
+          "tools": "Tool calls"
+        },
+        "finished_one": "Finished · {{count}}",
+        "finished_other": "Finished · {{count}}",
+        "kind": {
+          "child": "Child session",
+          "main": "Main",
+          "subagent": "Subagent",
+          "worktree": "Worktree"
+        },
+        "main": "Main agent",
+        "models": {
+          "agents": "Agents",
+          "calls": "Calls",
+          "caption": "Calls, tokens and cost per model across all agents",
+          "compaction": "compaction",
+          "cost": "Cost",
+          "hide": "Hide model breakdown",
+          "model": "Model",
+          "show_one": "View model breakdown ({{count}} model)",
+          "show_other": "View model breakdown ({{count}} models)",
+          "tokens": "In / out"
+        },
+        "running_one": "Running · {{count}}",
+        "running_other": "Running · {{count}}",
+        "tiles": {
+          "agentCount_one": "{{count}} agent",
+          "agentCount_other": "{{count}} agents",
+          "cost": "Total cost",
+          "mainContext": "Main context",
+          "running_one": "{{count}} running",
+          "running_other": "{{count}} running",
+          "time": "Active time",
+          "tokens": "Tokens · all agents"
+        }
+      },
       "billing": {
         "cacheRead": "Cache read",
         "cacheWrite": "Cache write",
@@ -62,12 +109,16 @@
         "lastCall": "Last call",
         "output": "Output",
         "rate": "Rate /1M",
+        "subagents_one": "Subagents ({{count}})",
+        "subagents_other": "Subagents ({{count}})",
         "thisTurn": "This turn",
         "tokenType": "Token type",
-        "total": "Total"
+        "total": "Total",
+        "totalWithSubagents": "Total with subagents"
       },
       "breakdown": {
         "barLabel": "Context window by category",
+        "conversationOnly": "Rebuilt from the session file: the conversation only. The system prompt and tools show when the agent runs under Pi Desktop.",
         "count_one": "×{{count}}",
         "count_other": "×{{count}}",
         "empty": "Shows after the next request.",
@@ -75,7 +126,9 @@
         "free": "Free space",
         "fromSession": "Rebuilt from the saved session. It updates on the next request.",
         "note": "Estimated at 4 characters a token from the latest request. Hover an item for a preview.",
-        "title": "What fills the context"
+        "title": "What fills the context",
+        "unattributed": "System prompt and tools (not in the file)",
+        "unattributedDetail": "What the last call sent beyond the saved conversation: the system prompt, instruction files, skills and tool definitions."
       },
       "cache": {
         "cold": "Cold",
@@ -117,8 +170,6 @@
         "calls_other": "{{count}} calls",
         "context": "Context",
         "contextOfWindow": "{{tokens}} of {{window}}",
-        "cost": "Session cost",
-        "model": "Model",
         "tokens": "Tokens",
         "tokensDetail": "in {{input}} · out {{output}}"
       },

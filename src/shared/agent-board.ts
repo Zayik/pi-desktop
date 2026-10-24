@@ -169,7 +169,6 @@ export function currentBranch(entries: UnknownRecord[]): UnknownRecord[] {
 
 /** Messages the next call sends: after the latest compaction, its summary stands in for what it replaced. */
 function contextMessages(branch: UnknownRecord[]): unknown[] {
-  let start = 0
   const messages: unknown[] = []
   for (let index = branch.length - 1; index >= 0; index--) {
     const entry = branch[index]
@@ -177,7 +176,7 @@ function contextMessages(branch: UnknownRecord[]): unknown[] {
       messages.push({ role: 'compactionSummary', summary: str(entry.summary) ?? '' })
       const firstKept = str(entry.firstKeptEntryId)
       const keptAt = firstKept ? branch.findIndex((candidate) => candidate.id === firstKept) : -1
-      start = keptAt >= 0 ? keptAt : index + 1
+      const start = keptAt >= 0 ? keptAt : index + 1
       // Kept entries before the compaction stay; anything after it is new.
       for (const kept of branch.slice(start)) {
         if (kept !== entry && kept.type === 'message') messages.push(kept.message)

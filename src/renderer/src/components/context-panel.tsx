@@ -4,6 +4,20 @@ import { clsx } from 'clsx'
 import { ChevronDown, X } from 'lucide-react'
 import type { ContextCategory, ContextCategoryId, ContextSnapshot } from '../../../../resources/context-snapshot'
 import {
+  boardTotals,
+  childIsRunning,
+  costSince,
+  snapshotFromSummary,
+  type AgentBoard,
+  type AgentBoardRequest,
+  type AgentKind,
+  type AgentSessionSummary,
+  type BoardTotals,
+} from '../../../shared/agent-board'
+import { pathsEqual } from '../../../shared/path-compare'
+import type { SubagentTask, SubagentTaskStatus } from '../../../shared/subagent-task'
+import { SubagentStatusIcon } from './subagent-task-row'
+import {
   billingTable,
   cacheHitRate,
   cacheState,
@@ -22,6 +36,8 @@ import { formatCompact } from '../utils/format-compact'
 
 /** The Context panel re-reads the session's snapshot this often while it is open. */
 const SNAPSHOT_POLL_MS = 2_000
+/** Reading every agent's session file costs more, so the board refreshes a little slower. */
+const BOARD_POLL_MS = 3_000
 
 const CATEGORY_LABEL_KEYS = {
   'system-prompt': 'chat.contextPanel.category.systemPrompt',
@@ -68,6 +84,17 @@ function formatUsd(amount: number): string {
   if (amount < 0.01) return `$${amount.toFixed(4)}`
   if (amount < 10) return `$${amount.toFixed(3)}`
   return `$${amount.toFixed(2)}`
+}
+
+/** "35s", "4m 12s", "1h 05m": active time. */
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`
+  return `${seconds}s`
 }
 
 function formatCountdown(ms: number): string {
@@ -128,11 +155,56 @@ function useNow(intervalMs: number): number {
   return now
 }
 
-/** Right-side Context panel: what fills this session's context, its prompt cache, and what calls cost. */
+/** The chat's agents board, re-read while the panel is open. */
+function useAgentBoard(request: AgentBoardRequest | null): AgentBoard | null {
+  const [state, setState] = useState<{ sessionId: string | null; board: AgentBoard | null }>({ sessionId: null, board: null })
+  // Re-subscribe only when the request's content changes, not on every render.
+  const key = request ? JSON.stringify(request) : null
+  useEffect(() => {
+    if (!key) return
+    const parsed = JSON.parse(key) as AgentBoardRequest
+    let cancelled = false
+    const load = (): void => {
+      window.piDesktop.context.getAgentBoard(parsed)
+        .then((board) => {
+          if (!cancelled) setState({ sessionId: parsed.sessionId, board })
+        })
+        .catch(() => {
+          // Keep the last board; the next poll retries.
+        })
+    }
+    load()
+    const id = setInterval(load, BOARD_POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [key])
+  // A board of the previous chat never shows under the new one.
+  return request && state.sessionId === request.sessionId ? state.board : null
+}
+
+/** The session file a subagent row's transcript lives in, when it has one. */
+function taskSessionFile(task: SubagentTask): string | null {
+  return task.transcriptRef.kind === 'pi-foreground' ? task.transcriptRef.sessionFile ?? null : null
+}
+
+/** Right-side Context panel: every agent of this chat, what fills its context, its prompt cache, and what calls cost. */
 export function ContextPanel({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { t } = useTranslation()
   const sessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
+  const sessionFile = useAppStore((state) => state.sessionState?.sessionFile ?? null)
+  const tasks = useAppStore((state) => state.subagentTasks)
   const { snapshot, loaded } = useContextSnapshot(sessionId)
+  const subagentFiles = useMemo(
+    () => tasks.map(taskSessionFile).filter((file): file is string => file !== null).sort(),
+    [tasks]
+  )
+  const request = useMemo<AgentBoardRequest | null>(
+    () => (sessionId ? { sessionId, sessionFile, subagentSessionFiles: subagentFiles } : null),
+    [sessionId, sessionFile, subagentFiles]
+  )
+  const board = useAgentBoard(request)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -151,26 +223,118 @@ export function ContextPanel({ onClose }: { onClose: () => void }): React.JSX.El
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {!sessionId ? (
           <p className="py-6 text-center text-xs text-dim">{t('chat.contextPanel.noSession')}</p>
-        ) : !snapshot ? (
+        ) : !snapshot && !board?.main ? (
           <p className="py-6 text-center text-xs text-dim">
             {loaded ? t('chat.contextPanel.noSnapshot') : t('chat.contextPanel.loading')}
           </p>
         ) : (
-          <ContextSnapshotView snapshot={snapshot} />
+          <AgentBoardView snapshot={snapshot} board={board} tasks={tasks} />
         )}
       </div>
     </div>
   )
 }
 
-function ContextSnapshotView({ snapshot }: { snapshot: ContextSnapshot }): React.JSX.Element {
+interface CardModel {
+  key: string
+  kind: AgentKind
+  title: string
+  subtitle: string | null
+  status: SubagentTaskStatus
+  /** The recorder's snapshot, or one built from the session file. */
+  snapshot: ContextSnapshot
+  summary: AgentSessionSummary | null
+  /** True when the snapshot came from the recorder, so the breakdown includes the prompt and tools. */
+  recorded: boolean
+}
+
+function AgentBoardView({ snapshot, board, tasks }: {
+  snapshot: ContextSnapshot | null
+  board: AgentBoard | null
+  tasks: SubagentTask[]
+}): React.JSX.Element {
+  const { t } = useTranslation()
   const now = useNow(1_000)
-  const cache = cacheState(snapshot, now)
+  const isStreaming = useAppStore((state) => state.isStreaming)
+  const main = board?.main ?? null
+  const mainSnapshot = snapshot ?? (main ? snapshotFromSummary(main, null, 'short') : null)
+  const children = board?.children ?? []
+
+  const matchedTaskIds = new Set<string>()
+  const childCards: CardModel[] = children.map((child) => {
+    const task = tasks.find((candidate) => {
+      const file = taskSessionFile(candidate)
+      return file !== null && pathsEqual(file, child.summary.sessionFile)
+    })
+    if (task) matchedTaskIds.add(task.id)
+    const running = childIsRunning(child.summary, task ? task.status === 'running' : null, now)
+    const status: SubagentTaskStatus = task && !running ? task.status : running ? 'running' : 'done'
+    const agentName = task?.agent ?? child.agentName
+    return {
+      key: child.summary.sessionFile,
+      kind: child.kind,
+      title: child.summary.name ?? (agentName ? agentName : child.summary.label ?? child.summary.sessionId),
+      subtitle: child.kind === 'worktree' && child.summary.cwd ? child.summary.cwd : child.summary.name ? null : agentName ? child.summary.label : null,
+      status,
+      snapshot: child.snapshot ?? snapshotFromSummary(child.summary, mainSnapshot?.model ?? null, mainSnapshot?.cacheRetention ?? 'short'),
+      summary: child.summary,
+      recorded: child.snapshot !== null,
+    }
+  })
+  const liveTasks = tasks.filter((task) => !matchedTaskIds.has(task.id))
+  const summaries = [...(main ? [main] : []), ...children.map((child) => child.summary)]
+  const totals = boardTotals(summaries)
+  const runningCards = childCards.filter((card) => card.status === 'running')
+  const finishedCards = childCards.filter((card) => card.status !== 'running')
+  const runningTasks = liveTasks.filter((task) => task.status === 'running')
+  const finishedTasks = liveTasks.filter((task) => task.status !== 'running')
+  const turnStart = mainSnapshot?.turnStartedAt ?? null
+  const subagentTurnCost = children.reduce((sum, child) => sum + costSince(child.summary, turnStart), 0)
+
   return (
-    <div className="flex flex-col gap-4">
-      <SummaryTiles snapshot={snapshot} />
-      <PromptCacheBlock snapshot={snapshot} cache={cache} />
-      <ContextBreakdownView snapshot={snapshot} />
+    <div className="flex flex-col gap-3">
+      <BoardTiles
+        totals={totals}
+        totalCalls={summaries.reduce((sum, summary) => sum + summary.calls, 0)}
+        running={runningCards.length + runningTasks.length + (isStreaming ? 1 : 0)}
+        mainSnapshot={mainSnapshot}
+        fallbackCost={mainSnapshot?.totals.cost ?? 0}
+      />
+      {totals.models.length > 0 && <ModelBreakdown models={totals.models} />}
+      {mainSnapshot && (
+        <AgentCard
+          card={{
+            key: 'main',
+            kind: 'main',
+            title: t('chat.contextPanel.agents.main'),
+            subtitle: main?.name ?? main?.label ?? null,
+            status: isStreaming ? 'running' : 'done',
+            snapshot: mainSnapshot,
+            summary: main,
+            recorded: snapshot !== null,
+          }}
+          now={now}
+          subagents={children.length > 0 ? { count: children.length, turnCost: subagentTurnCost } : undefined}
+        />
+      )}
+      {(runningCards.length > 0 || runningTasks.length > 0) && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">
+            {t('chat.contextPanel.agents.running', { count: runningCards.length + runningTasks.length })}
+          </h3>
+          {runningCards.map((card) => <AgentCard key={card.key} card={card} now={now} />)}
+          {runningTasks.map((task) => <TaskCard key={task.id} task={task} />)}
+        </section>
+      )}
+      {(finishedCards.length > 0 || finishedTasks.length > 0) && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[10px] font-medium uppercase tracking-wide text-dim">
+            {t('chat.contextPanel.agents.finished', { count: finishedCards.length + finishedTasks.length })}
+          </h3>
+          {[...finishedCards].reverse().map((card) => <AgentCard key={card.key} card={card} now={now} />)}
+          {finishedTasks.map((task) => <TaskCard key={task.id} task={task} />)}
+        </section>
+      )}
     </div>
   )
 }
@@ -185,44 +349,241 @@ function Tile({ label, value, detail, tone }: { label: string; value: string; de
   )
 }
 
-function SummaryTiles({ snapshot }: { snapshot: ContextSnapshot }): React.JSX.Element {
-  const { t } = useTranslation()
+function contextFigures(snapshot: ContextSnapshot): { tokens: number | null; windowTokens: number | null; percent: number | null; high: boolean } {
   const tokens = contextTokens(snapshot)
   const windowTokens = contextWindow(snapshot)
   const percent = tokens !== null && windowTokens ? Math.min(100, (tokens / windowTokens) * 100) : null
-  const high = contextIsHigh(tokens, windowTokens)
-  const { totals } = snapshot
+  return { tokens, windowTokens, percent, high: contextIsHigh(tokens, windowTokens) }
+}
+
+function BoardTiles({ totals, totalCalls, running, mainSnapshot, fallbackCost }: {
+  totals: BoardTotals
+  totalCalls: number
+  running: number
+  mainSnapshot: ContextSnapshot | null
+  fallbackCost: number
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const context = mainSnapshot ? contextFigures(mainSnapshot) : null
+  const agents = Math.max(1, totals.agents)
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-2 gap-2">
         <Tile
-          label={t('chat.contextPanel.tiles.context')}
-          value={percent !== null ? `${Math.round(percent)}%` : tokens !== null ? formatCompact(tokens) : '–'}
-          detail={tokens !== null && windowTokens ? t('chat.contextPanel.tiles.contextOfWindow', { tokens: formatCompact(tokens), window: formatCompact(windowTokens) }) : undefined}
-          tone={high ? 'warning' : undefined}
+          label={t('chat.contextPanel.agents.tiles.cost')}
+          value={formatUsd(totals.agents > 0 ? totals.cost : fallbackCost)}
+          detail={`${t('chat.contextPanel.agents.tiles.agentCount', { count: agents })} · ${t('chat.contextPanel.tiles.calls', { count: totalCalls })}`}
         />
         <Tile
-          label={t('chat.contextPanel.tiles.cost')}
-          value={formatUsd(totals.cost)}
-          detail={t('chat.contextPanel.tiles.calls', { count: totals.calls })}
+          label={t('chat.contextPanel.agents.tiles.tokens')}
+          value={formatCompact(totals.tokensIn + totals.tokensOut)}
+          detail={t('chat.contextPanel.tiles.tokensDetail', { input: formatCompact(totals.tokensIn), output: formatCompact(totals.tokensOut) })}
         />
         <Tile
-          label={t('chat.contextPanel.tiles.tokens')}
-          value={formatCompact(totals.input + totals.output + totals.cacheRead + totals.cacheWrite)}
-          detail={t('chat.contextPanel.tiles.tokensDetail', { input: formatCompact(totals.input + totals.cacheRead + totals.cacheWrite), output: formatCompact(totals.output) })}
+          label={t('chat.contextPanel.agents.tiles.time')}
+          value={formatDuration(totals.activeMs)}
+          detail={t('chat.contextPanel.agents.tiles.running', { count: running })}
         />
         <Tile
-          label={t('chat.contextPanel.tiles.model')}
-          value={snapshot.model?.name ?? '–'}
-          detail={snapshot.model?.provider || undefined}
+          label={t('chat.contextPanel.agents.tiles.mainContext')}
+          value={context?.percent != null ? `${Math.round(context.percent)}%` : context?.tokens != null ? formatCompact(context.tokens) : '–'}
+          detail={context?.tokens != null && context.windowTokens ? t('chat.contextPanel.tiles.contextOfWindow', { tokens: formatCompact(context.tokens), window: formatCompact(context.windowTokens) }) : undefined}
+          tone={context?.high ? 'warning' : undefined}
         />
       </div>
-      {percent !== null && (
-        <div className="h-1.5 overflow-hidden rounded-full bg-card" aria-hidden="true">
-          <div className={clsx('h-full rounded-full', high ? 'bg-warning' : 'bg-success')} style={{ width: `${percent}%` }} />
+      {context?.percent != null && <ContextBar percent={context.percent} high={context.high} />}
+    </div>
+  )
+}
+
+function ContextBar({ percent, high }: { percent: number; high: boolean }): React.JSX.Element {
+  return (
+    <div className="h-1.5 overflow-hidden rounded-full bg-card" aria-hidden="true">
+      <div className={clsx('h-full rounded-full', high ? 'bg-warning' : 'bg-success')} style={{ width: `${percent}%` }} />
+    </div>
+  )
+}
+
+function ModelBreakdown({ models }: { models: BoardTotals['models'] }): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex items-center gap-1 text-[11px] font-medium text-accent-fg hover:underline"
+      >
+        <ChevronDown size={11} className={clsx('transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
+        {open ? t('chat.contextPanel.agents.models.hide') : t('chat.contextPanel.agents.models.show', { count: models.length })}
+      </button>
+      {open && (
+        <table className="mt-1.5 w-full table-fixed text-[11px] tabular-nums">
+          <caption className="sr-only">{t('chat.contextPanel.agents.models.caption')}</caption>
+          <thead>
+            <tr className="border-b border-border text-dim">
+              <th scope="col" className="w-[38%] py-1 text-left font-medium">{t('chat.contextPanel.agents.models.model')}</th>
+              <th scope="col" className="py-1 text-right font-medium">{t('chat.contextPanel.agents.models.agents')}</th>
+              <th scope="col" className="py-1 text-right font-medium">{t('chat.contextPanel.agents.models.calls')}</th>
+              <th scope="col" className="py-1 text-right font-medium">{t('chat.contextPanel.agents.models.tokens')}</th>
+              <th scope="col" className="py-1 text-right font-medium">{t('chat.contextPanel.agents.models.cost')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {models.map((model) => (
+              <tr key={`${model.provider}/${model.model}`} className="border-b border-border/50 text-secondary">
+                <th scope="row" className="truncate py-1 text-left font-normal" title={model.provider ? `${model.provider}/${model.model}` : model.model}>
+                  {model.model || t('chat.contextPanel.agents.models.compaction')}
+                </th>
+                <td className="py-1 text-right">{model.agents}</td>
+                <td className="py-1 text-right">{model.calls}</td>
+                <td className="truncate py-1 text-right">{`${formatCompact(model.input + model.cacheRead + model.cacheWrite)} / ${formatCompact(model.output)}`}</td>
+                <td className="py-1 text-right">{formatUsd(model.cost)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
+const KIND_LABEL_KEYS = {
+  main: 'chat.contextPanel.agents.kind.main',
+  subagent: 'chat.contextPanel.agents.kind.subagent',
+  worktree: 'chat.contextPanel.agents.kind.worktree',
+  child: 'chat.contextPanel.agents.kind.child',
+} as const satisfies Record<AgentKind, string>
+
+function Metric({ label, value, detail, tone }: { label: string; value: string; detail?: string; tone?: 'warning' }): React.JSX.Element {
+  return (
+    <div className="min-w-0">
+      <div className="truncate text-[10px] uppercase tracking-wide text-dim">{label}</div>
+      <div className={clsx('truncate text-xs font-semibold tabular-nums', tone === 'warning' ? 'text-warning' : 'text-primary')}>{value}</div>
+      {detail && <div className="truncate text-[10px] text-dim">{detail}</div>}
+    </div>
+  )
+}
+
+/**
+ * One agent at a glance: models, context, tokens, cost, time, tools and its
+ * prompt cache; the full cache, billing and context breakdown open below.
+ */
+function AgentCard({ card, now, subagents }: {
+  card: CardModel
+  now: number
+  subagents?: { count: number; turnCost: number }
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const { snapshot, summary } = card
+  const context = contextFigures(snapshot)
+  const cache = cacheState(snapshot, now)
+  const estimate = nextCallEstimate(snapshot)
+  const live = cache.status === 'warm' || cache.status === 'expiring'
+  const models = summary?.models ?? []
+  const cost = summary?.cost ?? snapshot.totals.cost
+  const tokensIn = summary ? summary.input + summary.cacheRead + summary.cacheWrite : snapshot.totals.input + snapshot.totals.cacheRead + snapshot.totals.cacheWrite
+  const tokensOut = summary?.output ?? snapshot.totals.output
+
+  return (
+    <article className={clsx('rounded-md border bg-surface px-2.5 py-2', card.kind === 'main' ? 'border-accent/40' : 'border-border')}>
+      <header className="flex items-center gap-1.5">
+        <SubagentStatusIcon status={card.status} />
+        <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-primary" title={card.title}>{card.title}</h4>
+        {card.kind !== 'main' && (
+          <span className="shrink-0 rounded bg-card px-1.5 py-px text-[10px] text-dim">{t(KIND_LABEL_KEYS[card.kind])}</span>
+        )}
+      </header>
+      {card.subtitle && <p className="mt-0.5 truncate text-[11px] text-dim" title={card.subtitle}>{card.subtitle}</p>}
+      {models.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {models.map((model) => (
+            <span
+              key={`${model.provider}/${model.model}`}
+              className="max-w-full truncate rounded-full border border-border px-1.5 py-px text-[10px] text-secondary tabular-nums"
+              title={model.provider ? `${model.provider}/${model.model}` : model.model}
+            >
+              {`${model.model || t('chat.contextPanel.agents.models.compaction')} ×${model.calls}`}
+            </span>
+          ))}
         </div>
       )}
-    </div>
+      <div className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1.5">
+        <Metric
+          label={t('chat.contextPanel.tiles.context')}
+          value={context.percent !== null ? `${Math.round(context.percent)}%` : context.tokens !== null ? formatCompact(context.tokens) : '–'}
+          detail={context.percent !== null && context.tokens !== null ? formatCompact(context.tokens) : undefined}
+          tone={context.high ? 'warning' : undefined}
+        />
+        <Metric
+          label={t('chat.contextPanel.tiles.tokens')}
+          value={`${formatCompact(tokensIn)} / ${formatCompact(tokensOut)}`}
+          detail={t('chat.contextPanel.agents.card.inOut')}
+        />
+        <Metric label={t('chat.contextPanel.agents.card.cost')} value={formatUsd(cost)} detail={t('chat.contextPanel.tiles.calls', { count: summary?.calls ?? snapshot.totals.calls })} />
+        <Metric label={t('chat.contextPanel.agents.card.time')} value={summary ? formatDuration(summary.activeMs) : '–'} />
+        <div className="col-span-2 min-w-0">
+          <Metric
+            label={t('chat.contextPanel.agents.card.tools')}
+            value={summary ? String(summary.toolCalls) : '–'}
+            detail={summary?.lastTool ? t('chat.contextPanel.agents.card.lastTool', { tool: summary.lastTool }) : undefined}
+          />
+        </div>
+      </div>
+      {context.percent !== null && <div className="mt-1.5"><ContextBar percent={context.percent} high={context.high} /></div>}
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5 text-[11px] tabular-nums">
+        <span className={clsx('font-medium', cache.status === 'warm' ? 'text-success' : cache.status === 'expiring' ? 'text-warning' : 'text-dim')} role="timer" aria-live="off">
+          {cacheStatusText(cache, t)}
+        </span>
+        <span className="truncate text-dim">
+          {live
+            ? t('chat.contextPanel.agents.card.nextWarm', { cost: estimate.warm !== null ? formatUsd(estimate.warm) : '–' })
+            : cache.status !== 'none' ? t('chat.contextPanel.agents.card.nextCold', { cost: estimate.cold !== null ? formatUsd(estimate.cold) : '–' }) : ''}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="mt-1.5 flex items-center gap-1 text-[11px] text-accent-fg hover:underline"
+      >
+        <ChevronDown size={11} className={clsx('transition-transform duration-150', open ? 'rotate-0' : '-rotate-90')} />
+        {open ? t('chat.contextPanel.agents.card.hideDetails') : t('chat.contextPanel.agents.card.details')}
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-3">
+          <PromptCacheBlock snapshot={snapshot} cache={cache} subagents={subagents} />
+          <ContextBreakdownView snapshot={snapshot} partial={!card.recorded} />
+        </div>
+      )}
+    </article>
+  )
+}
+
+/** A subagent row with no saved session to read (still starting, or an engine that keeps none). */
+function TaskCard({ task }: { task: SubagentTask }): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <article className="rounded-md border border-border bg-surface px-2.5 py-2">
+      <header className="flex items-center gap-1.5">
+        <SubagentStatusIcon status={task.status} />
+        <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-primary">{task.agent}</h4>
+        <span className="shrink-0 rounded bg-card px-1.5 py-px text-[10px] text-dim">{t(KIND_LABEL_KEYS.subagent)}</span>
+      </header>
+      {task.label && <p className="mt-0.5 truncate text-[11px] text-dim" title={task.label}>{task.label}</p>}
+      <div className="mt-2 grid grid-cols-3 gap-x-2">
+        <Metric label={t('chat.contextPanel.tiles.tokens')} value={task.tokens !== undefined ? formatCompact(task.tokens) : '–'} />
+        <Metric label={t('chat.contextPanel.agents.card.time')} value={task.durationMs !== undefined ? formatDuration(task.durationMs) : '–'} />
+        <Metric
+          label={t('chat.contextPanel.agents.card.tools')}
+          value={task.toolCount !== undefined ? String(task.toolCount) : '–'}
+          detail={task.currentTool ? t('chat.contextPanel.agents.card.lastTool', { tool: task.currentTool }) : undefined}
+        />
+      </div>
+      <p className="mt-1.5 text-[10px] text-faint">{t('chat.contextPanel.agents.card.noSessionFile')}</p>
+    </article>
   )
 }
 
@@ -242,7 +603,13 @@ function cacheStatusText(cache: CacheState, t: Translate): string {
   }
 }
 
-function PromptCacheBlock({ snapshot, cache }: { snapshot: ContextSnapshot; cache: CacheState }): React.JSX.Element {
+interface SubagentCost {
+  count: number
+  /** What the chat's other agents spent since its latest prompt. */
+  turnCost: number
+}
+
+function PromptCacheBlock({ snapshot, cache, subagents }: { snapshot: ContextSnapshot; cache: CacheState; subagents?: SubagentCost }): React.JSX.Element {
   const { t } = useTranslation()
   const estimate = nextCallEstimate(snapshot)
   const billing = billingTable(snapshot)
@@ -310,7 +677,7 @@ function PromptCacheBlock({ snapshot, cache }: { snapshot: ContextSnapshot; cach
         )}
       </div>
 
-      <BillingTableView rows={billing.rows} lastTotal={billing.lastTotal} turnTotal={billing.turnTotal} />
+      <BillingTableView rows={billing.rows} lastTotal={billing.lastTotal} turnTotal={billing.turnTotal} subagents={subagents} />
     </section>
   )
 }
@@ -325,7 +692,7 @@ function CacheFigure({ label, value, detail, emphasized }: { label: string; valu
   )
 }
 
-function BillingTableView({ rows, lastTotal, turnTotal }: { rows: BillingRow[]; lastTotal: number; turnTotal: number }): React.JSX.Element {
+function BillingTableView({ rows, lastTotal, turnTotal, subagents }: { rows: BillingRow[]; lastTotal: number; turnTotal: number; subagents?: SubagentCost }): React.JSX.Element {
   const { t } = useTranslation()
   const cell = (tokens: number, cost: number): string => `${formatCompact(tokens)} · ${formatUsd(cost)}`
   return (
@@ -354,21 +721,39 @@ function BillingTableView({ rows, lastTotal, turnTotal }: { rows: BillingRow[]; 
           <td className="py-1 text-right">{formatUsd(lastTotal)}</td>
           <td className="py-1 text-right">{formatUsd(turnTotal)}</td>
         </tr>
+        {subagents && (
+          <>
+            <tr className="border-t border-border/50 text-secondary">
+              <th scope="row" className="truncate py-1 text-left font-normal">{t('chat.contextPanel.billing.subagents', { count: subagents.count })}</th>
+              <td />
+              <td className="py-1 text-right text-dim">–</td>
+              <td className="py-1 text-right">{formatUsd(subagents.turnCost)}</td>
+            </tr>
+            <tr className="font-semibold text-primary">
+              <th scope="row" className="py-1 text-left">{t('chat.contextPanel.billing.totalWithSubagents')}</th>
+              <td />
+              <td />
+              <td className="py-1 text-right">{formatUsd(turnTotal + subagents.turnCost)}</td>
+            </tr>
+          </>
+        )}
       </tbody>
     </table>
   )
 }
 
-function ContextBreakdownView({ snapshot }: { snapshot: ContextSnapshot }): React.JSX.Element {
+function ContextBreakdownView({ snapshot, partial = false }: { snapshot: ContextSnapshot; partial?: boolean }): React.JSX.Element {
   const { t } = useTranslation()
   const [openId, setOpenId] = useState<string | null>(null)
   const breakdown = snapshot.breakdown
   const windowTokens = contextWindow(snapshot)
-  // The bar spans the window when it is known, else the estimate itself.
-  const span = useMemo(() => {
-    const estimated = breakdown?.estimatedTokens ?? 0
-    return windowTokens && windowTokens > estimated ? windowTokens : estimated
-  }, [breakdown, windowTokens])
+  // A session file has no system prompt or tools: what the last call really
+  // sent beyond the conversation is shown as one share of its own.
+  const reported = contextTokens(snapshot)
+  const unattributed = partial && breakdown && reported !== null ? Math.max(0, reported - breakdown.estimatedTokens) : 0
+  const filled = (breakdown?.estimatedTokens ?? 0) + unattributed
+  // The bar spans the window when it is known, else what fills it.
+  const span = windowTokens && windowTokens > filled ? windowTokens : filled
 
   if (!breakdown || breakdown.categories.length === 0) {
     return (
@@ -379,7 +764,7 @@ function ContextBreakdownView({ snapshot }: { snapshot: ContextSnapshot }): Reac
     )
   }
 
-  const free = windowTokens ? Math.max(0, windowTokens - breakdown.estimatedTokens) : null
+  const free = windowTokens ? Math.max(0, windowTokens - filled) : null
   return (
     <section>
       <div className="flex items-baseline justify-between gap-2 pb-1.5">
@@ -397,6 +782,13 @@ function ContextBreakdownView({ snapshot }: { snapshot: ContextSnapshot }): Reac
             title={`${categoryLabel(category, t)}: ${formatCompact(category.tokens)}`}
           />
         ))}
+        {unattributed > 0 && (
+          <div
+            className="h-full bg-elevated"
+            style={{ width: `${span > 0 ? (unattributed / span) * 100 : 0}%` }}
+            title={`${t('chat.contextPanel.breakdown.unattributed')}: ${formatCompact(unattributed)}`}
+          />
+        )}
       </div>
       <ul className="mt-2 flex flex-col">
         {breakdown.categories.map((category) => (
@@ -408,6 +800,15 @@ function ContextBreakdownView({ snapshot }: { snapshot: ContextSnapshot }): Reac
             onToggle={() => setOpenId((current) => (current === category.id ? null : category.id))}
           />
         ))}
+        {unattributed > 0 && (
+          <li className="flex items-center gap-2 px-1 py-1 text-xs text-secondary">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-elevated" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate" title={t('chat.contextPanel.breakdown.unattributedDetail')}>{t('chat.contextPanel.breakdown.unattributed')}</span>
+            <span className="tabular-nums">{formatCompact(unattributed)}</span>
+            <span className="w-10 text-right tabular-nums text-dim">{span > 0 ? `${Math.round((unattributed / span) * 100)}%` : ''}</span>
+            <span className="w-[11px] shrink-0" aria-hidden="true" />
+          </li>
+        )}
         {free !== null && (
           <li className="flex items-center gap-2 px-1 py-1 text-xs text-dim">
             <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-card" aria-hidden="true" />
@@ -418,7 +819,9 @@ function ContextBreakdownView({ snapshot }: { snapshot: ContextSnapshot }): Reac
         )}
       </ul>
       <p className="mt-2 text-[11px] text-faint">
-        {breakdown.fromSession ? t('chat.contextPanel.breakdown.fromSession') : t('chat.contextPanel.breakdown.note')}
+        {partial
+          ? t('chat.contextPanel.breakdown.conversationOnly')
+          : breakdown.fromSession ? t('chat.contextPanel.breakdown.fromSession') : t('chat.contextPanel.breakdown.note')}
       </p>
     </section>
   )

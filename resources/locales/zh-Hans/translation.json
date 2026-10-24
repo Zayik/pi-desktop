@@ -54,6 +54,48 @@
       "placeholderQueue": "输入消息以加入队列 — Ctrl+Enter 立即发送"
     },
     "contextPanel": {
+      "agents": {
+        "card": {
+          "cost": "",
+          "details": "",
+          "hideDetails": "",
+          "inOut": "",
+          "lastTool": "",
+          "nextCold": "",
+          "nextWarm": "",
+          "noSessionFile": "",
+          "time": "",
+          "tools": ""
+        },
+        "finished_other": "",
+        "kind": {
+          "child": "",
+          "main": "",
+          "subagent": "",
+          "worktree": ""
+        },
+        "main": "",
+        "models": {
+          "agents": "",
+          "calls": "",
+          "caption": "",
+          "compaction": "",
+          "cost": "",
+          "hide": "",
+          "model": "",
+          "show_other": "",
+          "tokens": ""
+        },
+        "running_other": "",
+        "tiles": {
+          "agentCount_other": "",
+          "cost": "",
+          "mainContext": "",
+          "running_other": "",
+          "time": "",
+          "tokens": ""
+        }
+      },
       "billing": {
         "cacheRead": "",
         "cacheWrite": "",
@@ -62,19 +104,24 @@
         "lastCall": "",
         "output": "",
         "rate": "",
+        "subagents_other": "",
         "thisTurn": "",
         "tokenType": "",
-        "total": ""
+        "total": "",
+        "totalWithSubagents": ""
       },
       "breakdown": {
         "barLabel": "",
+        "conversationOnly": "",
         "count_other": "",
         "empty": "",
         "estimated": "",
         "free": "",
         "fromSession": "",
         "note": "",
-        "title": ""
+        "title": "",
+        "unattributed": "",
+        "unattributedDetail": ""
       },
       "cache": {
         "cold": "",
@@ -115,8 +162,6 @@
         "calls_other": "",
         "context": "",
         "contextOfWindow": "",
-        "cost": "",
-        "model": "",
         "tokens": "",
         "tokensDetail": ""
       },
