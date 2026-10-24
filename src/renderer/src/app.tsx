@@ -11,6 +11,7 @@ import { HomeScreen } from './components/home-screen'
 import { NotesPanel } from './components/notes-panel'
 import { SkillsPanel } from './components/skills-panel'
 import { DiagnosticsPanel } from './components/diagnostics-panel'
+import { AnalyticsView } from './components/analytics-view'
 import { MissionControl } from './components/mission-control'
 import { TaskLauncher } from './components/task-launcher'
 import { NotePicker } from './components/note-picker'
@@ -177,6 +178,7 @@ export function App(): React.JSX.Element {
                 {currentView === 'notes' && <NotesPanel />}
                 {currentView === 'skills' && <SkillsPanel />}
                 {currentView === 'diagnostics' && <DiagnosticsPanel />}
+                {currentView === 'analytics' && <AnalyticsView />}
               </div>
               {globalWorkflowOpen && <WorkflowNavigator embedded />}
             </main>

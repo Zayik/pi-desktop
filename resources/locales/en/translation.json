@@ -7,6 +7,160 @@
     "working": "Pi is working",
     "workingInAnotherWorkspace": "Pi is working in another workspace"
   },
+  "analytics": {
+    "category": {
+      "build": "Builds",
+      "edit": "Editing",
+      "git": "Git",
+      "install": "Installs",
+      "lint": "Lint and types",
+      "other": "Other tools",
+      "read": "Reading files",
+      "search": "Searching",
+      "shell": "Other commands",
+      "subagent": "Subagents",
+      "test": "Tests",
+      "web": "Web"
+    },
+    "daily": {
+      "bar": "{{day}}: {{cost}}, {{time}} active",
+      "peak": "Peak day {{cost}}",
+      "title": "Cost per day"
+    },
+    "kind": {
+      "child": "fork",
+      "delegate": "delegate",
+      "main": "main",
+      "subagent": "subagent"
+    },
+    "loading": "Loading…",
+    "models": {
+      "hide": "Hide",
+      "model": "Model",
+      "show_one": "Show {{count}} model",
+      "show_other": "Show {{count}} models",
+      "title": "Models"
+    },
+    "panel": {
+      "close": "Close Analytics",
+      "empty": "No analytics for this session yet. It appears after the first saved message.",
+      "noSession": "Open a session to see where its cost and time went.",
+      "title": "Analytics"
+    },
+    "projects": {
+      "project": "Project",
+      "sessions": "Sessions",
+      "title": "Projects"
+    },
+    "prompts": {
+      "cost": "Cost",
+      "empty": "No prompts yet.",
+      "prompt": "Prompt",
+      "time": "Time",
+      "title": "Most expensive prompts"
+    },
+    "ranges": {
+      "all": "All",
+      "oneYear": "1 Y",
+      "sevenDays": "7 D",
+      "thirtyDays": "30 D",
+      "threeMonths": "90 D"
+    },
+    "retro": {
+      "button": "Retro",
+      "overallTitle": "Start a new chat that runs a retrospective on these numbers",
+      "sessionTitle": "Put a retrospective on this session's numbers in the composer"
+    },
+    "sessions": {
+      "agentsTitle": "Session and agents",
+      "cost": "Cost",
+      "session": "Session",
+      "time": "Active",
+      "topTitle": "Most expensive sessions"
+    },
+    "showAll_one": "Show all {{count}}",
+    "showAll_other": "Show all {{count}}",
+    "showLess": "Show less",
+    "signal": {
+      "buildTime": "Builds took {{share}}% of active time ({{minutes}} min over {{runs}} runs).",
+      "carriedTool": "{{tool}} results were sent again with later calls for {{share}}% of the cost ({{cost}}).",
+      "compactions": "{{sessions}} session(s) compacted three or more times (most: {{most}}). Context is filling up fast.",
+      "failingCommand": "{{command}} failed {{failures}} times.",
+      "skillCost": "The {{skill}} skill stayed in context for {{share}}% of the cost ({{uses}} loads).",
+      "slowTests": "The median test run takes {{minutes}} min ({{runs}} runs).",
+      "subagentShare": "Subagents account for {{share}}% of the cost.",
+      "testReruns": "Tests ran {{perSession}} times per session that tested ({{runs}} runs, {{failed}} failed).",
+      "testTime": "Tests took {{share}}% of active time ({{minutes}} min over {{runs}} runs)."
+    },
+    "signals": {
+      "empty": "Nothing stands out.",
+      "note": "Places to look, strongest first",
+      "title": "Signals"
+    },
+    "skills": {
+      "skill": "Skill",
+      "title": "Skills",
+      "tokens": "Tokens",
+      "uses": "Loads"
+    },
+    "slow": {
+      "call": "Call",
+      "command": "Command",
+      "empty": "No timed tool calls yet.",
+      "failingTitle": "Failed more than once",
+      "failures": "Failures",
+      "title": "Slowest tool calls"
+    },
+    "tests": {
+      "empty": "No test runs found.",
+      "failed": "Failed",
+      "median": "Median run",
+      "perSession": "Runs per session",
+      "runs": "Runs",
+      "share": "Share of active time",
+      "title": "Tests",
+      "total": "Total time"
+    },
+    "tiles": {
+      "cost": "Cost",
+      "costDetail": "{{sessions}} sessions · {{calls}} calls",
+      "subagents": "Subagents",
+      "subagentsDetail": "{{share}} of cost",
+      "tests": "Time in tests",
+      "testsDetail": "{{runs}} runs · {{failed}} failed",
+      "time": "Active time",
+      "timeDetail": "{{prompts}} prompts"
+    },
+    "tools": {
+      "calls": "Calls",
+      "carried": "Carried",
+      "empty": "No tool calls yet.",
+      "errors_one": "{{count}} error",
+      "errors_other": "{{count}} errors",
+      "note": "Carried: cost of resending results",
+      "time": "Time",
+      "title": "Tools",
+      "tool": "Tool"
+    },
+    "untitled": "Untitled",
+    "view": {
+      "empty": "No sessions in this range.",
+      "error": "Could not read the analytics index.",
+      "noProject": "No project open",
+      "projectOnly": "Only {{project}}",
+      "range": "Date range",
+      "rebuild": "Rebuild",
+      "rebuildTitle": "Read every session file again",
+      "subtitle": "Where cost and time went across your sessions. Built from Pi's session files; deleted sessions keep their history.",
+      "title": "Analytics"
+    },
+    "work": {
+      "kind": "Kind",
+      "note": "Wall-clock time per kind of work",
+      "share": "Share",
+      "title": "Work by kind"
+    }
+  },
   "app": {
     "dropFolder": {
       "description": "Opens that folder as a workspace (creates one if needed)",
@@ -297,6 +451,7 @@
       "viewSource": "View source"
     },
     "toolbar": {
+      "analytics": "Analytics",
       "context": "Context",
       "diffViewer": "Diff viewer",
       "fileTree": "File tree",
@@ -1667,6 +1822,8 @@
     "tools": {
       "allWorkflows": "All Workflows",
       "allWorkflowsTitle": "Workflow runs from every project",
+      "analytics": "Analytics",
+      "analyticsTitle": "Cost and time across sessions",
       "diagnostics": "Diagnostics",
       "notes": "Notes",
       "packages": "Packages",

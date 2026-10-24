@@ -109,7 +109,7 @@ export interface PreviewTarget {
 }
 
 /** A secondary view in the chat's side slot. */
-export type ChatSidePanel = 'files' | 'diff' | 'tasks' | 'context'
+export type ChatSidePanel = 'files' | 'diff' | 'tasks' | 'context' | 'analytics'
 
 /**
  * Whether a side panel takes the whole side slot. The chat then shows no file
@@ -117,7 +117,7 @@ export type ChatSidePanel = 'files' | 'diff' | 'tasks' | 'context'
  * The layout and the actions that open a panel read this one rule.
  */
 export function sidePanelHidesPreview(panel: ChatSidePanel | null): boolean {
-  return panel === 'diff' || panel === 'tasks' || panel === 'context'
+  return panel === 'diff' || panel === 'tasks' || panel === 'context' || panel === 'analytics'
 }
 
 // ─── Composer Draft ──────────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ interface AppState {
   pendingFollowUp: string[]
 
   // UI
-  currentView: 'home' | 'chat' | 'mission-control' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills' | 'diagnostics'
+  currentView: 'home' | 'chat' | 'mission-control' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills' | 'diagnostics' | 'analytics'
   // Scope for the Sessions view: 'current' shows only the active workspace's
   // sessions, 'all' keeps every project's history visible. Entry points set it
   // (sidebar Sessions = current, View all / command palette = all); the panel's

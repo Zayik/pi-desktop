@@ -24,6 +24,7 @@ import {
   Archive,
   Sparkles,
   Stethoscope,
+  BarChart3,
   Pencil,
   Workflow as WorkflowIcon,
 } from 'lucide-react'
@@ -41,7 +42,7 @@ import type { SessionListItem } from '../../../shared/ipc-contracts'
 import { isImeComposing } from '../utils/ime-composing'
 
 /** Views reachable from the sidebar's Tools group. */
-type ToolView = 'packages' | 'notes' | 'skills' | 'diagnostics' | 'settings'
+type ToolView = 'packages' | 'notes' | 'skills' | 'diagnostics' | 'analytics' | 'settings'
 
 /** Cap how many workspace groups appear in the Recent list. */
 const MAX_RECENT_GROUPS = 12
@@ -684,6 +685,14 @@ export function Sidebar(): React.JSX.Element {
             label={t('sidebar.tools.diagnostics')}
             active={toolViewShowing('diagnostics')}
             onClick={() => openToolView('diagnostics')}
+          />
+          <SidebarItem
+            compact
+            icon={<BarChart3 size={13} />}
+            label={t('sidebar.tools.analytics')}
+            active={toolViewShowing('analytics')}
+            onClick={() => openToolView('analytics')}
+            title={t('sidebar.tools.analyticsTitle')}
           />
           {/* Global workflow list lives here — "browse everything" territory —
               so the Activity section stays scoped to the current project. */}
