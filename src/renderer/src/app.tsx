@@ -11,6 +11,7 @@ import { HomeScreen } from './components/home-screen'
 import { NotesPanel } from './components/notes-panel'
 import { SkillsPanel } from './components/skills-panel'
 import { DiagnosticsPanel } from './components/diagnostics-panel'
+import { PiMissingNotice, PiSetupScreen } from './components/pi-setup-screen'
 import { MissionControl } from './components/mission-control'
 import { TaskLauncher } from './components/task-launcher'
 import { NotePicker } from './components/note-picker'
@@ -46,6 +47,34 @@ export function App(): React.JSX.Element {
   const workflowPanelOpen = useAppStore((state) => state.workflowPanelOpen)
   const workflowPanelFilter = useAppStore((state) => state.workflowPanelFilter)
   const workflowPanelWorkspaceId = useAppStore((state) => state.workflowPanelWorkspaceId)
+  const piSetupOpen = useAppStore((state) => state.piSetupOpen)
+  const setPiSetupOpen = useAppStore((state) => state.setPiSetupOpen)
+  const piSetupFailure = useAppStore((state) => state.piSetupFailure)
+  const setPiSetupFailure = useAppStore((state) => state.setPiSetupFailure)
+
+  // Nothing works without Pi, so a launch that cannot find it opens straight
+  // onto the setup screen instead of a chat that fails on first use.
+  useEffect(() => {
+    let cancelled = false
+    window.piDesktop.pi
+      .getSetupReport()
+      .then((report) => {
+        if (cancelled) return
+        setPiSetupFailure(report.failure)
+        if (report.failure !== null) setPiSetupOpen(true)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [setPiSetupOpen, setPiSetupFailure])
+
+  // Pi starting by any route (a Settings path, a terminal install and a
+  // restart) settles the question, so the warning goes away.
+  const piRunning = useAppStore((state) => state.piStatus === 'running')
+  useEffect(() => {
+    if (piRunning) setPiSetupFailure(null)
+  }, [piRunning, setPiSetupFailure])
 
   // Global context menu
   const { show, ContextMenuComponent } = useContextMenu()
@@ -142,6 +171,8 @@ export function App(): React.JSX.Element {
           </button>
         </div>
       )}
+      {/* Stays up after "Continue without Pi", so the fix is one click away. */}
+      {piSetupFailure !== null && !piSetupOpen && <PiMissingNotice failure={piSetupFailure} variant="banner" />}
       {isHome && !sidebarOpen && (
         <button
           type="button"
@@ -187,6 +218,7 @@ export function App(): React.JSX.Element {
 
       {showChrome && <StatusBar />}
       {showChrome && !globalWorkflowOpen && <WorkflowNavigator />}
+      {piSetupOpen && <PiSetupScreen />}
       <ExtensionUiDialog />
       <LinkedTaskDialog />
       <AppConfirmDialog />

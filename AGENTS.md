@@ -98,6 +98,7 @@ src/
 │   ├── diagnostics-report.ts     # Pure report helpers (provider key classification etc.)
 │   ├── pi-rpc-manager.ts         # Agent subprocess management (pi or omp), startup readiness probe, descendant-tree kill
 │   ├── pi-binary-resolution.ts   # Locate and identify installed pi/omp executables
+│   ├── pi-setup.ts               # Setup screen: search report (PiSearchTrace), install commands and runner
 │   ├── pi-paths.ts               # Per-engine session-store roots; which engine owns a session file
 │   ├── pi-dotenv.ts              # Read ~/.pi/.env for agent processes, the terminal, and Diagnostics
 │   ├── agent-resources.ts        # Path of a file shipped in resources/ (an agent extension), dev and packaged

@@ -3,6 +3,12 @@ import { test } from 'node:test'
 import { join, sep } from 'node:path'
 import {
   PI_CLI_REL,
+  PI_MANAGED_ROOT_ENV,
+  PI_PATH_ENV,
+  PiSearchTrace,
+  managedRootFromLauncher,
+  parseRegistryPath,
+  resolveManagedRelease,
   PI_FALLBACK_BINARY_POSIX,
   PI_FALLBACK_BINARY_WINDOWS,
   SHELL_PATH_END,
@@ -630,4 +636,165 @@ test('describePiResolutionFailure gives install guidance when nothing was config
   const message = describePiResolutionFailure(resolvePiBinary(deps, null))
   assert.match(message, /npm install -g @earendil-works\/pi-coding-agent/)
   assert.match(message, /Settings/)
+})
+
+// ─── Setup-screen additions: env var, managed installs, Windows locations ────
+
+const LOCAL_APP_DATA = join(WINDOWS_HOME, 'AppData', 'Local')
+
+function managedInstallFiles(root: string, version: string): string[] {
+  return [
+    join(root, 'managed-install.json'),
+    join(root, 'current-version'),
+    join(root, 'releases', version, PI_CLI_REL),
+  ]
+}
+
+function withText(deps: ResolutionDeps, texts: Record<string, string>): ResolutionDeps {
+  return { ...deps, readText: (p) => texts[p] ?? null }
+}
+
+test('resolvePiBinary accepts PI_DESKTOP_PI_PATH after the Settings path', () => {
+  const cli = join('/opt/custom', PI_CLI_REL)
+  const deps = fakeDeps({
+    env: { HOME: POSIX_HOME, PATH: '/usr/bin', [PI_PATH_ENV]: '/opt/custom' },
+    dirs: ['/opt/custom'],
+    files: [cli],
+  })
+  const resolution = resolvePiBinary(deps, null)
+  assert.equal(resolution.script, cli)
+  assert.equal(resolution.source, 'env')
+})
+
+test('resolvePiBinary reads the active release of a managed install', () => {
+  const root = join(POSIX_HOME, 'managed-pi')
+  const deps = withText(
+    fakeDeps({
+      env: { HOME: POSIX_HOME, PATH: '/usr/bin', [PI_MANAGED_ROOT_ENV]: root },
+      files: [...managedInstallFiles(root, '0.71.0'), join(root, 'releases', '0.70.2', PI_CLI_REL)],
+    }),
+    { [join(root, 'current-version')]: '0.71.0\n' }
+  )
+  const resolution = resolvePiBinary(deps, null)
+  assert.equal(resolution.script, join(root, 'releases', '0.71.0', PI_CLI_REL))
+  assert.equal(resolution.source, 'managed-install')
+  assert.equal(resolution.managedRoot, root)
+})
+
+test('resolveManagedRelease ignores a folder without the installer marker', () => {
+  const root = '/opt/not-managed'
+  const deps = fakeDeps({ files: [join(root, 'releases', '1.0.0', PI_CLI_REL)] })
+  assert.equal(resolveManagedRelease(deps, root), null)
+})
+
+test('resolveManagedRelease falls back to the newest release when current-version is unreadable', () => {
+  const root = '/opt/managed'
+  const deps = fakeDeps({
+    files: [
+      join(root, 'managed-install.json'),
+      join(root, 'releases', '0.9.0', PI_CLI_REL),
+      join(root, 'releases', '0.10.1', PI_CLI_REL),
+    ],
+  })
+  assert.equal(resolveManagedRelease(deps, root), join(root, 'releases', '0.10.1', PI_CLI_REL))
+})
+
+test('a pi.dev launcher on PATH is followed to the managed release it runs', () => {
+  const root = join(LOCAL_APP_DATA, 'pi-managed')
+  const bin = join(WINDOWS_HOME, 'bin')
+  const launcher = join(bin, 'pi.cmd')
+  const deps = withText(
+    fakeDeps({
+      isWindows: true,
+      env: { USERPROFILE: WINDOWS_HOME, LOCALAPPDATA: LOCAL_APP_DATA, PATH: bin, PATHEXT: '.CMD' },
+      dirs: [bin],
+      files: [launcher, ...managedInstallFiles(root, '1.2.3')],
+    }),
+    {
+      [launcher]: `@echo off\r\nset "PI_MANAGED_INSTALL_ROOT=%LOCALAPPDATA%${root.slice(LOCAL_APP_DATA.length)}"\r\n`,
+      [join(root, 'current-version')]: '1.2.3',
+    }
+  )
+  assert.equal(managedRootFromLauncher(deps, launcher), root)
+  const resolution = resolvePiBinary(deps, null)
+  assert.equal(resolution.source, 'managed-install')
+  assert.equal(resolution.script, join(root, 'releases', '1.2.3', PI_CLI_REL))
+})
+
+test('resolvePiBinary finds a winget install through its Links folder', () => {
+  const link = join(LOCAL_APP_DATA, 'Microsoft', 'WinGet', 'Links', 'pi.exe')
+  const deps = fakeDeps({
+    isWindows: true,
+    env: { USERPROFILE: WINDOWS_HOME, LOCALAPPDATA: LOCAL_APP_DATA, PATH: '' },
+    files: [link],
+  })
+  const resolution = resolvePiBinary(deps, null)
+  assert.equal(resolution.script, link)
+  assert.equal(resolution.source, 'common-location')
+  assert.equal(resolution.needsShell, false)
+})
+
+test('resolvePiBinary finds a winget package folder', () => {
+  const pkg = join(LOCAL_APP_DATA, 'Microsoft', 'WinGet', 'Packages', 'EarendilWorks.pi_Microsoft.Winget.Source_8wekyb3d8bbwe')
+  const deps = fakeDeps({
+    isWindows: true,
+    env: { USERPROFILE: WINDOWS_HOME, LOCALAPPDATA: LOCAL_APP_DATA, PATH: '' },
+    files: [join(pkg, 'pi.exe')],
+  })
+  assert.equal(resolvePiBinary(deps, null).script, join(pkg, 'pi.exe'))
+})
+
+test('the Windows search adds the PATH stored in the registry', () => {
+  const fresh = join(WINDOWS_HOME, 'fresh-bin')
+  const deps = fakeDeps({
+    isWindows: true,
+    env: { USERPROFILE: WINDOWS_HOME, PATH: 'C:\\Windows', PATHEXT: '.CMD' },
+    dirs: [fresh],
+    files: [join(fresh, 'pi.cmd')],
+    captures: {
+      'reg query HKCU\\Environment /v Path': `\r\nHKEY_CURRENT_USER\\Environment\r\n    Path    REG_EXPAND_SZ    %USERPROFILE%${fresh.slice(WINDOWS_HOME.length)}\r\n`,
+    },
+  })
+  const resolution = resolvePiBinary(deps, null)
+  assert.equal(resolution.script, join(fresh, 'pi.cmd'))
+  assert.ok(resolution.pathEnv.includes(fresh))
+})
+
+test('parseRegistryPath expands variables case-insensitively', () => {
+  const out = '    Path    REG_EXPAND_SZ    %SystemRoot%\\system32;%userprofile%\\bin\r\n'
+  assert.equal(
+    parseRegistryPath(out, { SystemRoot: 'C:\\Windows', USERPROFILE: 'C:\\Users\\me' }),
+    'C:\\Windows\\system32;C:\\Users\\me\\bin'
+  )
+  assert.equal(parseRegistryPath('ERROR: not found', {}), null)
+})
+
+test('a trace records each step and every path looked at when Pi is missing', () => {
+  const trace = new PiSearchTrace()
+  const deps = fakeDeps({
+    isWindows: true,
+    env: { USERPROFILE: WINDOWS_HOME, LOCALAPPDATA: LOCAL_APP_DATA, APPDATA: join(WINDOWS_HOME, 'AppData', 'Roaming'), PATH: 'C:\\Tools' },
+  })
+  const resolution = resolvePiBinary(deps, 'C:\\missing\\pi.cmd', 'auto', trace)
+  assert.equal(resolution.found, false)
+  assert.deepEqual(
+    trace.steps.map((step) => step.id),
+    ['settings', 'env', 'npm-prefix', 'path', 'managed-install', 'version-manager', 'common-location', 'omp']
+  )
+  const settings = trace.steps[0]
+  assert.deepEqual(settings.checked, [{ path: 'C:\\missing\\pi.cmd', found: false }])
+  const npm = trace.steps.find((step) => step.id === 'npm-prefix')
+  assert.equal(npm?.npmPrefix, null)
+  const common = trace.steps.find((step) => step.id === 'common-location')
+  assert.ok(common?.checked.some((check) => check.path === join(LOCAL_APP_DATA, 'Microsoft', 'WinGet', 'Links', 'pi.exe')))
+  assert.ok(common?.checked.every((check) => !check.found))
+})
+
+test('a trace marks the path that matched', () => {
+  const trace = new PiSearchTrace()
+  const deps = fakeDeps({ env: { HOME: POSIX_HOME, PATH: '/opt/pi' }, files: ['/opt/pi/pi'] })
+  resolvePiBinary(deps, null, 'auto', trace)
+  const path = trace.steps.at(-1)
+  assert.equal(path?.id, 'path')
+  assert.ok(path?.checked.some((check) => check.path === '/opt/pi/pi' && check.found))
 })

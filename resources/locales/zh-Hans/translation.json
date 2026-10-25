@@ -604,7 +604,9 @@
     "resolutionSource": {
       "commonLocation": "常见安装位置",
       "engineInstall": "{{agent}} 安装位置",
+      "env": "",
       "fallback": "回退（未找到）",
+      "managedInstall": "",
       "npmPrefix": "npm 全局前缀",
       "override": "已配置路径",
       "path": "PATH",
@@ -771,6 +773,7 @@
       "exitedBeforeReady": "Pi 在就绪前以代码 {{code}} 退出。",
       "failedToCreateManager": "创建 Pi 管理器失败",
       "installHint": "使用以下命令安装 Pi：\n  {{npmCommand}}\n或安装 OMP：\n  {{bunCommand}}",
+      "installRunning": "",
       "nodeNotFound": "在解析出的路径中未找到 Node 可执行文件：\n  {{node}}\n\nPi 的 .js 入口需要 Node。请从 https://nodejs.org 安装 Node，或把 NODE 环境变量设为你的 Node 可执行文件路径。",
       "noManagerForWorkspace": "该工作区没有 Pi 管理器",
       "notFound": "未找到 Pi 可执行文件。已搜索登录 shell 的 PATH、npm 全局前缀、node 版本管理器（nvm、fnm、volta、asdf、mise、nodenv、n）以及常见安装位置。\n\n{{installHint}}\n\n已经安装了？请在 {{settingsHint}} 中设置 Pi cli.js 的完整路径。",
@@ -1152,6 +1155,77 @@
       "title": "允许 {{tool}}？"
     }
   },
+  "piSetup": {
+    "browseDialogTitle": "",
+    "checkedCount_other": "",
+    "close": "",
+    "continueWithout": "",
+    "existing": {
+      "browse": "",
+      "heading": "",
+      "hint": "",
+      "openSettings": "",
+      "tryAgain": ""
+    },
+    "found": "",
+    "install": {
+      "button": "",
+      "doneFound": "",
+      "doneNotFound": "",
+      "failed": "",
+      "heading": "",
+      "hint": "",
+      "installer": "",
+      "installerUnavailable": "",
+      "npm": "",
+      "npmUnavailable": "",
+      "recommended": "",
+      "running": "",
+      "winget": "",
+      "wingetUnavailable": ""
+    },
+    "intro": "",
+    "introFound": "",
+    "introNoNode": "",
+    "notes": {
+      "envUnset": "",
+      "managedInstall": "",
+      "npmMissing": "",
+      "npmPrefix": "",
+      "settingsUnset": "",
+      "versionManager": ""
+    },
+    "notice": {
+      "fix": "",
+      "noNode": "",
+      "notFound": ""
+    },
+    "notSet": "",
+    "platform": {
+      "linux": "",
+      "mac": "",
+      "windows": ""
+    },
+    "rejectedOverride": "",
+    "searched": {
+      "heading": "",
+      "hint": "",
+      "loading": ""
+    },
+    "steps": {
+      "commonLocation": "",
+      "env": "",
+      "managedInstall": "",
+      "npmPrefix": "",
+      "omp": "",
+      "path": "",
+      "settings": "",
+      "versionManager": ""
+    },
+    "title": "",
+    "titleFound": "",
+    "titleNoNode": ""
+  },
   "repoSets": {
     "bar": {
       "addRepository": "添加仓库",
@@ -1355,7 +1429,8 @@
       "pathPlaceholder": "可执行文件、cli.js 或安装目录的路径",
       "rescanTitle": "重新扫描已安装的智能体",
       "scanningStatus": "正在扫描常见安装位置和 PATH…",
-      "selectDialogTitle": "选择智能体可执行文件或目录"
+      "selectDialogTitle": "选择智能体可执行文件或目录",
+      "showSearch": ""
     },
     "autoScroll": {
       "description": "自动滚动到新消息",
@@ -1767,6 +1842,7 @@
     "hideTerminal": "隐藏终端",
     "openWorkflowRuns": "打开工作流运行",
     "piError": "{{agent}} 错误",
+    "piErrorTitle": "",
     "piRunning": "{{agent}} 运行中（PID: {{pid}}）",
     "piStarting": "{{agent}} 启动中",
     "piStopped": "{{agent}} 已停止",

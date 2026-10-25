@@ -1,7 +1,9 @@
 import { basename, join, posix as posixPath } from 'path'
 import { buildNpmPrefixCommand, escapeCmdSpawn } from './cmd-escape'
 import { i18n, type Translate } from '../shared/i18n'
-import type { PiResolutionSource } from '../shared/ipc-contracts'
+import type { PiResolutionSource, PiSearchStep, PiSearchStepId } from '../shared/ipc-contracts'
+
+export type { PiSearchCheck, PiSearchStep, PiSearchStepId } from '../shared/ipc-contracts'
 
 /**
  * Locating the Pi CLI is the single most failure-prone step at startup, and the
@@ -20,6 +22,13 @@ export const OMP_PACKAGE = '@oh-my-pi/pi-coding-agent'
 /** The commands shown in `errors.pi.installHint`, as `{{npmCommand}}`/`{{bunCommand}}` placeholders. */
 export const PI_NPM_INSTALL_COMMAND = `npm install -g ${PI_PACKAGE}`
 export const OMP_BUN_INSTALL_COMMAND = `bun install -g ${OMP_PACKAGE}`
+/** Environment variable naming a Pi executable, file or install folder. */
+export const PI_PATH_ENV = 'PI_DESKTOP_PI_PATH'
+/** Set by the pi.dev installer's launcher; Pi reads it to know it is a managed install. */
+export const PI_MANAGED_ROOT_ENV = 'PI_MANAGED_INSTALL_ROOT'
+export const PI_INSTALLER_COMMAND_WINDOWS = 'powershell -c "irm https://pi.dev/install.ps1 | iex"'
+export const PI_INSTALLER_COMMAND_POSIX = 'curl -fsSL https://pi.dev/install.sh | sh'
+export const PI_WINGET_ID = 'EarendilWorks.pi'
 export const PI_FALLBACK_BINARY_POSIX = 'pi'
 export const PI_FALLBACK_BINARY_WINDOWS = 'pi.cmd'
 export const OMP_FALLBACK_BINARY_POSIX = 'omp'
@@ -50,6 +59,23 @@ const JS_EXTENSION = '.js'
 const SHELL_SCRIPT_PATTERN = /\.(cmd|bat|ps1)$/i
 const VERSION_NUMBER_PATTERN = /\d+/g
 const OMP_BINARY_PATTERN = /(?:^|[\\/])omp(?:\.(?:cmd|exe|bat|ps1))?$/i
+const MANAGED_MARKER = 'managed-install.json'
+const MANAGED_CURRENT_VERSION = 'current-version'
+const MANAGED_RELEASES = 'releases'
+// Same shape Pi accepts for a managed release directory name.
+const MANAGED_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+// `set "PI_MANAGED_INSTALL_ROOT=..."` in a .cmd, `export PI_MANAGED_INSTALL_ROOT="..."` in sh,
+// `$env:PI_MANAGED_INSTALL_ROOT = '...'` in a .ps1.
+const MANAGED_ROOT_ASSIGNMENT = /PI_MANAGED_INSTALL_ROOT\s*=\s*["']?([^"'\r\n]+?)["']?\s*$/m
+const WINDOWS_ENV_REF = /%([A-Za-z_][A-Za-z0-9_()]*)%/g
+const POSIX_ENV_REF = /\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/g
+const REGISTRY_PATH_LINE = /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.*?)\s*$/im
+const REGISTRY_TIMEOUT_MS = 5_000
+const REGISTRY_PATH_KEYS = [
+  'HKCU\\Environment',
+  'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
+]
+const WINGET_PACKAGE_PREFIX = `${PI_WINGET_ID}_`
 
 export interface CaptureOptions {
   shell: boolean
@@ -68,6 +94,8 @@ export interface ResolutionDeps {
   listDir(path: string): string[]
   /** Run a command and return trimmed stdout, or null if it failed. */
   capture(command: string, args: string[], options: CaptureOptions): string | null
+  /** A small text file's contents, or null when unreadable. Optional for tests. */
+  readText?(path: string): string | null
 }
 
 export type PiEngine = 'auto' | 'pi' | 'omp'
@@ -86,6 +114,47 @@ export interface PiResolution {
   rejectedOverride: string | null
   /** PATH with the login shell's entries merged in, for spawned children. */
   pathEnv: string
+  /** Root of a pi.dev managed install, which Pi needs in its environment. */
+  managedRoot?: string
+}
+
+/**
+ * Records every path the resolver looks at, by step, so the setup screen can
+ * show exactly where it searched instead of a hand-written list that drifts.
+ */
+export class PiSearchTrace {
+  readonly steps: PiSearchStep[] = []
+
+  begin(id: PiSearchStepId): PiSearchStep {
+    const step: PiSearchStep = { id, checked: [] }
+    this.steps.push(step)
+    return step
+  }
+
+  record(path: string, found: boolean): void {
+    const step = this.steps.at(-1)
+    if (!step || !path) return
+    const existing = step.checked.find((check) => check.path === path)
+    if (existing) existing.found ||= found
+    else step.checked.push({ path, found })
+  }
+
+  /** Wrap deps so every filesystem probe lands in the current step. */
+  wrap(deps: ResolutionDeps): ResolutionDeps {
+    return {
+      ...deps,
+      exists: (path) => {
+        const found = deps.exists(path)
+        this.record(path, found)
+        return found
+      },
+      isDirectory: (path) => {
+        const found = deps.isDirectory(path)
+        if (found) this.record(path, true)
+        return found
+      },
+    }
+  }
 }
 
 function homeDir(env: NodeJS.ProcessEnv): string {
@@ -176,6 +245,45 @@ export function loginShellPath(deps: ResolutionDeps): string | null {
   })
   if (!stdout) return null
   return parseShellPath(stdout)
+}
+
+/** Replace `%NAME%` (Windows) or `$NAME` (POSIX) references with their values. */
+export function expandEnvRefs(value: string, env: NodeJS.ProcessEnv, isWindows: boolean): string {
+  const lookup = (name: string): string | undefined => {
+    if (!isWindows) return env[name]
+    const key = Object.keys(env).find((k) => k.toLowerCase() === name.toLowerCase())
+    return key ? env[key] : undefined
+  }
+  const pattern = isWindows ? WINDOWS_ENV_REF : POSIX_ENV_REF
+  return value.replace(pattern, (whole, name: string) => lookup(name) ?? whole)
+}
+
+/** The Path value from `reg query ... /v Path` output, expanded. */
+export function parseRegistryPath(stdout: string, env: NodeJS.ProcessEnv): string | null {
+  const match = REGISTRY_PATH_LINE.exec(stdout)
+  if (!match || !match[1]) return null
+  return expandEnvRefs(match[1], env, true)
+}
+
+/**
+ * The user and system PATH as stored in the registry right now. A running app
+ * keeps the PATH it started with, so without this an install made while the
+ * app is open (npm, winget, the pi.dev installer) stays invisible until the
+ * user signs out.
+ */
+export function windowsRegistryPath(deps: ResolutionDeps): string | null {
+  if (!deps.isWindows) return null
+  const parts: string[] = []
+  for (const key of REGISTRY_PATH_KEYS) {
+    const stdout = deps.capture('reg', ['query', key, '/v', 'Path'], {
+      shell: false,
+      timeoutMs: REGISTRY_TIMEOUT_MS,
+      pathEnv: deps.env.PATH ?? '',
+    })
+    const value = stdout ? parseRegistryPath(stdout, deps.env) : null
+    if (value) parts.push(value)
+  }
+  return parts.length > 0 ? parts.join(WINDOWS_PATH_DELIMITER) : null
 }
 
 /** Append entries from `incoming` that `current` does not already contain. */
@@ -477,6 +585,89 @@ export function isOmpExecutable(script: string): boolean {
   return OMP_BINARY_PATTERN.test(script)
 }
 
+/**
+ * Where the pi.dev installer may have put a managed install when its launcher
+ * is not on PATH. The installer's own default is not published, so these are
+ * the conventional per-user app folders; PI_MANAGED_INSTALL_ROOT wins when set.
+ */
+export function managedRootCandidates(deps: ResolutionDeps): string[] {
+  const { env } = deps
+  const home = homeDir(env)
+  const roots: string[] = []
+  const configured = env[PI_MANAGED_ROOT_ENV]?.trim()
+  if (configured) roots.push(configured)
+  if (deps.isWindows) {
+    const localAppData = env.LOCALAPPDATA ?? ''
+    if (localAppData) roots.push(join(localAppData, 'pi'), join(localAppData, 'Programs', 'pi'))
+    if (home) roots.push(join(home, '.pi', 'install'))
+  } else if (home) {
+    roots.push(
+      join(home, '.local', 'share', 'pi'),
+      join(home, '.pi', 'install'),
+      join(home, 'Library', 'Application Support', 'pi')
+    )
+  }
+  return roots
+}
+
+/**
+ * The cli.js of the active release in a managed install, or null when `root`
+ * is not one. Pi itself trusts only a root holding its marker file, so do we.
+ */
+export function resolveManagedRelease(deps: ResolutionDeps, root: string): string | null {
+  if (!deps.exists(join(root, MANAGED_MARKER))) return null
+  const releases = join(root, MANAGED_RELEASES)
+  const current = deps.readText?.(join(root, MANAGED_CURRENT_VERSION))?.trim() ?? ''
+  const versions = MANAGED_VERSION_PATTERN.test(current) ? [current] : []
+  versions.push(
+    ...deps
+      .listDir(releases)
+      .filter((name) => name !== current && MANAGED_VERSION_PATTERN.test(name))
+      .sort(compareVersionsDesc)
+  )
+  for (const version of versions) {
+    const cliJs = join(releases, version, PI_CLI_REL)
+    if (deps.exists(cliJs)) return cliJs
+  }
+  return null
+}
+
+/**
+ * Find the managed-install root behind a launcher on PATH: next to it, one
+ * folder up, or named in the launcher's own text (it has to export
+ * PI_MANAGED_INSTALL_ROOT for Pi to recognise the install).
+ */
+export function managedRootFromLauncher(deps: ResolutionDeps, launcher: string): string | null {
+  const dir = join(launcher, '..')
+  for (const candidate of [dir, join(dir, '..')]) {
+    if (deps.exists(join(candidate, MANAGED_MARKER))) return candidate
+  }
+  const text = deps.readText?.(launcher)
+  const match = text ? MANAGED_ROOT_ASSIGNMENT.exec(text) : null
+  if (!match) return null
+  let root = match[1].trim()
+  // %~dp0 is the launcher's own folder in a .cmd file.
+  const relative = /^%~dp0\\?/i.exec(root)
+  root = relative ? join(dir, root.slice(relative[0].length)) : expandEnvRefs(root, deps.env, deps.isWindows)
+  return root && deps.exists(join(root, MANAGED_MARKER)) ? root : null
+}
+
+/** Install folders winget may have unpacked the pi package into. */
+function wingetLocations(deps: ResolutionDeps, localAppData: string, programFiles: string): string[] {
+  const paths: string[] = []
+  if (localAppData) paths.push(join(localAppData, 'Microsoft', 'WinGet', 'Links', 'pi.exe'))
+  paths.push(join(programFiles, 'WinGet', 'Links', 'pi.exe'))
+  if (localAppData) {
+    const packages = join(localAppData, 'Microsoft', 'WinGet', 'Packages')
+    for (const name of deps.listDir(packages)) {
+      if (!name.startsWith(WINGET_PACKAGE_PREFIX)) continue
+      const dir = join(packages, name)
+      paths.push(join(dir, 'pi.exe'), join(dir, PI_CLI_REL), join(dir, 'pi.cmd'))
+    }
+  }
+  return paths
+}
+
 function commonLocations(deps: ResolutionDeps): string[] {
   const { env } = deps
   const home = homeDir(env)
@@ -484,15 +675,33 @@ function commonLocations(deps: ResolutionDeps): string[] {
     const appData = env.APPDATA ?? ''
     const localAppData = env.LOCALAPPDATA ?? ''
     const programFiles = env.ProgramFiles ?? 'C:\\Program Files'
+    const scoop = env.SCOOP ?? (home ? join(home, 'scoop') : '')
     const paths: string[] = []
     if (appData) paths.push(join(appData, 'npm', PI_CLI_REL), join(appData, 'npm', 'pi.cmd'))
     if (localAppData) {
       paths.push(join(localAppData, 'npm', PI_CLI_REL), join(localAppData, 'npm', 'pi.cmd'))
     }
     paths.push(join(programFiles, 'nodejs', PI_CLI_REL))
+    paths.push(...wingetLocations(deps, localAppData, programFiles))
+    if (scoop) {
+      paths.push(
+        join(scoop, 'persist', 'nodejs', 'bin', PI_CLI_REL),
+        join(scoop, 'persist', 'nodejs-lts', 'bin', PI_CLI_REL),
+        join(scoop, 'shims', 'pi.exe'),
+        join(scoop, 'shims', 'pi.cmd')
+      )
+    }
+    if (home) {
+      paths.push(
+        join(home, '.bun', 'install', 'global', PI_CLI_REL),
+        join(home, '.bun', 'bin', 'pi.exe')
+      )
+    }
     return paths
   }
   return [
+    join(home, '.bun', 'install', 'global', PI_CLI_REL),
+    join(home, '.bun', 'bin', 'pi'),
     join(home, '.npm-global', PI_CLI_REL),
     join(home, '.npm-packages', PI_CLI_REL),
     join('/opt/homebrew/lib', PI_CLI_REL),
@@ -512,7 +721,8 @@ function finalize(
   source: PiResolutionSource,
   found: boolean,
   rejectedOverride: string | null,
-  pathEnv: string
+  pathEnv: string,
+  managedRoot?: string
 ): PiResolution {
   const useNode = script.toLowerCase().endsWith(JS_EXTENSION)
   return {
@@ -523,32 +733,52 @@ function finalize(
     found,
     rejectedOverride,
     pathEnv,
+    ...(managedRoot ? { managedRoot } : {}),
   }
+}
+
+/** A configured file or install folder, resolved; null when it holds no Pi. */
+function resolveConfiguredPath(deps: ResolutionDeps, configured: string): { script: string; managedRoot?: string } | null {
+  if (deps.isDirectory(configured)) {
+    const managed = resolveManagedRelease(deps, configured)
+    if (managed) return { script: managed, managedRoot: configured }
+    const fromDir = resolveFromPrefix(deps, configured)
+    return fromDir ? { script: fromDir } : null
+  }
+  return deps.exists(configured) ? { script: configured } : null
 }
 
 /**
  * Find the Pi CLI. Order, most authoritative first:
  *
- *   0. Merge the login shell's PATH into ours, so every later probe sees what
- *      the user's terminal sees. A GUI process started from Finder or a desktop
- *      launcher otherwise gets a minimal PATH with no version-manager shims.
+ *   0. Merge the login shell's PATH into ours (POSIX), or the PATH currently
+ *      stored in the registry (Windows), so every later probe sees what a new
+ *      terminal would see. A GUI process otherwise keeps a stale or minimal
+ *      PATH: no version-manager shims, and nothing installed since it started.
  *   1. The path configured in Settings, if it exists. A directory is accepted
  *      and searched; a stale value is reported rather than silently obeyed.
- *   2. npm's own global prefix.
- *   3. A PATH search.
- *   4. Per-version prefixes created by node version managers.
- *   5. Hardcoded common install locations.
- *   6. OMP fallback when Pi is not installed, accepted only after the
+ *   2. The PI_DESKTOP_PI_PATH environment variable, same rules.
+ *   3. npm's own global prefix.
+ *   4. A PATH search. A pi.dev launcher found there is followed to its
+ *      managed install.
+ *   5. A pi.dev managed install that is not on PATH.
+ *   6. Per-version prefixes created by node version managers.
+ *   7. Hardcoded common install locations (npm, winget, Scoop, Bun, Homebrew).
+ *   8. OMP fallback when Pi is not installed, accepted only after the
  *      candidate answers a `--version` probe.
- *   7. The bare binary name, flagged as not found.
+ *   9. The bare binary name, flagged as not found.
+ *
+ * Pass a `trace` to record every path looked at, step by step.
  */
 export function resolvePiBinary(
-  deps: ResolutionDeps,
+  rawDeps: ResolutionDeps,
   overridePath: string | null,
-  engine: PiEngine = 'auto'
+  engine: PiEngine = 'auto',
+  trace?: PiSearchTrace
 ): PiResolution {
+  const deps = trace ? trace.wrap(rawDeps) : rawDeps
   const basePath = deps.env.PATH ?? ''
-  const shellPath = loginShellPath(deps)
+  const shellPath = deps.isWindows ? windowsRegistryPath(deps) : loginShellPath(deps)
   const pathEnv = shellPath ? mergePathEntries(basePath, shellPath, deps.isWindows) : basePath
   let rejectedOverride: string | null = null
 
@@ -590,26 +820,40 @@ export function resolvePiBinary(
       pathEnv
     )
   }
+  trace?.begin('settings')
   if (overridePath) {
-    if (deps.isDirectory(overridePath)) {
-      const fromDir = resolveFromPrefix(deps, overridePath)
-      if (fromDir) return finalize(deps, fromDir, 'override', true, null, pathEnv)
-      rejectedOverride = overridePath
-    } else if (deps.exists(overridePath)) {
-      return finalize(deps, overridePath, 'override', true, null, pathEnv)
-    } else {
-      rejectedOverride = overridePath
+    const configured = resolveConfiguredPath(deps, overridePath)
+    if (configured) {
+      return finalize(deps, configured.script, 'override', true, null, pathEnv, configured.managedRoot)
+    }
+    rejectedOverride = overridePath
+  }
+
+  trace?.begin('env')
+  const envPath = normalizeOverride(deps.env[PI_PATH_ENV], homeDir(deps.env))
+  if (envPath) {
+    const configured = resolveConfiguredPath(deps, envPath)
+    if (configured) {
+      return finalize(deps, configured.script, 'env', true, rejectedOverride, pathEnv, configured.managedRoot)
     }
   }
 
+  const npmStep = trace?.begin('npm-prefix')
   const prefix = npmGlobalPrefix(deps, pathEnv)
+  if (npmStep) npmStep.npmPrefix = prefix
   if (prefix) {
     const fromPrefix = resolveFromPrefix(deps, prefix)
     if (fromPrefix) return finalize(deps, fromPrefix, 'npm-prefix', true, rejectedOverride, pathEnv)
   }
 
+  trace?.begin('path')
   const onPath = whichInPath(deps, PI_FALLBACK_BINARY_POSIX, pathEnv)
   if (onPath) {
+    const managedRoot = managedRootFromLauncher(deps, onPath)
+    const managed = managedRoot ? resolveManagedRelease(deps, managedRoot) : null
+    if (managedRoot && managed) {
+      return finalize(deps, managed, 'managed-install', true, rejectedOverride, pathEnv, managedRoot)
+    }
     // A .cmd/.ps1 shim is spawnable only through a shell, which breaks the
     // JSONL stdio piping RPC mode needs. Prefer the cli.js it wraps.
     if (SHELL_SCRIPT_PATTERN.test(onPath)) {
@@ -619,6 +863,13 @@ export function resolvePiBinary(
     return finalize(deps, onPath, 'path', true, rejectedOverride, pathEnv)
   }
 
+  trace?.begin('managed-install')
+  for (const root of managedRootCandidates(deps)) {
+    const managed = resolveManagedRelease(deps, root)
+    if (managed) return finalize(deps, managed, 'managed-install', true, rejectedOverride, pathEnv, root)
+  }
+
+  trace?.begin('version-manager')
   for (const versionPrefix of versionManagerPrefixes(deps)) {
     const fromVersion = resolveFromPrefix(deps, versionPrefix)
     if (fromVersion) {
@@ -626,6 +877,7 @@ export function resolvePiBinary(
     }
   }
 
+  trace?.begin('common-location')
   for (const candidate of commonLocations(deps)) {
     if (deps.exists(candidate)) {
       return finalize(deps, candidate, 'common-location', true, rejectedOverride, pathEnv)
@@ -637,6 +889,7 @@ export function resolvePiBinary(
   // This is the one branch nobody asked for, so it is also the one that has to
   // prove the binary is real before claiming the search succeeded.
   if (engine === 'auto') {
+    trace?.begin('omp')
     const omp = resolveVerifiedOmpBinary(deps, pathEnv)
     if (omp) return finalize(deps, omp, 'omp', true, rejectedOverride, pathEnv)
   }
@@ -644,6 +897,7 @@ export function resolvePiBinary(
   const fallback = deps.isWindows ? PI_FALLBACK_BINARY_WINDOWS : PI_FALLBACK_BINARY_POSIX
   return finalize(deps, fallback, 'fallback', false, rejectedOverride, pathEnv)
 }
+
 
 /**
  * Explain a failed resolution. A stale configured path is the headline when

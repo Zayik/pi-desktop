@@ -10,6 +10,9 @@ import type {
   AppSettings,
   AgentDetectionOptions,
   AgentInstallationsResult,
+  PiInstallMethod,
+  PiInstallResult,
+  PiSetupReport,
   Workspace,
   WorkspaceTabOptions,
   WorkspaceRemoveResult,
@@ -106,6 +109,10 @@ interface PiDesktopAPI {
     restart(options?: PiStartOptions): Promise<PiStatus>
     getStatus(): Promise<PiStatus>
     detectInstallations(options?: AgentDetectionOptions): Promise<AgentInstallationsResult>
+    /** Search for Pi again and list every place looked, for the setup screen. */
+    getSetupReport(): Promise<PiSetupReport>
+    install(method: PiInstallMethod): Promise<PiInstallResult>
+    onInstallOutput(callback: (chunk: string) => void): () => void
   }
 
   // Pi commands
@@ -458,6 +465,13 @@ const api: PiDesktopAPI = {
     restart: (options?: PiStartOptions) => ipcRenderer.invoke(IPC_CHANNELS.PI_RESTART, options),
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.PI_STATUS),
     detectInstallations: (options) => ipcRenderer.invoke(IPC_CHANNELS.PI_DETECT_INSTALLATIONS, options),
+    getSetupReport: () => ipcRenderer.invoke(IPC_CHANNELS.PI_SETUP_REPORT),
+    install: (method) => ipcRenderer.invoke(IPC_CHANNELS.PI_INSTALL, method),
+    onInstallOutput: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, handler)
+    },
   },
 
   commands: {

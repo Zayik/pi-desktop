@@ -17,6 +17,8 @@ export const IPC_CHANNELS = {
   PI_RESTART: 'pi:restart',
   PI_STATUS: 'pi:status',
   PI_DETECT_INSTALLATIONS: 'pi:detect-installations',
+  PI_SETUP_REPORT: 'pi:setup-report',
+  PI_INSTALL: 'pi:install',
 
   // Pi commands
   PI_PROMPT: 'pi:prompt',
@@ -227,6 +229,7 @@ export const IPC_CHANNELS = {
   EVENT_TERMINAL_EXIT: 'event:terminal-exit',
   EVENT_COUNCIL_PROGRESS: 'event:council-progress',
   EVENT_VOICE_PROGRESS: 'event:voice-progress',
+  EVENT_PI_INSTALL_OUTPUT: 'event:pi-install-output',
   EVENT_VOICE_SHORTCUT: 'event:voice-shortcut',
 
   // Voice dictation
@@ -1811,12 +1814,74 @@ export interface DiagnosticsProviderInfo {
 /** Where a resolved Pi path came from, for logging and error messaging. */
 export type PiResolutionSource =
   | 'override'
+  | 'env'
   | 'npm-prefix'
   | 'path'
+  | 'managed-install'
   | 'version-manager'
   | 'common-location'
   | 'omp'
   | 'fallback'
+
+/** One stage of the search, in the order resolvePiBinary runs them. */
+export type PiSearchStepId =
+  | 'settings'
+  | 'env'
+  | 'npm-prefix'
+  | 'path'
+  | 'managed-install'
+  | 'version-manager'
+  | 'common-location'
+  | 'omp'
+
+export interface PiSearchCheck {
+  path: string
+  found: boolean
+}
+
+export interface PiSearchStep {
+  id: PiSearchStepId
+  checked: PiSearchCheck[]
+  /** npm-prefix: the prefix npm reported, or null when npm did not answer. */
+  npmPrefix?: string | null
+  /** True on the step where the search succeeded. */
+  matched?: boolean
+}
+
+/** A way to install Pi that the setup screen can offer. */
+export type PiInstallMethod = 'installer' | 'npm' | 'winget'
+
+export interface PiInstallOption {
+  method: PiInstallMethod
+  /** Exactly what runs, shown to the user before they click. */
+  command: string
+  /** False when the tool it needs (npm, winget) is not on this machine. */
+  available: boolean
+}
+
+/** What the setup screen shows when Pi cannot be started. */
+export interface PiSetupReport {
+  found: boolean
+  /** Why Pi cannot start, or null when it can. */
+  failure: 'pi-not-found' | 'node-not-found' | null
+  platform: string
+  script: string
+  source: PiResolutionSource
+  rejectedOverride: string | null
+  /** The Node binary a cli.js install needs; empty when not needed. */
+  node: string
+  steps: PiSearchStep[]
+  installOptions: PiInstallOption[]
+}
+
+export interface PiInstallResult {
+  ok: boolean
+  exitCode: number | null
+  /** The last part of the command's combined output. */
+  output: string
+  /** The setup state after the install, so the screen can close on success. */
+  report: PiSetupReport
+}
 
 /** Everything the Diagnostics view shows, assembled in one main-side pass. */
 export interface DiagnosticsReport {
