@@ -10,6 +10,7 @@ import {
   type AgentSessionSummary,
 } from '../shared/agent-board'
 import { pathsEqual } from '../shared/path-compare'
+import { pendingQuestionFor, type SubagentQuestion } from '../shared/subagent-questions'
 import { listGitWorktrees } from './git-worktree'
 import { getOmpSessionsRoot, getSessionRoots, isWithinSessionRoots } from './pi-paths'
 import { JSONL_EXTENSION, ompSessionDirName, sanitizePath } from './session-paths'
@@ -254,6 +255,9 @@ export async function readAgentBoard(
       }
     }
   }
+  // A child asks the session that started it: the chat, or a subagent of its own.
+  const questions: SubagentQuestion[] = [main, ...children.map((child) => child.summary)].flatMap((summary) => summary?.openQuestions ?? [])
+  for (const child of children) child.question = pendingQuestionFor(questions, child.summary.sessionFile, child.summary.lastActivityAt, now)
   children.sort((a, b) => (a.summary.startedAt ?? 0) - (b.summary.startedAt ?? 0))
   return { main, children }
 }

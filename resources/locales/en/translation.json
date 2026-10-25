@@ -56,6 +56,9 @@
     "contextPanel": {
       "agents": {
         "card": {
+          "answerInChat": "Answer it in the main chat, or let the main agent decide.",
+          "askedBy_one": "{{agents}} is waiting on an answer from this chat.",
+          "askedBy_other": "{{count}} subagents are waiting on answers from this chat: {{agents}}.",
           "breakdown": "Breakdown",
           "cost": "Cost",
           "details": "Details",
@@ -63,6 +66,8 @@
           "lastTool": "last: {{tool}}",
           "nextWarm": "Next if warm {{cost}}",
           "noSessionFile": "Live figures only: this run has no saved session to read yet.",
+          "question": "Waiting on an answer",
+          "questionInterview": "Waiting on answers to a few questions",
           "time": "Time",
           "toolCount_one": "{{count}} tool call",
           "toolCount_other": "{{count}} tool calls"
@@ -91,6 +96,7 @@
         "status": {
           "done": "Done",
           "failed": "Failed",
+          "needsAnswer": "Needs answer",
           "running": "Running",
           "stopped": "Stopped"
         },
@@ -290,6 +296,12 @@
       "openPanel": "Open subagent panel",
       "running_one": "{{count}} subagent running",
       "running_other": "{{count}} subagents running"
+    },
+    "subagentQuestion": {
+      "fromAgent": "Question from subagent {{agent}}",
+      "fromSubagent": "Question from a subagent",
+      "hint": "The subagent is waiting. The main agent answers it next; to answer it yourself, reply here and the main agent passes your answer on.",
+      "interview": "· structured answer"
     },
     "svgBlock": {
       "renderedSvgAlt": "Rendered SVG",

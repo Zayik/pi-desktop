@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
-import { Bot, ChevronDown, X } from 'lucide-react'
+import { Bot, ChevronDown, MessageCircleQuestion, X } from 'lucide-react'
 import type { ContextCategory, ContextCategoryId, ContextSnapshot, SnapshotModel } from '../../../../resources/context-snapshot'
 import {
   boardTotals,
@@ -16,6 +16,7 @@ import {
 } from '../../../shared/agent-board'
 import { pathsEqual } from '../../../shared/path-compare'
 import type { SubagentTask, SubagentTaskStatus } from '../../../shared/subagent-task'
+import type { SubagentQuestion } from '../../../shared/subagent-questions'
 import {
   billingTable,
   cacheHitRate,
@@ -259,6 +260,10 @@ interface CardModel {
   recorded: boolean
   /** Thinking level. */
   effort: string | null
+  /** A question the subagent is waiting on an answer to. */
+  question?: SubagentQuestion | null
+  /** Main agent only: the subagents waiting on it for an answer. */
+  askedBy?: string[]
 }
 
 function AgentBoardView({ snapshot, board, tasks }: {
@@ -282,9 +287,11 @@ function AgentBoardView({ snapshot, board, tasks }: {
       return file !== null && pathsEqual(file, child.summary.sessionFile)
     })
     if (task) matchedTaskIds.add(task.id)
-    const running = childIsRunning(child.summary, task ? task.status === 'running' : null, now)
+    const question = child.question ?? null
+    // A child waiting on an answer writes nothing, but it has not finished.
+    const running = question !== null || childIsRunning(child.summary, task ? task.status === 'running' : null, now)
     const status: SubagentTaskStatus = task && !running ? task.status : running ? 'running' : 'done'
-    const agentName = task?.agent ?? child.agentName
+    const agentName = task?.agent ?? child.agentName ?? question?.agent ?? null
     return {
       key: child.summary.sessionFile,
       kind: child.kind,
@@ -295,12 +302,15 @@ function AgentBoardView({ snapshot, board, tasks }: {
       summary: child.summary,
       recorded: child.snapshot !== null,
       effort: child.summary.thinkingLevel,
+      question,
     }
   })
   const liveTasks = tasks.filter((task) => !matchedTaskIds.has(task.id))
   const summaries = [...(main ? [main] : []), ...children.map((child) => child.summary)]
   const totals = boardTotals(summaries)
-  const runningCards = childCards.filter((card) => card.status === 'running')
+  // Cards waiting on an answer lead the running group.
+  const runningCards = childCards.filter((card) => card.status === 'running').sort((a, b) => Number(Boolean(b.question)) - Number(Boolean(a.question)))
+  const askedBy = childCards.filter((card) => card.question).map((card) => card.title)
   const finishedCards = childCards.filter((card) => card.status !== 'running')
   const runningTasks = liveTasks.filter((task) => task.status === 'running')
   const finishedTasks = liveTasks.filter((task) => task.status !== 'running')
@@ -329,6 +339,7 @@ function AgentBoardView({ snapshot, board, tasks }: {
             summary: main,
             recorded: snapshot !== null,
             effort: mainEffort ?? main?.thinkingLevel ?? null,
+            askedBy,
           }}
           now={now}
           subagents={children.length > 0 ? { count: children.length, turnCost: subagentTurnCost } : undefined}
@@ -504,8 +515,16 @@ const STATUS_LABEL_KEYS = {
   stopped: 'chat.contextPanel.agents.status.stopped',
 } as const satisfies Record<SubagentTaskStatus, string>
 
-function StatusPill({ status }: { status: SubagentTaskStatus }): React.JSX.Element {
+function StatusPill({ status, needsAnswer = false }: { status: SubagentTaskStatus; needsAnswer?: boolean }): React.JSX.Element {
   const { t } = useTranslation()
+  if (needsAnswer) {
+    return (
+      <span className="flex shrink-0 items-center gap-1 rounded-full border border-warning px-2 py-px text-[11px] font-medium text-warning">
+        <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />
+        {t('chat.contextPanel.agents.status.needsAnswer')}
+      </span>
+    )
+  }
   return (
     <span
       className={clsx(
@@ -559,6 +578,7 @@ function Stat({ label, value, note, below, tone }: {
 }
 
 function cardAccent(card: CardModel): string {
+  if (card.question || (card.askedBy?.length ?? 0) > 0) return 'border-l-warning'
   if (card.status === 'failed') return 'border-l-error'
   if (card.status === 'running' || card.kind === 'main') return 'border-l-accent'
   return 'border-l-border'
@@ -607,8 +627,16 @@ function AgentCard({ card, now, subagents }: {
           <h4 className="truncate text-[13px] font-semibold text-primary" title={card.title}>{card.title}</h4>
           {card.subtitle && <p className="truncate text-[11px] text-dim" title={card.subtitle}>{card.subtitle}</p>}
         </div>
-        <StatusPill status={card.status} />
+        <StatusPill status={card.status} needsAnswer={Boolean(card.question)} />
       </header>
+
+      {card.question && <QuestionNote question={card.question} />}
+      {card.askedBy && card.askedBy.length > 0 && (
+        <p className="mt-1.5 flex items-start gap-1.5 rounded-md bg-warning-bg px-2 py-1.5 text-[11px] text-secondary">
+          <MessageCircleQuestion size={12} className="mt-px shrink-0 text-warning" aria-hidden="true" />
+          <span>{t('chat.contextPanel.agents.card.askedBy', { count: card.askedBy.length, agents: card.askedBy.join(', ') })}</span>
+        </p>
+      )}
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         <Chip tone="kind">{t(KIND_LABEL_KEYS[card.kind])}</Chip>
@@ -665,6 +693,21 @@ function AgentCard({ card, now, subagents }: {
         </div>
       )}
     </article>
+  )
+}
+
+/** What a subagent asked, shown until it has its answer. */
+function QuestionNote({ question }: { question: SubagentQuestion }): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <div className="mt-1.5 rounded-md bg-warning-bg px-2 py-1.5 text-[11px] text-secondary">
+      <div className="flex items-center gap-1.5 font-medium text-primary">
+        <MessageCircleQuestion size={12} className="shrink-0 text-warning" aria-hidden="true" />
+        {question.reason === 'interview_request' ? t('chat.contextPanel.agents.card.questionInterview') : t('chat.contextPanel.agents.card.question')}
+      </div>
+      {question.body && <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words" title={question.body}>{question.body}</p>}
+      <p className="mt-0.5 text-dim">{t('chat.contextPanel.agents.card.answerInChat')}</p>
+    </div>
   )
 }
 
