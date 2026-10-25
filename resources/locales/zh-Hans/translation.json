@@ -19,7 +19,7 @@
         "write": "缓存写入"
       },
       "gaps": {
-        "bar_other": "",
+        "bar_other": "{{range}}：{{count}} 个间隔",
         "over": ">{{minutes}} 分",
         "range": "{{from}}–{{to}} 分",
         "title": "调用间隔",
