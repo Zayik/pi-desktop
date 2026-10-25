@@ -103,6 +103,10 @@ export const IPC_CHANNELS = {
   SUBAGENT_LIST: 'subagent:list',
   SUBAGENT_GET_TRANSCRIPT: 'subagent:get-transcript',
 
+  // Context panel
+  CONTEXT_GET_SNAPSHOT: 'context:get-snapshot',
+  CONTEXT_GET_AGENT_BOARD: 'context:get-agent-board',
+
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',
 

@@ -53,6 +53,135 @@
       "placeholderNotRunning": "{{agent}} agent is not running...",
       "placeholderQueue": "Type to queue a message — Ctrl+Enter sends it now"
     },
+    "contextPanel": {
+      "agents": {
+        "card": {
+          "breakdown": "Breakdown",
+          "cost": "Cost",
+          "details": "Details",
+          "inOutNote": "(in {{input}} · out {{output}})",
+          "lastTool": "last: {{tool}}",
+          "nextWarm": "Next if warm {{cost}}",
+          "noSessionFile": "Live figures only: this run has no saved session to read yet.",
+          "time": "Time",
+          "toolCount_one": "{{count}} tool call",
+          "toolCount_other": "{{count}} tool calls"
+        },
+        "finishedLabel": "Finished",
+        "kind": {
+          "child": "child session",
+          "main": "main",
+          "subagent": "subagent",
+          "worktree": "worktree"
+        },
+        "main": "Main agent",
+        "models": {
+          "agents": "Agents",
+          "calls": "Requests",
+          "caption": "Calls, tokens and cost per model across all agents",
+          "compaction": "compaction",
+          "cost": "Cost",
+          "hide": "Hide model breakdown",
+          "model": "Model",
+          "show_one": "View model breakdown ({{count}} model)",
+          "show_other": "View model breakdown ({{count}} models)",
+          "tokens": "In / out"
+        },
+        "runningLabel": "Running",
+        "status": {
+          "done": "Done",
+          "failed": "Failed",
+          "running": "Running",
+          "stopped": "Stopped"
+        },
+        "tiles": {
+          "agentCount_one": "{{count}} agent",
+          "agentCount_other": "{{count}} agents",
+          "cost": "Total cost",
+          "mainContext": "Main context",
+          "running_one": "{{count}} running",
+          "running_other": "{{count}} running",
+          "time": "Active time",
+          "tokens": "Tokens · all agents",
+          "turns_one": "{{count}} turn",
+          "turns_other": "{{count}} turns"
+        }
+      },
+      "billing": {
+        "cacheRead": "Cache read",
+        "cacheWrite": "Cache write",
+        "caption": "Tokens and cost by token type, for the last call and this turn",
+        "input": "Input (new)",
+        "lastCall": "Last call",
+        "output": "Output",
+        "rate": "Rate /1M",
+        "subagents_one": "Subagents ({{count}})",
+        "subagents_other": "Subagents ({{count}})",
+        "thisTurn": "This turn",
+        "title": "Billing",
+        "tokenType": "Token type",
+        "total": "Total",
+        "totalWithSubagents": "Total with subagents"
+      },
+      "breakdown": {
+        "barLabel": "Context window by category",
+        "conversationOnly": "Rebuilt from the session file: the conversation only. The system prompt and tools show when the agent runs under Pi Desktop.",
+        "count_one": "×{{count}}",
+        "count_other": "×{{count}}",
+        "empty": "Shows after the next request.",
+        "estimated": "≈ {{tokens}} estimated",
+        "free": "Free space",
+        "fromSession": "Rebuilt from the saved session. It updates on the next request.",
+        "note": "Estimated at 4 characters a token from the latest request. Hover an item for a preview.",
+        "title": "What fills the context",
+        "unattributed": "System prompt and tools (not in the file)",
+        "unattributedDetail": "What the last call sent beyond the saved conversation: the system prompt, instruction files, skills and tool definitions."
+      },
+      "cache": {
+        "cold": "Cold",
+        "hitRate": "Last call {{percent}}% from cache",
+        "modelChanged": "Cold · model changed",
+        "nextCold": "Next if expired",
+        "nextColdDetail": "rewrites context",
+        "nextWarm": "Next if warm",
+        "nextWarmDetail": "reads context",
+        "none": "No calls yet",
+        "thisTurn": "This turn",
+        "title": "Prompt cache",
+        "titleWithLifetime": "Prompt cache · {{lifetime}}",
+        "unknown": "Lifetime unknown",
+        "warming": "Cache warming: {{mode}}",
+        "warmLeft": "Warm · {{time}} left"
+      },
+      "category": {
+        "assistantMessages": "Assistant replies",
+        "assistantThinking": "Assistant thinking",
+        "builtInTools": "Built-in tools",
+        "compacted": "Compaction summaries",
+        "contextFiles": "Instruction files",
+        "customTools": "Extension tools",
+        "extensionMessages": "Extension messages",
+        "mcpTools": "MCP tools",
+        "skills": "Skills",
+        "systemPrompt": "System prompt",
+        "toolCalls": "Tool calls",
+        "toolResults": "Tool results",
+        "userMessages": "User messages"
+      },
+      "close": "Close",
+      "loading": "Loading…",
+      "noSession": "Open a session to see its context.",
+      "noSnapshot": "Nothing recorded for this session yet. Recording starts when its agent starts, so send a message or restart the agent.",
+      "tiles": {
+        "calls_one": "{{count}} request",
+        "calls_other": "{{count}} requests",
+        "context": "Context",
+        "contextOfWindow": "{{tokens}} of {{window}}",
+        "tokens": "Tokens",
+        "tokensDetail": "in {{input}} · out {{output}}"
+      },
+      "title": "Context"
+    },
     "council": {
       "planWithCouncil": "Plan with Council",
       "startEngineFirst": "Start Pi/OMP before planning with Council"
@@ -168,6 +297,7 @@
       "viewSource": "View source"
     },
     "toolbar": {
+      "context": "Context",
       "diffViewer": "Diff viewer",
       "fileTree": "File tree",
       "reviewPanel": "Review panel",

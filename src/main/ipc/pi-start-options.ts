@@ -12,12 +12,15 @@ import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../shared/agent
 import { i18n } from '../../shared/i18n'
 import { typeSafeKeyEnv, typeSafeKeyStore } from '../typesafe-key-store'
 import { agentResourcePath } from '../agent-resources'
+import { CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
+import { getContextSnapshotDir } from '../context-snapshots'
 
 const READ_ONLY_TOOLS = 'read,grep,find,ls'
 const OMP_READ_ONLY_TOOLS = 'read,grep,glob'
 
 const PERMISSIONS_EXTENSION_PATH = agentResourcePath('pi-desktop-permissions.ts')
 const NEXT_STEPS_EXTENSION_PATH = agentResourcePath(NEXT_STEPS_EXTENSION_FILE)
+const CONTEXT_EXTENSION_PATH = agentResourcePath(CONTEXT_EXTENSION_FILE)
 
 const LOCALES_DIR_NAME = 'locales'
 // The language files ship next to the extension (resources/ is extraResources).
@@ -99,6 +102,9 @@ export function applyPermissionModeToStartOptions(
     args.push('-e', PERMISSIONS_EXTENSION_PATH)
   }
   if (suggestsNextSteps) args.push('-e', NEXT_STEPS_EXTENSION_PATH)
+  // Only observes: records what fills the context for the Context panel.
+  const recordsContext = existsSync(CONTEXT_EXTENSION_PATH)
+  if (recordsContext) args.push('-e', CONTEXT_EXTENSION_PATH)
 
   return {
     ...options,
@@ -125,6 +131,8 @@ export function applyPermissionModeToStartOptions(
       // The API key saved in Settings, so the TypeSafe agent skill never has to
       // ask for it. A key already in the app's own environment wins.
       ...typeSafeKeyEnv(typeSafeKeyStore.getSavedKey(), process.env),
+      // A chat started here is a root, even when the app itself was launched from a Pi session.
+      ...(recordsContext ? { [CONTEXT_DIR_ENV]: getContextSnapshotDir(), [PARENT_SESSION_ENV]: '' } : {}),
     },
   }
 }

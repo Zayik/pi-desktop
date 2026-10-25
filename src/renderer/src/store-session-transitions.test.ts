@@ -1231,10 +1231,10 @@ test('the file tree never asks — the editor pane stays mounted beside it', asy
   assert.equal(useAppStore.getState().editorDirty, true)
 })
 
-test('exactly the diff and the Tasks panel hide the file preview', () => {
+test('exactly the diff, Tasks, and Context panels hide the file preview', () => {
   assert.deepEqual(
-    (['files', 'diff', 'tasks', null] as const).filter((panel) => sidePanelHidesPreview(panel)),
-    ['diff', 'tasks']
+    (['files', 'diff', 'tasks', 'context', null] as const).filter((panel) => sidePanelHidesPreview(panel)),
+    ['diff', 'tasks', 'context']
   )
 })
 

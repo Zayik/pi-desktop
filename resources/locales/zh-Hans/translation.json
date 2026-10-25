@@ -53,6 +53,127 @@
       "placeholderNotRunning": "{{agent}} 智能体未在运行…",
       "placeholderQueue": "输入消息以加入队列 — Ctrl+Enter 立即发送"
     },
+    "contextPanel": {
+      "agents": {
+        "card": {
+          "breakdown": "",
+          "cost": "",
+          "details": "",
+          "inOutNote": "",
+          "lastTool": "",
+          "nextWarm": "",
+          "noSessionFile": "",
+          "time": "",
+          "toolCount_other": ""
+        },
+        "finishedLabel": "",
+        "kind": {
+          "child": "",
+          "main": "",
+          "subagent": "",
+          "worktree": ""
+        },
+        "main": "",
+        "models": {
+          "agents": "",
+          "calls": "",
+          "caption": "",
+          "compaction": "",
+          "cost": "",
+          "hide": "",
+          "model": "",
+          "show_other": "",
+          "tokens": ""
+        },
+        "runningLabel": "",
+        "status": {
+          "done": "",
+          "failed": "",
+          "running": "",
+          "stopped": ""
+        },
+        "tiles": {
+          "agentCount_other": "",
+          "cost": "",
+          "mainContext": "",
+          "running_other": "",
+          "time": "",
+          "tokens": "",
+          "turns_other": ""
+        }
+      },
+      "billing": {
+        "cacheRead": "",
+        "cacheWrite": "",
+        "caption": "",
+        "input": "",
+        "lastCall": "",
+        "output": "",
+        "rate": "",
+        "subagents_other": "",
+        "thisTurn": "",
+        "title": "",
+        "tokenType": "",
+        "total": "",
+        "totalWithSubagents": ""
+      },
+      "breakdown": {
+        "barLabel": "",
+        "conversationOnly": "",
+        "count_other": "",
+        "empty": "",
+        "estimated": "",
+        "free": "",
+        "fromSession": "",
+        "note": "",
+        "title": "",
+        "unattributed": "",
+        "unattributedDetail": ""
+      },
+      "cache": {
+        "cold": "",
+        "hitRate": "",
+        "modelChanged": "",
+        "nextCold": "",
+        "nextColdDetail": "",
+        "nextWarm": "",
+        "nextWarmDetail": "",
+        "none": "",
+        "thisTurn": "",
+        "title": "",
+        "titleWithLifetime": "",
+        "unknown": "",
+        "warming": "",
+        "warmLeft": ""
+      },
+      "category": {
+        "assistantMessages": "",
+        "assistantThinking": "",
+        "builtInTools": "",
+        "compacted": "",
+        "contextFiles": "",
+        "customTools": "",
+        "extensionMessages": "",
+        "mcpTools": "",
+        "skills": "",
+        "systemPrompt": "",
+        "toolCalls": "",
+        "toolResults": "",
+        "userMessages": ""
+      },
+      "close": "",
+      "loading": "",
+      "noSession": "",
+      "noSnapshot": "",
+      "tiles": {
+        "calls_other": "",
+        "context": "",
+        "contextOfWindow": "",
+        "tokens": "",
+        "tokensDetail": ""
+      },
+      "title": ""
+    },
     "council": {
       "planWithCouncil": "使用委员会规划",
       "startEngineFirst": "请先启动 Pi/OMP 再使用委员会规划"
@@ -163,6 +284,7 @@
       "viewSource": "查看源码"
     },
     "toolbar": {
+      "context": "",
       "diffViewer": "差异查看器",
       "fileTree": "文件树",
       "reviewPanel": "审查面板",
