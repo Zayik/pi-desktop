@@ -179,22 +179,22 @@ test('earlier OpenAI models cache automatically and can ask for 24h retention', 
   assert.ok(model.notes.includes('implicit-lifetime'))
 })
 
-test('Copilot offers no longer lifetime, only pings', () => {
+test('Copilot Claude adds the unlisted 1 hour lifetime; Copilot GPT only pings', () => {
   const calls: CacheCall[] = [call(0, 40_000, true)]
   for (let index = 1; index <= 20; index++) calls.push(call(index * 15 * MINUTE, 40_000 + index * 500))
   const claude = buildCacheReport([session(calls, ['github-copilot/claude-sonnet-5.5'])]).models[0]
   assert.equal(claude.route, 'copilot')
   assert.equal(claude.family, 'anthropic')
   assert.equal(claude.currentPolicy, '5m')
-  assert.ok(!claude.policies.some((policy) => policy.policy === '1h'))
-  assert.equal(claude.longPolicy, null)
-  assert.ok(claude.recommended?.startsWith('5m-warm'))
-  assert.ok(claude.notes.includes('copilot-lifetime'))
+  assert.ok(claude.policies.some((policy) => policy.policy === '1h'))
+  assert.equal(claude.longPolicy, '1h')
+  assert.ok(claude.notes.includes('copilot-1h-unlisted'))
   assert.equal(claude.pingSweep.length, MAX_SWEEP_PINGS + 1)
 
   const gpt = buildCacheReport([session(calls, ['github-copilot/gpt-5.6-terra'])]).models[0]
   assert.equal(gpt.family, 'openai-ttl')
   assert.ok(!gpt.policies.some((policy) => policy.policy === '12h'))
+  assert.ok(gpt.notes.includes('copilot-lifetime'))
 
   const gemini = buildCacheReport([session(calls.map((entry) => autoCall(entry[0], 40_000)), ['github-copilot/gemini-4-argon'])]).models[0]
   assert.equal(gemini.family, 'none')

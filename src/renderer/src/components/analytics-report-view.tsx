@@ -67,6 +67,7 @@ const POLICY_LABEL_KEYS = {
 const CACHE_NOTE_KEYS = {
   'copilot-lifetime': 'analytics.cache.notes.copilotLifetime',
   'copilot-automatic': 'analytics.cache.notes.copilotAutomatic',
+  'copilot-1h-unlisted': 'analytics.cache.notes.copilot1hUnlisted',
   'implicit-lifetime': 'analytics.cache.notes.implicitLifetime',
   'pi-no-12h': 'analytics.cache.notes.piNo12h',
   'pi-no-pings': 'analytics.cache.notes.piNoPings',

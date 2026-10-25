@@ -20,7 +20,8 @@
  *   (no extra charge) typically about 30 minutes. Both are estimates.
  * - GitHub Copilot: billed per token at the upstream rates (Claude with the
  *   5 minute write price, GPT-5.6+ with the 30 minute one, older models with
- *   none), with no lifetime setting.
+ *   none). Its docs list no longer lifetime, though its backend takes
+ *   Anthropic's `ttl: "1h"` (VS Code's extendedTtl setting sends it).
  */
 import { localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
 
@@ -38,8 +39,10 @@ export type CachePolicyId =
 
 /** Facts about a model's caching the cost table alone does not show. */
 export type CacheNote =
-  /** Copilot sets the lifetime itself; only keep-warm pings could change the timing. */
+  /** Copilot lists no longer lifetime for this model; only keep-warm pings could change the timing. */
   | 'copilot-lifetime'
+  /** Copilot accepts Anthropic's 1 hour lifetime but does not document or list a price for it. */
+  | 'copilot-1h-unlisted'
   /** Copilot caches the model automatically and there is nothing to set. */
   | 'copilot-automatic'
   /** The automatic cache's lifetimes are typical values, not guarantees. */
@@ -164,7 +167,8 @@ function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
   const kind = cacheProvider(model)
   if (kind === 'anthropic') {
     return route === 'copilot'
-      ? { family: 'anthropic', route, policies: ANTHROPIC_SHORT, defaultPolicy: '5m', longPolicy: null, sweep: ANTHROPIC_SWEEP, notes: ['copilot-lifetime', 'pi-no-pings'] }
+      // Copilot's price list shows only the 5 minute write, but its backend takes `ttl: "1h"` (VS Code's extendedTtl setting uses it).
+      ? { family: 'anthropic', route, policies: [...ANTHROPIC_SHORT, { id: '1h', ttlMs: HOUR, write: 2 }], defaultPolicy: '5m', longPolicy: '1h', sweep: ANTHROPIC_SWEEP, notes: ['copilot-1h-unlisted', 'pi-no-pings'] }
       : { family: 'anthropic', route, policies: [...ANTHROPIC_SHORT, { id: '1h', ttlMs: HOUR, write: 2 }], defaultPolicy: '5m', longPolicy: '1h', sweep: ANTHROPIC_SWEEP, notes: [] }
   }
   if (kind === 'openai' && openAIHasLifetimes(id, calls)) {
@@ -371,7 +375,7 @@ function measurePrices(totals: CallTotals, profile: CacheProfile, model: string)
  * automatic cache shows none.
  */
 function currentPolicy(profile: CacheProfile, totals: CallTotals, prices: Prices | null): CachePolicyId | null {
-  if (profile.route === 'copilot') return profile.defaultPolicy
+  if (profile.route === 'copilot' && profile.family !== 'anthropic') return profile.defaultPolicy
   if (profile.family === 'anthropic') return totals.write === 0 ? null : totals.write1h > totals.write / 2 ? '1h' : '5m'
   if (profile.family === 'openai-ttl') {
     if (totals.write === 0 || totals.writeCost === 0 || !prices) return null

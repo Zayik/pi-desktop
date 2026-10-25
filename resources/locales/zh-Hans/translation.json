@@ -37,8 +37,9 @@
       "noOptions": "此模型没有可比较的缓存设置或保活选项，仅显示实际计费。",
       "note": "相同调用、相同时间，仅比较提示费用",
       "notes": {
+        "copilot1hUnlisted": "Copilot 文档只列出 5 分钟价格，但其后端接受 1 小时时长（VS Code 的扩展缓存设置会使用）。1 小时一行按 Anthropic 的 2 倍写入价估算。",
         "copilotAutomatic": "Copilot 会自动缓存此模型，没有可更改的设置。",
-        "copilotLifetime": "Copilot 自行设定缓存时长，只有保活请求能改变它；不提供更长的时长。",
+        "copilotLifetime": "Copilot 文档未列出此模型更长的缓存时长，只有保活请求能改变时机。",
         "implicitLifetime": "OpenAI 自动缓存此模型，不收写入费用。时长为典型值：内存约 5 到 10 分钟（按 5 分钟估算），24 小时保留约 30 分钟。",
         "piNo12h": "Pi 的长保留在此模型上请求 30 分钟，因此目前无法在 Pi 中选择 12 小时。",
         "piNoPings": "Pi 的缓存保活只对声明了缓存时长的模型（直连 Anthropic 模型）运行，因此这里的保活只是假设。"

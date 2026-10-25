@@ -39,8 +39,9 @@
       "noOptions": "This model has no cache setting or keep-warm option to compare; only the billed cost is shown.",
       "note": "Same calls, same timing, prompt cost only",
       "notes": {
+        "copilot1hUnlisted": "Copilot's docs list only the 5 min price, but its backend accepts the 1 h lifetime (VS Code's extended cache setting uses it). The 1 h row assumes Anthropic's 2x write price.",
         "copilotAutomatic": "Copilot caches this model automatically and there is no setting to change.",
-        "copilotLifetime": "Copilot sets the cache lifetime itself, so only keep-warm pings could change it; the longer lifetime is not offered.",
+        "copilotLifetime": "Copilot's docs list no longer cache lifetime for this model, so only keep-warm pings could change the timing.",
         "implicitLifetime": "OpenAI caches this model automatically with no write charge. Lifetimes are typical values: in memory about 5 to 10 min (5 assumed), 24 h retention about 30 min.",
         "piNo12h": "Pi's long retention asks for 30 min on this model, so 12 h cannot be picked from Pi yet.",
         "piNoPings": "Pi's cache warming only runs for models that declare a cache lifetime (direct Anthropic models), so pings here are a what-if."
