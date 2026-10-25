@@ -4,7 +4,7 @@
  */
 import { spawn } from 'child_process'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
-import { applyRecommendations, describePlan, readCacheWarming, reset, undo } from './apply'
+import { applyRecommendations, describePlan, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
 import { describeRecommendation, withAlternative, LONG_MARGIN, type CacheRecommendation } from './recommendations'
@@ -18,6 +18,8 @@ export const USAGE = [
   'pi-analytics apply <number>... | all [--range ...] [--long] [--yes]',
   '    Put recommendations into the cache plan Pi runs with. --long takes the long-cache alternative instead.',
   '    --yes lets it turn on Pi\'s idle warming when a setting needs it.',
+  'pi-analytics pings <provider/model> <count> [--yes]',
+  '    Keep a model warm with this many refreshes after the agent stops (0 to 6 on a 5-minute cache, 0 to 1 on a 30-minute one).',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
 ]
@@ -142,6 +144,26 @@ export async function runCommand(args: string | string[], options: CommandOption
         ...(result.enabledIdleWarming ? ['Pi\'s cacheWarming is now "idle" (it was ' + (readCacheWarmingLabel(result.plan.history.at(-1)?.cacheWarmingBefore)) + ').'] : []),
         ...(result.idleWarmingOff ? ['Pi\'s cacheWarming is not "idle", so no refreshes go out after the agent stops. Run again with --yes to turn it on.'] : []),
         'Undo with "undo". New sessions and the next request of running ones use it.',
+      ]
+    }
+    case 'pings': {
+      const [model, count] = positional
+      if (!model || count === undefined) return ['Name a model and a count, e.g. "pings anthropic/claude-sonnet-5-5 3".']
+      const result = await setKeepWarmPings(model, Number(count), {
+        dir,
+        settingsPath: options.settingsPath,
+        now: options.now,
+        allowIdleWarming: () => flags.has('yes') || (options.confirm?.(
+          'Turn on idle cache warming?',
+          'Refreshing the cache after the agent stops needs Pi\'s cacheWarming setting set to "idle". This applies to every Pi session; undo and reset put the old value back.',
+        ) ?? false),
+      })
+      options.afterPlanChange?.()
+      return [
+        `Set: ${result.lines[0]}`,
+        ...(result.enabledIdleWarming ? ['Pi\'s cacheWarming is now "idle".'] : []),
+        ...(result.idleWarmingOff ? ['Pi\'s cacheWarming is not "idle", so no refreshes go out after the agent stops. Run again with --yes to turn it on.'] : []),
+        'Undo with "undo". Sessions in keep-warm use it from their next request.',
       ]
     }
     case 'undo': {

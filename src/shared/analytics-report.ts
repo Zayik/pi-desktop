@@ -47,6 +47,13 @@ export interface ApplyCacheRecommendationRequest extends OverviewRequest {
   long?: boolean
 }
 
+/** Keep `model` warm with `pings` idle refreshes, picked by hand. */
+export interface SetKeepWarmPingsRequest {
+  model: string
+  pings: number
+  allowIdleWarming: boolean
+}
+
 /** The pi-analytics cache plan and Pi's `cacheWarming`, which idle refreshes need set to "idle". */
 export interface CachePlanState {
   plan: CachePlan

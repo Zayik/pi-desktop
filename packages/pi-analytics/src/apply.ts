@@ -17,7 +17,7 @@ import {
 import { readPlan, writeJsonAtomic } from './plan-file'
 import { MAX_IDLE_WARMS } from '../../../resources/context-snapshot'
 import { analyticsDir, piSettingsPath, planPath } from './paths'
-import { describeRecommendation, type CacheRecommendation } from './recommendations'
+import { describeRecommendation, idleWarmMinutes, piMaxIdlePings, shortLifetimeMs, type CacheRecommendation } from './recommendations'
 
 const IDLE = 'idle'
 /** Recorded as the old `cacheWarming` when Pi's settings had none. */
@@ -82,6 +82,20 @@ export async function applyRecommendations(recs: CacheRecommendation[], options:
     entries[rec.model] = { ...rec.setting, appliedAt: now, source: { weeklySaving: rec.weeklySaving, days: options.days ?? 0 } }
   }
   return applyEntries(entries, recs.map(describeRecommendation), options)
+}
+
+/**
+ * Keep `model` warm with `pings` idle refreshes, the count picked by hand.
+ * The count is capped at what Pi sends for the model's lifetime before it
+ * stops warming: 6 on a 5-minute cache, 1 on a 30-minute one.
+ */
+export async function setKeepWarmPings(model: string, pings: number, options: ApplyOptions = {}): Promise<ApplyResult> {
+  const ttl = shortLifetimeMs(model)
+  if (ttl === null) throw new Error(`Pi has no cache lifetime for ${model}, so it never refreshes it.`)
+  const cap = piMaxIdlePings(ttl)
+  if (!Number.isInteger(pings) || pings < 0 || pings > cap) throw new Error(`${model} takes 0 to ${cap} idle refreshes.`)
+  const line = `${model}: keep warm ${idleWarmMinutes(ttl, pings)} min after the agent stops (${pings} ${pings === 1 ? 'refresh' : 'refreshes'}), set by hand`
+  return applyEntries({ [model]: { mode: 'keep-warm', idlePings: pings, appliedAt: options.now ?? Date.now() } }, [line], options)
 }
 
 /** Write plan entries (key `*` for the default), turning on idle warming when they need it and the caller agrees. */

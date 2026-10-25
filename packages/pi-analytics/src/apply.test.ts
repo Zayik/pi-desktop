@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyRecommendations, reset, undo } from './apply'
+import { applyRecommendations, reset, setKeepWarmPings, undo } from './apply'
 import { readPlan } from './plan-file'
 import { planPath } from './paths'
 import type { CacheRecommendation } from './recommendations'
@@ -40,4 +40,16 @@ test('a settings file that does not parse is left alone', async () => {
   const result = await applyRecommendations([rec], { ...paths, allowIdleWarming: () => true })
   assert.equal(result.enabledIdleWarming, false)
   assert.equal(readFileSync(paths.settingsPath, 'utf8'), '{ not json')
+})
+
+test('a count set by hand is capped by the model\'s cache lifetime', async () => {
+  const paths = setup('{"cacheWarming":"idle"}')
+  await setKeepWarmPings('anthropic/claude-haiku-5-5', 6, { ...paths, now: 1 })
+  assert.deepEqual(readPlan(planPath(paths.dir)).models['anthropic/claude-haiku-5-5'], { mode: 'keep-warm', idlePings: 6, appliedAt: 1 })
+  await assert.rejects(setKeepWarmPings('anthropic/claude-haiku-5-5', 7, paths), /0 to 6/)
+  await setKeepWarmPings('github-copilot/gpt-6-luna', 1, { ...paths, now: 2 })
+  await assert.rejects(setKeepWarmPings('github-copilot/gpt-6-luna', 2, paths), /0 to 1/)
+  await assert.rejects(setKeepWarmPings('google/gemini-3-pro', 1, paths), /no cache lifetime/)
+  assert.equal(undo({ ...paths, now: 3 })?.restoredCacheWarming, null)
+  assert.equal(readPlan(planPath(paths.dir)).models['github-copilot/gpt-6-luna'], undefined)
 })

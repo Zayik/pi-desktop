@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronUp, LineChart, Timer } from 'lucide-react'
+import { Check, ChevronUp, LineChart, Minus, Plus, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAppStore } from '../store'
 import {
   CACHE_MODES,
   DEFAULT_CACHE_MODE,
+  MAX_IDLE_WARMS,
   autoWarmLimit,
   type AutoWarmSchedule,
   type CacheMode,
 } from '../../../../resources/context-snapshot'
 import type { Translate } from '../../../shared/i18n'
+import type { CachePlanState } from '../../../shared/analytics-report'
+import { idleWarmMinutes, piMaxIdlePings, shortLifetimeMs } from '../../../../packages/pi-analytics/src/recommendations'
 import { CacheCheckDialog } from './cache-check-dialog'
 
 export function cacheModeLabel(mode: CacheMode, t: Translate): string {
@@ -66,6 +69,46 @@ function AutoWarmPlan({ schedule, model }: { schedule: AutoWarmSchedule | null; 
   )
 }
 
+/**
+ * Keep warm's idle refresh count for the chat's model, saved in the cache
+ * plan so every chat on that model uses it. The range follows the model's
+ * cache lifetime: Pi stops warming 30 minutes after a run, so a 5-minute
+ * cache takes up to 6 refreshes and a 30-minute one at most 1.
+ */
+function KeepWarmPings({ model, plan, onChange }: {
+  model: string
+  plan: CachePlanState | null
+  onChange: (pings: number) => void
+}): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const ttl = shortLifetimeMs(model)
+  if (ttl === null) return <p className="mx-3 mb-1 mt-1 text-[11px] text-dim">{t('chat.cacheMode.pingsNotWarmed')}</p>
+  const cap = piMaxIdlePings(ttl)
+  const entry = plan?.plan.models[model] ?? plan?.plan.default ?? null
+  const pings = Math.min(cap, entry?.mode === 'keep-warm' ? entry.idlePings ?? MAX_IDLE_WARMS : MAX_IDLE_WARMS)
+  const step = (by: number): void => onChange(Math.max(0, Math.min(cap, pings + by)))
+  const stepButton = 'flex h-5 w-5 items-center justify-center rounded-md border border-border-strong bg-card text-secondary hover:bg-surface-hover disabled:opacity-40'
+  return (
+    <div className="mx-2 mb-1 mt-1 rounded-lg bg-card px-2.5 py-2 text-[11px] text-secondary">
+      <div className="flex items-center justify-between gap-2">
+        <span>{t('chat.cacheMode.pingsLabel')}</span>
+        <span className="flex items-center gap-1.5">
+          <button type="button" className={stepButton} disabled={!plan || pings <= 0} onClick={() => step(-1)} aria-label={t('chat.cacheMode.pingsFewer')}>
+            <Minus size={10} />
+          </button>
+          <span className="w-4 text-center tabular-nums text-primary">{pings}</span>
+          <button type="button" className={stepButton} disabled={!plan || pings >= cap} onClick={() => step(1)} aria-label={t('chat.cacheMode.pingsMore')}>
+            <Plus size={10} />
+          </button>
+        </span>
+      </div>
+      <p className="mt-1 text-dim">
+        {t('chat.cacheMode.pingsDetail', { minutes: idleWarmMinutes(ttl, pings), lifetime: Math.round(ttl / 60_000), cap })}
+      </p>
+    </div>
+  )
+}
+
 interface CacheModeSelectorProps {
   className?: string
 }
@@ -85,6 +128,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   const [auto, setAuto] = useState<{ schedule: AutoWarmSchedule | null; model: string | null } | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [checking, setChecking] = useState<string | null>(null)
+  const [plan, setPlan] = useState<CachePlanState | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   // A session keeps the mode picked for it, or the one it started in.
@@ -102,6 +146,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
 
   useEffect(() => {
     if (!isOpen) return
+    void window.piDesktop.analytics.getCachePlan().then(setPlan).catch(() => undefined)
     void window.piDesktop.context.getCacheWarming()
       .then((value) => setWarming((previous) => ({ value, enabledNow: previous?.enabledNow ?? false })))
       .catch(() => undefined)
@@ -140,6 +185,14 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
       setWarming({ value: 'idle', enabledNow: true })
     } catch {
       // Pi's settings file could not be read or written; the note stays.
+    }
+  }
+  // Only asked to turn on idle warming from the note below, so a count never changes Pi's settings on its own.
+  const setPings = async (model: string, pings: number): Promise<void> => {
+    try {
+      setPlan(await window.piDesktop.analytics.setKeepWarmPings({ model, pings, allowIdleWarming: false }))
+    } catch {
+      // The count shown stays the one in the plan.
     }
   }
   const label = cacheModeLabel(current, t)
@@ -192,6 +245,9 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               </span>
             </button>
           ))}
+          {current === 'keep-warm' && auto?.model && (
+            <KeepWarmPings model={auto.model} plan={plan} onChange={(pings) => void setPings(auto.model as string, pings)} />
+          )}
           {current === 'auto' && auto && <AutoWarmPlan schedule={auto.schedule} model={auto.model} />}
           {warms && warming && warming.value !== 'idle' && (
             <div className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">

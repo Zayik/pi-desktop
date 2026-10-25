@@ -7,6 +7,7 @@
 import type { AnalyticsReport } from '../../../src/shared/analytics-report'
 import type { ModelCacheReport, PingSweepPoint } from '../../../src/shared/cache-policy'
 import type { ModelCachePlan } from './cache-plan'
+import { advertisedCacheLifetime } from '../../../resources/context-snapshot'
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
@@ -66,6 +67,19 @@ export interface CacheCheck {
 /** Most idle refreshes Pi sends for a model's short lifetime before it stops warming. */
 export function piMaxIdlePings(shortTtlMs: number): number {
   return shortTtlMs > 0 ? Math.floor(PI_IDLE_WARMING_MS / (shortTtlMs * PI_REFRESH_AT)) : 0
+}
+
+/** A `provider/model` key's advertised short lifetime, or null for a model Pi has no lifetime for (and so never warms). */
+export function shortLifetimeMs(model: string): number | null {
+  const slash = model.indexOf('/')
+  if (slash <= 0) return null
+  const lifetime = advertisedCacheLifetime(model.slice(0, slash), model.slice(slash + 1))
+  return lifetime ? lifetime.short * 1000 : null
+}
+
+/** Minutes the cache stays warm after the agent stops with this many idle refreshes. */
+export function idleWarmMinutes(shortTtlMs: number, pings: number): number {
+  return Math.round((shortTtlMs + pings * shortTtlMs * PI_REFRESH_AT) / MINUTE)
 }
 
 /** Pi's long tier reaches the report's long lifetime for Anthropic (1 hour) and older OpenAI models (24-hour retention), not GPT-5.6's 12 hours. */

@@ -339,7 +339,7 @@
           "label": ""
         },
         "keepWarm": {
-          "detail": "",
+          "detail": "短缓存，代理停止后刷新：除非为该模型设置了次数，否则刷新 3 次（5 分钟缓存约可保持 15 分钟）。",
           "label": ""
         },
         "long": {
@@ -348,7 +348,12 @@
         }
       },
       "title": "",
-      "withMode": ""
+      "withMode": "",
+      "pingsLabel": "代理停止后的保温请求",
+      "pingsFewer": "减少",
+      "pingsMore": "增加",
+      "pingsDetail": "让此模型 {{lifetime}} 分钟的缓存在代理停止后保持约 {{minutes}} 分钟。最多 {{cap}} 次：Pi 在运行结束 30 分钟后停止保温。按模型保存。",
+      "pingsNotWarmed": "Pi 没有此模型的缓存时长，因此不会为它保温。"
     },
     "closeFileTree": "关闭文件树",
     "commandPopup": {

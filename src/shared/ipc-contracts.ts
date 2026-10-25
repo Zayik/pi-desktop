@@ -120,6 +120,7 @@ export const IPC_CHANNELS = {
   ANALYTICS_GET_CACHE_PLAN: 'analytics:get-cache-plan',
   ANALYTICS_APPLY_CACHE_RECOMMENDATION: 'analytics:apply-cache-recommendation',
   ANALYTICS_UNDO_CACHE_PLAN: 'analytics:undo-cache-plan',
+  ANALYTICS_SET_KEEP_WARM_PINGS: 'analytics:set-keep-warm-pings',
 
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',

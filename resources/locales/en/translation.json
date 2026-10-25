@@ -359,7 +359,7 @@
           "label": "Focus"
         },
         "keepWarm": {
-          "detail": "5-minute cache, refreshed up to 3 times after the agent stops, so it lasts about 15 minutes past your last turn.",
+          "detail": "Short cache, refreshed after the agent stops: 3 times unless you set a count for the model (about 15 minutes on a 5-minute cache).",
           "label": "Keep warm"
         },
         "long": {
@@ -368,7 +368,12 @@
         }
       },
       "title": "Prompt cache",
-      "withMode": "Prompt cache: {{mode}}"
+      "withMode": "Prompt cache: {{mode}}",
+      "pingsLabel": "Pings after the agent stops",
+      "pingsFewer": "Fewer pings",
+      "pingsMore": "More pings",
+      "pingsDetail": "Keeps this model's {{lifetime}}-minute cache warm about {{minutes}} min after the agent stops. Up to {{cap}}: Pi stops warming 30 min after a run. Saved for this model.",
+      "pingsNotWarmed": "Pi has no cache lifetime for this model, so it never pings it."
     },
     "closeFileTree": "Close file tree",
     "commandPopup": {

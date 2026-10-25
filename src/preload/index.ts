@@ -94,7 +94,7 @@ import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
 import type { AutoWarmSchedule, CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
-import type { AnalyticsReport, ApplyCacheRecommendationRequest, CachePlanState, OverviewRequest } from '../shared/analytics-report'
+import type { AnalyticsReport, ApplyCacheRecommendationRequest, CachePlanState, OverviewRequest, SetKeepWarmPingsRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -429,6 +429,8 @@ interface PiDesktopAPI {
     applyCacheRecommendation(request: ApplyCacheRecommendationRequest): Promise<CachePlanState>
     /** Step the plan back one change. */
     undoCachePlan(): Promise<CachePlanState>
+    /** Set a model's keep-warm idle refresh count by hand (capped by its cache lifetime). */
+    setKeepWarmPings(request: SetKeepWarmPingsRequest): Promise<CachePlanState>
   }
 
   // Diagnostics report
@@ -750,6 +752,7 @@ const api: PiDesktopAPI = {
     getCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_CACHE_PLAN),
     applyCacheRecommendation: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_APPLY_CACHE_RECOMMENDATION, request),
     undoCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_UNDO_CACHE_PLAN),
+    setKeepWarmPings: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_KEEP_WARM_PINGS, request),
   },
 
   diagnostics: {
