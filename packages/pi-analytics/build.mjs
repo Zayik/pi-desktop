@@ -87,4 +87,6 @@ writeFileSync(resolve(dist, 'report.html'), readFileSync(page, 'utf8'))
 rmSync(page)
 // The retro skill ships with the app too; one copy lives in the repository.
 cpSync(resolve(here, '../../resources/skills'), resolve(dist, 'skills'), { recursive: true })
+// dist/ is shipped on its own in the app, without the package's own package.json.
+writeFileSync(resolve(dist, 'package.json'), `${JSON.stringify({ type: 'module' })}\n`)
 console.log(`pi-analytics built in ${dist}`)
