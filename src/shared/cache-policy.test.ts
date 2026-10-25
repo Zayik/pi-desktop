@@ -238,7 +238,11 @@ test('measures where the cache actually goes cold', () => {
 })
 
 test("counts Pi's warming pings apart from the calls", () => {
-  const ping = (at: number, prompt: number, warm: boolean): CacheCall => [...call(at, prompt, !warm), 1]
+  const ping = (at: number, prompt: number, warm: boolean): CacheCall => {
+    const row = call(at, prompt, !warm)
+    row[9] = 1
+    return row
+  }
   const calls: CacheCall[] = [
     call(0, 40_000, true),
     ping(4.5 * MINUTE, 40_000, true),
