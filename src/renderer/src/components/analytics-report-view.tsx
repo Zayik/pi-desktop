@@ -127,7 +127,8 @@ function signalText(signal: AnalyticsSignal, t: Translate): string {
 
 /** One report, for the session panel (narrow) or the Analytics view (wide). */
 /** `actions` sits under the signals: the cache settings to apply, in the app and in the CLI's report. */
-export function AnalyticsReportView({ report, wide = false, actions }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode }): React.JSX.Element {
+/** `autoCompare` shows the experimental Auto comparison; Pi Desktop shows it only with its Experimental setting on. */
+export function AnalyticsReportView({ report, wide = false, actions, autoCompare = true }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode; autoCompare?: boolean }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
@@ -137,7 +138,7 @@ export function AnalyticsReportView({ report, wide = false, actions }: { report:
       {report.scope === 'overall' && report.days.length > 1 && <DailyCost report={report} />}
       <div className={clsx('space-y-4', wide && 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0')}>
         <WorkByKind report={report} />
-        <CachePolicies report={report} />
+        <CachePolicies report={report} autoCompare={autoCompare} />
         <Section title={t('analytics.tools.title')} note={t('analytics.tools.note')}>
           <Table
             headers={[t('analytics.tools.tool'), t('analytics.tools.calls'), t('analytics.tools.time'), t('analytics.tools.carried')]}
@@ -321,7 +322,7 @@ function WorkByKind({ report }: { report: AnalyticsReport }): React.JSX.Element 
   )
 }
 
-function CachePolicies({ report }: { report: AnalyticsReport }): React.JSX.Element | null {
+function CachePolicies({ report, autoCompare }: { report: AnalyticsReport; autoCompare: boolean }): React.JSX.Element | null {
   const { t } = useTranslation()
   const models = report.cache.models.filter((model) => model.policies.length > 0 || model.measuredCost > 0)
   if (models.length === 0) return null
@@ -329,7 +330,7 @@ function CachePolicies({ report }: { report: AnalyticsReport }): React.JSX.Eleme
     <Section title={t('analytics.cache.title')} note={t('analytics.cache.note')}>
       <div className="space-y-3">
         {report.cache.days.length > 1 && <CacheDays days={report.cache.days} />}
-        {report.scope === 'overall' && <AutoCompare report={report} />}
+        {autoCompare && report.scope === 'overall' && <AutoCompare report={report} />}
         {models.slice(0, MAX_ROWS).map((model) => <ModelCache key={model.model} model={model} />)}
         <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
       </div>

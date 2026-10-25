@@ -24,6 +24,7 @@ export function AnalyticsView(): React.JSX.Element {
   const { t } = useTranslation()
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
   const engine = useAppStore((state) => state.piEngine)
+  const autoEnabled = useAppStore((state) => state.settings?.experimentalAutoCache ?? false)
   const [range, setRange] = useState<AnalyticsRangeKey>('30')
   const [projectOnly, setProjectOnly] = useState(false)
   const [report, setReport] = useState<AnalyticsReport | null>(null)
@@ -148,6 +149,7 @@ export function AnalyticsView(): React.JSX.Element {
             <AnalyticsReportView
               report={report}
               wide
+              autoCompare={autoEnabled}
               actions={(
                 <div className="space-y-2">
                   {askIdle && (
