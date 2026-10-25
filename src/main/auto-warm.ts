@@ -1,9 +1,9 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { AUTO_WARM_FILE, isAutoWarmSchedule, type AutoWarmSchedule } from '../../resources/context-snapshot'
+import { isAutoWarmSchedule, type AutoWarmSchedule } from '../../resources/context-snapshot'
+import { AUTO_SCHEDULE_FILE, analyticsDir } from '../../packages/pi-analytics/src/paths'
 import type { AnalyticsRangeKey, AnalyticsReport } from '../shared/analytics-report'
 import { buildAutoWarmSchedule } from '../shared/auto-warm'
-import { getContextSnapshotDir } from './context-snapshots'
 
 const MAX_SCHEDULE_BYTES = 256 * 1024
 /** Habits change: the schedule is built from the last 30 days of sessions. */
@@ -13,9 +13,9 @@ const AUTO_WARM_DAYS = 30
 export const AUTO_WARM_REBUILD_MS = 6 * 60 * 60 * 1000
 
 /** The schedule auto mode runs on, or null before the first build. */
-export async function readAutoWarmSchedule(dir = getContextSnapshotDir()): Promise<AutoWarmSchedule | null> {
+export async function readAutoWarmSchedule(dir = analyticsDir()): Promise<AutoWarmSchedule | null> {
   try {
-    const text = await readFile(join(dir, AUTO_WARM_FILE), 'utf8')
+    const text = await readFile(join(dir, AUTO_SCHEDULE_FILE), 'utf8')
     if (text.length > MAX_SCHEDULE_BYTES) return null
     const parsed: unknown = JSON.parse(text)
     return isAutoWarmSchedule(parsed) ? parsed : null
@@ -30,12 +30,12 @@ export async function readAutoWarmSchedule(dir = getContextSnapshotDir()): Promi
  */
 export async function rebuildAutoWarmSchedule(
   overview: (range: AnalyticsRangeKey) => Promise<AnalyticsReport>,
-  dir = getContextSnapshotDir(),
+  dir = analyticsDir(),
   now = Date.now(),
 ): Promise<AutoWarmSchedule> {
   const report = await overview(AUTO_WARM_RANGE)
   const schedule = buildAutoWarmSchedule(report.cache, now, AUTO_WARM_DAYS)
-  const target = join(dir, AUTO_WARM_FILE)
+  const target = join(dir, AUTO_SCHEDULE_FILE)
   const temp = `${target}.${process.pid}.tmp`
   await mkdir(dir, { recursive: true })
   await writeFile(temp, JSON.stringify(schedule))
@@ -49,7 +49,7 @@ let building: Promise<AutoWarmSchedule> | null = null
 export async function freshAutoWarmSchedule(
   overview: (range: AnalyticsRangeKey) => Promise<AnalyticsReport>,
   maxAgeMs = AUTO_WARM_REBUILD_MS,
-  dir = getContextSnapshotDir(),
+  dir = analyticsDir(),
   now = Date.now(),
 ): Promise<AutoWarmSchedule> {
   const current = await readAutoWarmSchedule(dir)

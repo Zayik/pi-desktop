@@ -1,31 +1,21 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
-import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'fs'
+import { mkdirSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import {
-  AUTO_WARM_FILE,
   CACHE_MODE_ENV,
+  CACHE_STATUS_EVENT,
   CONTEXT_DIR_ENV,
   CONTEXT_SNAPSHOT_VERSION,
   MAX_CATALOG_MODELS,
   PARENT_SESSION_ENV,
-  DEFAULT_CACHE_MODE,
-  autoWarmLimit,
   buildBreakdown,
-  cacheModeFileName,
-  cacheRetentionFor,
-  cacheWarmingOverride,
   callFromMessage,
-  isAutoWarmSchedule,
-  isCacheMode,
-  isCacheModeChoice,
+  cacheStatusFromEvent,
   emptyTotals,
-  fillCacheLifetime,
   recordCall,
   snapshotFileName,
   snapshotModel,
-  type AutoWarmSchedule,
-  type CacheMode,
-  type CacheModeChoice,
+  type CacheStatusEvent,
   type ContextSnapshot,
   type SnapshotModel,
   type ToolDefinitionInput,
@@ -36,109 +26,50 @@ const WRITE_DELAY_MS = 200
 
 /**
  * Records what fills the model context on each request and what each model
- * call cost, for Pi Desktop's Context panel, and applies the session's cache
- * mode. Adds nothing to the context. The snapshot is written to
+ * call cost, for Pi Desktop's Context panel. Adds nothing to the context and
+ * changes nothing about the requests. The snapshot is written to
  * `<PI_DESKTOP_CONTEXT_DIR>/<session id>.json`; without that folder the
  * extension does nothing.
  *
- * The mode the app picked for the session is read from `<session id>.mode`
- * beside it before each request, so a switch applies to the next request.
- * It sets `PI_CACHE_RETENTION`, which Pi reads per request, and answers Pi's
- * idle cache-warming decisions. In auto mode the number of idle refreshes
- * comes from `auto-warm.json` in the same folder, for the hour of day the
- * break starts in.
+ * The cache mode is applied by the pi-analytics package's extension, which
+ * owns Pi's cache-warming decisions; this one only copies the status it
+ * sends on `pi.events` into the snapshot.
  */
 export default function piDesktopContext(pi: ExtensionAPI): void {
   const dir = process.env[CONTEXT_DIR_ENV]
   if (!dir) return
   // Read once at load: start() then overwrites it for the processes this one spawns.
   const parentSessionId = process.env[PARENT_SESSION_ENV] || null
-  // A chat started outside the app keeps an explicit PI_CACHE_RETENTION=long.
-  const startEnv = process.env[CACHE_MODE_ENV]
-  const startMode: CacheMode = isCacheMode(startEnv) ? startEnv : process.env.PI_CACHE_RETENTION === 'long' ? 'long' : DEFAULT_CACHE_MODE
+  const startMode = process.env[CACHE_MODE_ENV] ?? null
 
   let snapshot: ContextSnapshot | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
-  // Idle refreshes sent since the last real request, which started the break.
-  let idleWarms = 0
-  let idleSince = Date.now()
-  let modeFile: { path: string; mtimeMs: number; choice: CacheModeChoice | null } | null = null
-  let scheduleFile: { mtimeMs: number; schedule: AutoWarmSchedule | null } | null = null
+  // The package may report before this session's snapshot exists.
+  let cacheStatus: CacheStatusEvent | null = null
 
-  /** Auto mode's schedule, re-read only when the app rewrites it. */
-  const autoSchedule = (): AutoWarmSchedule | null => {
-    const path = join(dir, AUTO_WARM_FILE)
-    let mtimeMs: number
-    try {
-      mtimeMs = statSync(path).mtimeMs
-    } catch {
-      return null
-    }
-    if (scheduleFile?.mtimeMs === mtimeMs) return scheduleFile.schedule
-    let schedule: AutoWarmSchedule | null = null
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
-      schedule = isAutoWarmSchedule(parsed) ? parsed : null
-    } catch {
-      // Half written: keep-warm's count stands until the next read.
-    }
-    scheduleFile = { mtimeMs, schedule }
-    return schedule
-  }
-
-  /** Idle refreshes allowed for the current break, or null outside auto mode. */
-  const idleWarmLimit = (mode: CacheMode): number | null => {
-    if (mode !== 'auto' || !snapshot) return null
-    const model = snapshot.model ? `${snapshot.model.provider}/${snapshot.model.id}` : null
-    const limit = autoWarmLimit(autoSchedule(), model, idleSince)
-    if (snapshot.autoWarmLimit !== limit) {
-      snapshot.autoWarmLimit = limit
-      scheduleWrite()
-    }
-    return limit
-  }
-
-  /** The mode picked in the app for this session, re-read only when its file changes. */
-  const pickedMode = (sessionId: string): CacheModeChoice | null => {
-    const path = join(dir, cacheModeFileName(sessionId))
-    let mtimeMs: number
-    try {
-      mtimeMs = statSync(path).mtimeMs
-    } catch {
-      return null
-    }
-    if (modeFile?.path === path && modeFile.mtimeMs === mtimeMs) return modeFile.choice
-    let choice: CacheModeChoice | null = null
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
-      choice = isCacheModeChoice(parsed) ? parsed : null
-    } catch {
-      // Half written or removed: keep the current mode.
-    }
-    modeFile = { path, mtimeMs, choice }
-    return choice
-  }
-
-  /** Bring the session's mode into effect for the next request. */
-  const applyMode = (): CacheMode => {
-    if (!snapshot) return startMode
-    const choice = pickedMode(snapshot.sessionId)
-    const mode = choice?.mode ?? snapshot.cacheMode ?? startMode
-    // Pi reads it on every request; a subagent process spawned from here inherits it.
-    process.env.PI_CACHE_RETENTION = cacheRetentionFor(mode)
-    if (mode !== 'auto' && snapshot.autoWarmLimit != null) {
-      snapshot.autoWarmLimit = null
-      scheduleWrite()
-    }
+  /** Copy the package's cache status into the snapshot. */
+  const applyStatus = (): void => {
+    if (!snapshot || !cacheStatus || cacheStatus.sessionId !== snapshot.sessionId) return
+    const status = cacheStatus
+    const mode = status.cacheMode ?? undefined
     if (mode !== snapshot.cacheMode) {
-      if (snapshot.cacheMode) snapshot.cacheModeChangedAt = choice?.changedAt ?? Date.now()
+      // A switch from the mode the session started in; the first mode is not a switch.
+      if (snapshot.cacheMode) snapshot.cacheModeChangedAt = status.cacheModeChangedAt ?? Date.now()
       snapshot.cacheMode = mode
-      // The cache tier changes with the next request; until then the last one's entry is what lives.
-      if (snapshot.lastRequestAt === null) snapshot.cacheRetention = cacheRetentionFor(mode)
-      scheduleWrite()
     }
-    return mode
+    snapshot.autoWarmLimit = mode === 'auto' ? status.idleLimit : null
+    if (status.lastWarmAt !== null && status.lastWarmAt !== snapshot.lastWarmAt) snapshot.lastWarmAt = status.lastWarmAt
+    // Until a request goes out, the tier the mode asks for is the one shown.
+    if (snapshot.lastRequestAt === null && status.cacheRetention) snapshot.cacheRetention = status.cacheRetention
+    scheduleWrite()
   }
+
+  pi.events.on(CACHE_STATUS_EVENT, (data) => {
+    const status = cacheStatusFromEvent(data)
+    if (!status) return
+    cacheStatus = status
+    applyStatus()
+  })
 
   const activeTools = (): ToolDefinitionInput[] => {
     const active = new Set(pi.getActiveTools())
@@ -175,22 +106,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     }
   }
 
-  /**
-   * Pi warms only models with a known cache lifetime, and its catalog has
-   * them for direct Anthropic models only. The request Pi warms carries the
-   * session's model object, so the advertised lifetime is filled in there
-   * before each request; the user's models.json still wins.
-   */
-  const fillLifetime = (ctx: ExtensionContext): void => {
-    try {
-      fillCacheLifetime(ctx.model)
-    } catch {
-      // A frozen model object: Pi keeps its own catalog lifetimes.
-    }
-  }
-
   const refreshModel = (ctx: ExtensionContext): void => {
-    fillLifetime(ctx)
     if (!snapshot) return
     snapshot.model = snapshotModel(ctx.model)
     snapshot.reportedTokens = ctx.getContextUsage()?.tokens ?? null
@@ -209,7 +125,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
       parentSessionId: parentSessionId !== sessionId ? parentSessionId : null,
       updatedAt: Date.now(),
       model: null,
-      cacheRetention: cacheRetentionFor(startMode),
+      cacheRetention: startMode === 'long' || process.env.PI_CACHE_RETENTION === 'long' ? 'long' : 'short',
       cacheWarming: typeof settings.cacheWarming === 'string' ? settings.cacheWarming : null,
       cacheMode: undefined,
       cacheModeChangedAt: null,
@@ -248,12 +164,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     })
     refreshModel(ctx)
     snapshot.catalog = modelCatalog(ctx)
-    idleSince = snapshot.lastRequestAt ?? Date.now()
-    // A resumed session keeps the mode it was switched to.
-    const resumed = pickedMode(sessionId)
-    snapshot.cacheMode = resumed?.mode ?? startMode
-    snapshot.cacheModeChangedAt = resumed ? resumed.changedAt : null
-    applyMode()
+    applyStatus()
     scheduleWrite()
   }
 
@@ -264,22 +175,15 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     scheduleWrite()
   })
 
-  pi.on('before_agent_start', (event, ctx) => {
-    fillLifetime(ctx)
+  pi.on('before_agent_start', (event) => {
     if (!snapshot) return
-    applyMode()
     if (event.messageType !== 'user') return
     snapshot.turnStartedAt = Date.now()
     scheduleWrite()
   })
 
   pi.on('context_with_system', (event, ctx) => {
-    fillLifetime(ctx)
     if (!snapshot) return
-    // A real request (refreshes resend the stored one without this event) restarts the idle budget.
-    idleWarms = 0
-    idleSince = Date.now()
-    idleWarmLimit(applyMode())
     snapshot.breakdown = buildBreakdown({
       systemPrompt: ctx.getSystemPrompt(),
       tools: activeTools(),
@@ -294,18 +198,6 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     snapshot.lastRequestAt = Date.now()
     snapshot.cacheRetention = process.env.PI_CACHE_RETENTION === 'long' ? 'long' : 'short'
     scheduleWrite()
-  })
-
-  pi.on('cache_warming_decision', (event) => {
-    if (!snapshot) return
-    const mode = applyMode()
-    const action = cacheWarmingOverride(mode, event.continuationProbability, idleWarms, idleWarmLimit(mode) ?? undefined)
-    if ((action ?? event.action) === 'warm') {
-      if (event.continuationProbability < 1) idleWarms++
-      snapshot.lastWarmAt = Date.now()
-      scheduleWrite()
-    }
-    return action ? { action } : undefined
   })
 
   pi.on('message_end', (event, ctx) => {

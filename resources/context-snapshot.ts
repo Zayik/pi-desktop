@@ -257,8 +257,36 @@ export function fillCacheLifetime(model: unknown): boolean {
   return true
 }
 
-/** Auto mode's schedule, written by the app beside the snapshots. */
-export const AUTO_WARM_FILE = 'auto-warm.json'
+/** The channel on `pi.events` the pi-analytics extension reports each session's cache status on. */
+export const CACHE_STATUS_EVENT = 'pi-analytics:status'
+
+/** The part of pi-analytics' `SessionCacheStatus` the Context panel shows. */
+export interface CacheStatusEvent {
+  sessionId: string
+  /** Null while the package leaves Pi's own warming alone. */
+  cacheMode: CacheMode | null
+  cacheModeChangedAt: number | null
+  cacheRetention: 'short' | 'long' | null
+  /** Idle refreshes allowed for the current break. */
+  idleLimit: number | null
+  lastWarmAt: number | null
+}
+
+const nullableNumber = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
+
+/** A status sent on `CACHE_STATUS_EVENT`, or null for anything else. */
+export function cacheStatusFromEvent(data: unknown): CacheStatusEvent | null {
+  if (!isRecord(data) || typeof data.sessionId !== 'string') return null
+  return {
+    sessionId: data.sessionId,
+    cacheMode: isCacheMode(data.cacheMode) ? data.cacheMode : null,
+    cacheModeChangedAt: nullableNumber(data.cacheModeChangedAt),
+    cacheRetention: data.cacheRetention === 'short' || data.cacheRetention === 'long' ? data.cacheRetention : null,
+    idleLimit: nullableNumber(data.idleLimit),
+    lastWarmAt: nullableNumber(data.lastWarmAt),
+  }
+}
+
 const AUTO_WARM_VERSION = 1
 const HOURS_PER_DAY = 24
 /** Most idle refreshes a plan holds: a 30-minute cache refreshed every 24 minutes through 12 hours. Pi itself stops idle warming 30 minutes after a run. */

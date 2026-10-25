@@ -11,7 +11,8 @@ import { engineForBoundSession } from '../pi-paths'
 import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../shared/agent-engine-label'
 import { i18n } from '../../shared/i18n'
 import { typeSafeKeyEnv, typeSafeKeyStore } from '../typesafe-key-store'
-import { agentResourcePath } from '../agent-resources'
+import { agentResourcePath, piAnalyticsPath } from '../agent-resources'
+import { piAnalyticsInstalled } from '../cache-modes'
 import { CACHE_MODE_ENV, CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
 import { getContextSnapshotDir } from '../context-snapshots'
 import { RETRO_SKILL_NAME } from '../../shared/retro-digest'
@@ -23,6 +24,7 @@ const PERMISSIONS_EXTENSION_PATH = agentResourcePath('pi-desktop-permissions.ts'
 const NEXT_STEPS_EXTENSION_PATH = agentResourcePath(NEXT_STEPS_EXTENSION_FILE)
 const CONTEXT_EXTENSION_PATH = agentResourcePath(CONTEXT_EXTENSION_FILE)
 const RETRO_SKILL_PATH = agentResourcePath(join('skills', RETRO_SKILL_NAME))
+const ANALYTICS_EXTENSION_PATH = piAnalyticsPath('extension.js')
 
 const LOCALES_DIR_NAME = 'locales'
 // The language files ship next to the extension (resources/ is extraResources).
@@ -104,7 +106,9 @@ export function applyPermissionModeToStartOptions(
     args.push('-e', PERMISSIONS_EXTENSION_PATH)
   }
   if (suggestsNextSteps) args.push('-e', NEXT_STEPS_EXTENSION_PATH)
-  // Records what fills the context for the Context panel and applies the cache mode.
+  // Applies the cache mode (the pick for the chat, else the cache plan). A copy the user installed in Pi already loads.
+  if (engine === 'pi' && existsSync(ANALYTICS_EXTENSION_PATH) && !piAnalyticsInstalled()) args.push('-e', ANALYTICS_EXTENSION_PATH)
+  // Records what fills the context for the Context panel.
   const recordsContext = existsSync(CONTEXT_EXTENSION_PATH)
   if (recordsContext) args.push('-e', CONTEXT_EXTENSION_PATH)
   // The Analytics retro runs this skill with `/skill:pi-retro`; only Pi takes `--skill`.

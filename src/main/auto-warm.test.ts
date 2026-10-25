@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { AUTO_WARM_FILE } from '../../resources/context-snapshot'
+import { AUTO_SCHEDULE_FILE } from '../../packages/pi-analytics/src/paths'
 import { buildReport, type AnalyticsReport } from '../shared/analytics-report'
 import { freshAutoWarmSchedule, readAutoWarmSchedule } from './auto-warm'
 
@@ -37,7 +37,7 @@ test('builds the schedule when missing or stale and reuses a fresh one', async (
 
 test('ignores a file that is not a schedule', async () => {
   await withDir(async (dir) => {
-    await writeFile(join(dir, AUTO_WARM_FILE), JSON.stringify({ version: 1, models: { a: [1] } }))
+    await writeFile(join(dir, AUTO_SCHEDULE_FILE), JSON.stringify({ version: 1, models: { a: [1] } }))
     assert.equal(await readAutoWarmSchedule(dir), null)
   })
 })

@@ -1,16 +1,21 @@
+import { readFileSync } from 'fs'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
-import { join } from 'path'
-import { cacheModeFileName, isCacheModeChoice, type CacheMode, type CacheModeChoice } from '../../resources/context-snapshot'
-import { getContextSnapshotDir } from './context-snapshots'
+import { dirname, join } from 'path'
+import { isCacheModeChoice, type CacheMode, type CacheModeChoice } from '../../resources/context-snapshot'
+import { analyticsDir, sessionModePath } from '../../packages/pi-analytics/src/paths'
 
 const MAX_MODE_FILE_BYTES = 4 * 1024
 /** Pi's warming setting that also refreshes the cache after the agent stops. */
 export const IDLE_CACHE_WARMING = 'idle'
 
-/** The mode picked for a session, or null when it still runs in the mode it started with. */
-export async function readCacheMode(sessionId: string, dir = getContextSnapshotDir()): Promise<CacheModeChoice | null> {
+/**
+ * The mode picked for a session, or null when it still runs in the mode it
+ * started with. Picks live in pi-analytics' folder, where its extension
+ * reads them, so a pick reaches the chat in the CLI too.
+ */
+export async function readCacheMode(sessionId: string, dir = analyticsDir()): Promise<CacheModeChoice | null> {
   try {
-    const text = await readFile(join(dir, cacheModeFileName(sessionId)), 'utf8')
+    const text = await readFile(sessionModePath(sessionId, dir), 'utf8')
     if (text.length > MAX_MODE_FILE_BYTES) return null
     const parsed: unknown = JSON.parse(text)
     return isCacheModeChoice(parsed) ? parsed : null
@@ -19,12 +24,12 @@ export async function readCacheMode(sessionId: string, dir = getContextSnapshotD
   }
 }
 
-/** Pick a session's mode; the context extension applies it to the session's next request. */
-export async function writeCacheMode(sessionId: string, mode: CacheMode, dir = getContextSnapshotDir(), now = Date.now()): Promise<CacheModeChoice> {
+/** Pick a session's mode; pi-analytics' extension applies it to the session's next request. */
+export async function writeCacheMode(sessionId: string, mode: CacheMode, dir = analyticsDir(), now = Date.now()): Promise<CacheModeChoice> {
   const choice: CacheModeChoice = { mode, changedAt: now }
-  const target = join(dir, cacheModeFileName(sessionId))
+  const target = sessionModePath(sessionId, dir)
   const temp = `${target}.${process.pid}.tmp`
-  await mkdir(dir, { recursive: true })
+  await mkdir(dirname(target), { recursive: true })
   await writeFile(temp, JSON.stringify(choice))
   await rename(temp, target)
   return choice
@@ -75,3 +80,16 @@ export async function enableIdleCacheWarming(path = piGlobalSettingsPath()): Pro
   await rename(temp, path)
 }
 
+
+/** Whether the user installed pi-analytics in Pi (`pi install`), which then loads it in every session. */
+export function piAnalyticsInstalled(path = piGlobalSettingsPath()): boolean {
+  try {
+    const packages: unknown = (JSON.parse(readFileSync(path, 'utf8')) as { packages?: unknown }).packages
+    return Array.isArray(packages) && packages.some((entry) => {
+      const source = typeof entry === 'string' ? entry : (entry as { source?: unknown } | null)?.source
+      return typeof source === 'string' && /(^|[/:@])pi-analytics(@|$|\/|\\)/.test(source)
+    })
+  } catch {
+    return false
+  }
+}

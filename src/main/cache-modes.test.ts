@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { enableIdleCacheWarming, readCacheMode, readPiCacheWarming, writeCacheMode } from './cache-modes'
+import { enableIdleCacheWarming, piAnalyticsInstalled, readCacheMode, readPiCacheWarming, writeCacheMode } from './cache-modes'
 
 async function withDir(run: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), 'cache-modes-'))
@@ -19,7 +19,7 @@ test('writes and reads back the mode picked for a session', async () => {
     assert.equal(await readCacheMode('s/1', dir), null)
     await writeCacheMode('s/1', 'keep-warm', dir, 42)
     assert.deepEqual(await readCacheMode('s/1', dir), { mode: 'keep-warm', changedAt: 42 })
-    await writeFile(join(dir, 's_1.mode'), '{"mode":"forever","changedAt":1}')
+    await writeFile(join(dir, 'sessions', 's_1.mode'), '{"mode":"forever","changedAt":1}')
     assert.equal(await readCacheMode('s/1', dir), null)
   })
 })
@@ -42,5 +42,18 @@ test('leaves a settings file that does not parse alone', async () => {
     await writeFile(path, '{ broken')
     await assert.rejects(enableIdleCacheWarming(path))
     assert.equal(await readFile(path, 'utf8'), '{ broken')
+  })
+})
+
+test('finds pi-analytics among the packages installed in Pi', async () => {
+  await withDir(async (dir) => {
+    const path = join(dir, 'settings.json')
+    assert.equal(piAnalyticsInstalled(path), false)
+    await writeFile(path, JSON.stringify({ packages: ['npm:pi-retro', { source: 'git:github.com/someone/other' }] }))
+    assert.equal(piAnalyticsInstalled(path), false)
+    await writeFile(path, JSON.stringify({ packages: ['npm:pi-analytics@0.1.0'] }))
+    assert.equal(piAnalyticsInstalled(path), true)
+    await writeFile(path, JSON.stringify({ packages: [{ source: '/home/me/pi-desktop/packages/pi-analytics' }] }))
+    assert.equal(piAnalyticsInstalled(path), true)
   })
 })
