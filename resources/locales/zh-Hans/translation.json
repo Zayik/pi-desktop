@@ -1926,7 +1926,7 @@
       "setting": "设置",
       "proposed": "建议（最近 30 天）",
       "empty": "还没有模型设置。点击“推荐”列出你用过的模型。",
-      "piDefault": "Pi 默认",
+      "piDefault": "未设置",
       "settingFor": "{{model}} 的缓存设置",
       "pingsTitle": "代理停止后保持约 {{minutes}} 分钟；最多 {{cap}} 次",
       "minutes": "≈{{minutes}} 分钟",
@@ -1934,7 +1934,7 @@
       "saves": "每周节省 {{amount}}",
       "apply": "应用",
       "or": "或 {{setting}}",
-      "note": "按模型保存，适用于 Pi Desktop 和 Pi CLI 中的所有聊天。为某个聊天选择的模式在该聊天中仍优先。",
+      "note": "按模型保存，适用于 Pi Desktop 和 Pi CLI 中的所有聊天。未设置：Pi Desktop 聊天使用其起始模式（默认为保温），Pi CLI 不做更改。在某个聊天菜单中选择的模式在该聊天中仍优先。",
       "recommend": "推荐",
       "recommendAgain": "重新推荐"
     }

@@ -1985,7 +1985,7 @@
       "setting": "Setting",
       "proposed": "Proposed (last 30 days)",
       "empty": "No model has a setting yet. Recommend lists the models you've used.",
-      "piDefault": "Pi default",
+      "piDefault": "Not set",
       "settingFor": "Cache setting for {{model}}",
       "pingsTitle": "Warm about {{minutes}} min after the agent stops; up to {{cap}} pings",
       "minutes": "≈{{minutes}} min",
@@ -1994,7 +1994,7 @@
       "saves": "saves {{amount}}/wk",
       "apply": "Apply",
       "or": "or {{setting}}",
-      "note": "Saved per model for every chat, in Pi Desktop and the Pi CLI. A mode picked for one chat still wins in that chat.",
+      "note": "Saved per model for every chat, in Pi Desktop and the Pi CLI. Not set: Pi Desktop chats use the mode they start in (Keep warm unless you picked another), and the Pi CLI leaves Pi alone. A mode picked in one chat's menu still wins in that chat.",
       "recommend": "Recommend",
       "recommendAgain": "Recommend again"
     }

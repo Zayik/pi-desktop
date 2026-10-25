@@ -4,7 +4,7 @@
  * sweep of the cache report (the cheapest count per hour over past breaks).
  */
 import { MAX_AUTO_WARMS, emptyAutoWarmSchedule, type AutoWarmSchedule } from '../../resources/context-snapshot'
-import { KEEP_WARM_EVERY_MS, type CacheReport, type ModelCacheReport } from './cache-policy'
+import { KEEP_WARM_EVERY_MS, piMaxIdlePings, type CacheReport, type ModelCacheReport } from './cache-policy'
 
 const HOURS_PER_DAY = 24
 const FIVE_MINUTES_MS = 5 * 60_000
@@ -16,8 +16,10 @@ const FIVE_MINUTES_MS = 5 * 60_000
  */
 function hourPlan(model: ModelCacheReport): number[] | null {
   if (!model.bestPings || !model.sweepPolicy || model.pingEveryMs <= 0) return null
-  const plan = new Array<number>(HOURS_PER_DAY).fill(Math.min(model.bestPings.pings, MAX_AUTO_WARMS))
-  for (const hour of model.hourly) plan[hour.hour] = Math.min(hour.pings, MAX_AUTO_WARMS)
+  // Pi stops warming 30 minutes after a run, so a higher count never goes out.
+  const cap = Math.min(MAX_AUTO_WARMS, piMaxIdlePings(model.shortTtlMs))
+  const plan = new Array<number>(HOURS_PER_DAY).fill(Math.min(model.bestPings.pings, cap))
+  for (const hour of model.hourly) plan[hour.hour] = Math.min(hour.pings, cap)
   return plan
 }
 

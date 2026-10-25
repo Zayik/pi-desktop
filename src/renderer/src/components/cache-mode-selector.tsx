@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronUp, LineChart, Minus, Plus, Settings2, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -294,7 +295,8 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
           </button>
         </div>
       )}
-      {checking && <CacheCheckDialog model={checking} onClose={() => setChecking(null)} />}
+      {/* On the body: the composer is a container, which would otherwise hold the fixed overlay inside it. */}
+      {checking && createPortal(<CacheCheckDialog model={checking} onClose={() => setChecking(null)} />, document.body)}
     </div>
   )
 }

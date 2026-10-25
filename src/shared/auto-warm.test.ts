@@ -78,3 +78,11 @@ test('rejects a schedule with an hour out of range', () => {
   assert.equal(isAutoWarmSchedule({ ...schedule, models: { [SONNET]: new Array(24).fill(MAX_AUTO_WARMS + 1) } }), false)
   assert.equal(isAutoWarmSchedule({ ...schedule, fallback: [1, 2] }), false)
 })
+
+test('never plans more pings than Pi sends before it stops warming', () => {
+  // 45-minute lunch breaks: the replay's cheapest count is above Pi's 6.
+  const lunches = [0, 1, 2, 3, 4].map((day) => session([at(day, 12, 0), at(day, 12, 45), at(day, 12, 46)].map((time, index) => call(time, 40_000 + index * 500, index === 0))))
+  const plan = buildAutoWarmSchedule(buildCacheReport(lunches), 1000, 30).models[SONNET]
+  assert.ok(plan)
+  assert.ok(plan.every((pings) => pings <= 6), plan.join(','))
+})
