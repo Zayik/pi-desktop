@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey, type AnalyticsReport, type CachePlanState, type OverviewRequest } from '../../shared/analytics-report'
-import { applyRecommendations, readCacheWarming, setKeepWarmPings, undo } from '../../../packages/pi-analytics/src/apply'
+import { applyRecommendations, readCacheWarming, reset, setCacheControl, setModelCache, undo, type ManualCacheSetting } from '../../../packages/pi-analytics/src/apply'
 import { readPlan } from '../../../packages/pi-analytics/src/plan-file'
 import { planPath } from '../../../packages/pi-analytics/src/paths'
 import { recommendations, reportDays, withAlternative } from '../../../packages/pi-analytics/src/recommendations'
@@ -67,19 +67,44 @@ export function registerAnalyticsHandlers(): void {
     return cachePlanState()
   })
 
-  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_KEEP_WARM_PINGS, async (event: IpcMainInvokeEvent, request: unknown): Promise<CachePlanState> => {
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_MODEL_CACHE, async (event: IpcMainInvokeEvent, request: unknown): Promise<CachePlanState> => {
     assertTrustedSender(event)
-    if (!isObject(request) || !isString(request.model) || typeof request.pings !== 'number' || typeof request.allowIdleWarming !== 'boolean') {
-      throw new Error('request must name a model, a count and whether idle warming may be turned on')
+    if (!isObject(request) || !isString(request.model) || !request.model || typeof request.allowIdleWarming !== 'boolean') {
+      throw new Error('request must name a model and say whether idle warming may be turned on')
     }
     const allow = request.allowIdleWarming
-    await setKeepWarmPings(request.model, request.pings, { allowIdleWarming: () => allow })
+    await setModelCache(request.model, parseManualSetting(request), { allowIdleWarming: () => allow })
+    return cachePlanState()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_CACHE_CONTROL, async (event: IpcMainInvokeEvent, on: unknown): Promise<CachePlanState> => {
+    assertTrustedSender(event)
+    if (typeof on !== 'boolean') throw new Error('on must be a boolean')
+    setCacheControl(on)
+    return cachePlanState()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_RESET_CACHE_PLAN, async (event: IpcMainInvokeEvent): Promise<CachePlanState> => {
+    assertTrustedSender(event)
+    reset()
     return cachePlanState()
   })
 }
 
 function cachePlanState(): CachePlanState {
   return { plan: readPlan(planPath()), cacheWarming: readCacheWarming() }
+}
+
+function parseManualSetting(request: Record<string, unknown>): ManualCacheSetting {
+  switch (request.mode) {
+    case 'default': return null
+    case 'focus':
+    case 'long': return { mode: request.mode }
+    case 'keep-warm':
+      if (typeof request.pings !== 'number') throw new Error('keep-warm needs a count')
+      return { mode: 'keep-warm', idlePings: request.pings }
+    default: throw new Error('mode is not a known cache setting')
+  }
 }
 
 function parseOverviewRequest(value: unknown): OverviewRequest {

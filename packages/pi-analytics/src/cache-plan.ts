@@ -35,6 +35,8 @@ export interface ModelCachePlan {
 }
 
 export interface PlanSnapshot {
+  /** Cache control turned off: the extension only reads, and Pi runs with its own settings. The entries are kept. */
+  off?: boolean
   /** For models with no entry of their own. */
   default: ModelCachePlan | null
   /** By `provider/model`. */
@@ -78,6 +80,7 @@ export function isModelCachePlan(value: unknown): value is ModelCachePlan {
 
 function isSnapshot(value: unknown): value is PlanSnapshot {
   return isRecord(value) &&
+    (value.off === undefined || typeof value.off === 'boolean') &&
     (value.default === null || isModelCachePlan(value.default)) &&
     isRecord(value.models) && Object.values(value.models).every(isModelCachePlan)
 }
@@ -90,7 +93,7 @@ export function isCachePlan(value: unknown): value is CachePlan {
 }
 
 function snapshotOf(plan: PlanSnapshot): PlanSnapshot {
-  return JSON.parse(JSON.stringify({ default: plan.default, models: plan.models })) as PlanSnapshot
+  return JSON.parse(JSON.stringify({ ...(plan.off ? { off: true } : {}), default: plan.default, models: plan.models })) as PlanSnapshot
 }
 
 /**
@@ -103,8 +106,14 @@ export function changePlan(
   summary: string,
   now = Date.now(),
   cacheWarmingBefore?: string,
+  /** Turn cache control on or off with the same change. */
+  control?: boolean,
 ): CachePlan {
   const next: CachePlan = { ...plan, models: { ...plan.models }, updatedAt: now }
+  if (control !== undefined) {
+    if (control) delete next.off
+    else next.off = true
+  }
   for (const [model, entry] of Object.entries(entries)) {
     if (model === DEFAULT_PLAN_KEY) next.default = entry
     else if (entry) next.models[model] = entry
@@ -123,7 +132,8 @@ export const DEFAULT_PLAN_KEY = '*'
 export function undoPlan(plan: CachePlan, now = Date.now()): { plan: CachePlan; undone: PlanChange } | null {
   const undone = plan.history.at(-1)
   if (!undone) return null
-  return { plan: { ...plan, ...snapshotOf(undone.before), updatedAt: now, history: plan.history.slice(0, -1) }, undone }
+  const { off: _off, ...rest } = plan
+  return { plan: { ...rest, ...snapshotOf(undone.before), updatedAt: now, history: plan.history.slice(0, -1) }, undone }
 }
 
 /**
@@ -133,7 +143,8 @@ export function undoPlan(plan: CachePlan, now = Date.now()): { plan: CachePlan; 
 export function resetPlan(plan: CachePlan, now = Date.now()): { plan: CachePlan; cacheWarmingBefore?: string } {
   const first = plan.history[0]
   const cacheWarmingBefore = plan.history.find((change) => change.cacheWarmingBefore !== undefined)?.cacheWarmingBefore
-  const base = first ? snapshotOf(first.before) : { default: null, models: {} }
+  // Defaults have cache control on.
+  const { off: _off, ...base } = first ? snapshotOf(first.before) : { default: null, models: {} }
   return { plan: { ...emptyPlan(now), ...base, updatedAt: now }, cacheWarmingBefore }
 }
 
@@ -158,7 +169,8 @@ export interface EffectiveMode {
 /**
  * The mode a session's next request runs in: the one picked for the session,
  * then the plan's entry for the model, then the plan's default, then the mode
- * the process was started in. Null leaves Pi alone.
+ * the process was started in. Null leaves Pi alone, as does turning cache
+ * control off.
  */
 export function effectiveMode(input: {
   session: CacheModeChoice | null
@@ -167,6 +179,7 @@ export function effectiveMode(input: {
   start: CacheMode | null
 }): EffectiveMode | null {
   const { session, plan, model, start } = input
+  if (plan.off) return null
   const entry = (model ? plan.models[model] : undefined) ?? null
   if (session) return { mode: session.mode, source: 'session', entry: entry ?? plan.default, changedAt: session.changedAt }
   if (entry) return { mode: entry.mode, source: 'plan-model', entry, changedAt: entry.appliedAt }

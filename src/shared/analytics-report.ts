@@ -47,10 +47,12 @@ export interface ApplyCacheRecommendationRequest extends OverviewRequest {
   long?: boolean
 }
 
-/** Keep `model` warm with `pings` idle refreshes, picked by hand. */
-export interface SetKeepWarmPingsRequest {
+/** One model's cache setting picked by hand; `default` takes its entry out so Pi decides. */
+export interface SetModelCacheRequest {
   model: string
-  pings: number
+  mode: 'default' | 'focus' | 'keep-warm' | 'long'
+  /** keep-warm: idle refreshes, capped by the model's cache lifetime. */
+  pings?: number
   allowIdleWarming: boolean
 }
 

@@ -62,12 +62,17 @@ export interface CacheCheck {
   alternative: CacheOption | null
 }
 
-/** A `provider/model` key's advertised short lifetime, or null for a model Pi has no lifetime for (and so never warms). */
-export function shortLifetimeMs(model: string): number | null {
+/** A `provider/model` key's advertised cache lifetimes in ms, or null for a model Pi has none for (and so never warms). */
+export function modelLifetimesMs(model: string): { short: number; long: number } | null {
   const slash = model.indexOf('/')
   if (slash <= 0) return null
   const lifetime = advertisedCacheLifetime(model.slice(0, slash), model.slice(slash + 1))
-  return lifetime ? lifetime.short * 1000 : null
+  return lifetime ? { short: lifetime.short * 1000, long: lifetime.long * 1000 } : null
+}
+
+/** A `provider/model` key's advertised short lifetime, or null for a model Pi has no lifetime for. */
+export function shortLifetimeMs(model: string): number | null {
+  return modelLifetimesMs(model)?.short ?? null
 }
 
 /** Minutes the cache stays warm after the agent stops with this many idle refreshes. */

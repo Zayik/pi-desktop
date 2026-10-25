@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronUp, LineChart, Minus, Plus, Timer } from 'lucide-react'
+import { Check, ChevronUp, LineChart, Minus, Plus, Settings2, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAppStore } from '../store'
 import {
@@ -190,7 +190,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   // Only asked to turn on idle warming from the note below, so a count never changes Pi's settings on its own.
   const setPings = async (model: string, pings: number): Promise<void> => {
     try {
-      setPlan(await window.piDesktop.analytics.setKeepWarmPings({ model, pings, allowIdleWarming: false }))
+      setPlan(await window.piDesktop.analytics.setModelCache({ model, mode: 'keep-warm', pings, allowIdleWarming: false }))
     } catch {
       // The count shown stays the one in the plan.
     }
@@ -245,6 +245,9 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               </span>
             </button>
           ))}
+          {plan?.plan.off && (
+            <p className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">{t('chat.cacheMode.controlOff')}</p>
+          )}
           {current === 'keep-warm' && auto?.model && (
             <KeepWarmPings model={auto.model} plan={plan} onChange={(pings) => void setPings(auto.model as string, pings)} />
           )}
@@ -278,6 +281,17 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               {t('chat.cacheMode.checkRecommendation')}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false)
+              useAppStore.getState().setCurrentView('settings')
+            }}
+            className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5 text-left text-xs text-secondary hover:bg-surface-hover hover:text-primary"
+          >
+            <Settings2 size={12} className="shrink-0 text-accent-fg" />
+            {t('chat.cacheMode.allModels')}
+          </button>
         </div>
       )}
       {checking && <CacheCheckDialog model={checking} onClose={() => setChecking(null)} />}

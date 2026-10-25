@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyRecommendations, reset, setKeepWarmPings, undo } from './apply'
+import { applyRecommendations, reset, setCacheControl, setKeepWarmPings, undo } from './apply'
+import { effectiveMode } from './cache-plan'
 import { readPlan } from './plan-file'
 import { planPath } from './paths'
 import type { CacheRecommendation } from './recommendations'
@@ -52,4 +53,21 @@ test('a count set by hand is capped by the model\'s cache lifetime', async () =>
   await assert.rejects(setKeepWarmPings('google/gemini-3-pro', 1, paths), /no cache lifetime/)
   assert.equal(undo({ ...paths, now: 3 })?.restoredCacheWarming, null)
   assert.equal(readPlan(planPath(paths.dir)).models['github-copilot/gpt-6-luna'], undefined)
+})
+
+test('turning cache control off leaves Pi alone but keeps the plan, and undo or reset turns it back on', async () => {
+  const paths = setup('{"cacheWarming":"idle"}')
+  await setKeepWarmPings('anthropic/claude-haiku-5-5', 4, { ...paths, now: 1 })
+  setCacheControl(false, { dir: paths.dir, now: 2 })
+  let plan = readPlan(planPath(paths.dir))
+  assert.equal(plan.off, true)
+  assert.equal(plan.models['anthropic/claude-haiku-5-5'].idlePings, 4)
+  assert.equal(effectiveMode({ session: { mode: 'long', changedAt: 1 }, plan, model: 'anthropic/claude-haiku-5-5', start: 'keep-warm' }), null)
+  undo({ ...paths, now: 3 })
+  assert.equal(readPlan(planPath(paths.dir)).off, undefined)
+  setCacheControl(false, { dir: paths.dir, now: 4 })
+  reset({ ...paths, now: 5 })
+  plan = readPlan(planPath(paths.dir))
+  assert.equal(plan.off, undefined)
+  assert.deepEqual(plan.models, {})
 })

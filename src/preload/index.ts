@@ -94,7 +94,7 @@ import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
 import type { AutoWarmSchedule, CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
-import type { AnalyticsReport, ApplyCacheRecommendationRequest, CachePlanState, OverviewRequest, SetKeepWarmPingsRequest } from '../shared/analytics-report'
+import type { AnalyticsReport, ApplyCacheRecommendationRequest, CachePlanState, OverviewRequest, SetModelCacheRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -429,8 +429,12 @@ interface PiDesktopAPI {
     applyCacheRecommendation(request: ApplyCacheRecommendationRequest): Promise<CachePlanState>
     /** Step the plan back one change. */
     undoCachePlan(): Promise<CachePlanState>
-    /** Set a model's keep-warm idle refresh count by hand (capped by its cache lifetime). */
-    setKeepWarmPings(request: SetKeepWarmPingsRequest): Promise<CachePlanState>
+    /** Set one model's cache setting by hand (keep warm's count is capped by its cache lifetime). */
+    setModelCache(request: SetModelCacheRequest): Promise<CachePlanState>
+    /** Off: the pi-analytics extension leaves Pi's cache alone; the plan is kept. */
+    setCacheControl(on: boolean): Promise<CachePlanState>
+    /** Clear the plan, turn cache control back on and put Pi's `cacheWarming` back. */
+    resetCachePlan(): Promise<CachePlanState>
   }
 
   // Diagnostics report
@@ -752,7 +756,9 @@ const api: PiDesktopAPI = {
     getCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_CACHE_PLAN),
     applyCacheRecommendation: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_APPLY_CACHE_RECOMMENDATION, request),
     undoCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_UNDO_CACHE_PLAN),
-    setKeepWarmPings: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_KEEP_WARM_PINGS, request),
+    setModelCache: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_MODEL_CACHE, request),
+    setCacheControl: (on) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_CACHE_CONTROL, on),
+    resetCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_RESET_CACHE_PLAN),
   },
 
   diagnostics: {

@@ -4,7 +4,7 @@
  */
 import { spawn } from 'child_process'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
-import { applyRecommendations, describePlan, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
+import { applyRecommendations, describePlan, setCacheControl, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
 import { describeRecommendation, withAlternative, LONG_MARGIN, type CacheRecommendation } from './recommendations'
@@ -20,6 +20,8 @@ export const USAGE = [
   '    --yes lets it turn on Pi\'s idle warming when a setting needs it.',
   'pi-analytics pings <provider/model> <count> [--yes]',
   '    Keep a model warm with this many refreshes after the agent stops (0 to 6 on a 5-minute cache, 0 to 1 on a 30-minute one).',
+  'pi-analytics control on|off',
+  '    Off: the package only reads, and Pi runs with its own cache settings (the plan is kept). On: the plan applies again.',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
 ]
@@ -166,6 +168,15 @@ export async function runCommand(args: string | string[], options: CommandOption
         'Undo with "undo". Sessions in keep-warm use it from their next request.',
       ]
     }
+    case 'control': {
+      const [state] = positional
+      if (state !== 'on' && state !== 'off') return ['Say "control on" or "control off".']
+      setCacheControl(state === 'on', { dir, now: options.now })
+      options.afterPlanChange?.()
+      return [state === 'on'
+        ? 'Cache control is on: the plan and each session\'s mode apply from the next request.'
+        : 'Cache control is off: Pi runs with its own cache settings from the next request. The plan is kept; "control on" brings it back, "reset" clears it.']
+    }
     case 'undo': {
       const result = undo({ dir, settingsPath: options.settingsPath, now: options.now })
       if (!result) return ['Nothing to undo.']
@@ -175,7 +186,7 @@ export async function runCommand(args: string | string[], options: CommandOption
     case 'reset': {
       const result = reset({ dir, settingsPath: options.settingsPath, now: options.now })
       options.afterPlanChange?.()
-      return ['The cache plan is back to before its first change; Pi decides for every model again.', ...(result.restoredCacheWarming ? [`Pi's cacheWarming is back to ${readCacheWarmingLabel(result.restoredCacheWarming)}.`] : [])]
+      return ['The cache plan is back to its defaults and cache control is on; Pi decides for every model again.', ...(result.restoredCacheWarming ? [`Pi's cacheWarming is back to ${readCacheWarmingLabel(result.restoredCacheWarming)}.`] : [])]
     }
     case 'plan': {
       const plan = readPlan(planPath(dir))

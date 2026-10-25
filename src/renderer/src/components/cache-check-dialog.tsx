@@ -10,7 +10,7 @@ import type { Translate } from '../../../shared/i18n'
 import type { CacheCheck } from '../../../../packages/pi-analytics/src/recommendations'
 
 /** Why there is no recommendation to apply. */
-function checkText(check: CacheCheck, t: Translate): string {
+export function checkText(check: CacheCheck, t: Translate): string {
   switch (check.status) {
     case 'not-enough-data': return t('chat.cacheCheck.notEnoughData', { count: check.breaks, needed: check.minBreaks })
     case 'no-saving': return t('chat.cacheCheck.noSaving')

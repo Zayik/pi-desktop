@@ -388,7 +388,9 @@
       "pingsFewer": "Fewer pings",
       "pingsMore": "More pings",
       "pingsDetail": "Keeps this model's {{lifetime}}-minute cache warm about {{minutes}} min after the agent stops. Up to {{cap}}: Pi stops warming 30 min after a run. Saved for this model.",
-      "pingsNotWarmed": "Pi has no cache lifetime for this model, so it never pings it."
+      "pingsNotWarmed": "Pi has no cache lifetime for this model, so it never pings it.",
+      "controlOff": "Cache control is off in Settings, so Pi runs with its own cache settings and this pick waits until it's back on.",
+      "allModels": "Cache settings for all models"
     },
     "closeFileTree": "Close file tree",
     "commandPopup": {
@@ -1849,7 +1851,8 @@
       "customModels": "Custom Models",
       "multiAgentCouncilPlanning": "Multi-Agent Council Planning",
       "typesafe": "TypeSafe Jev",
-      "voiceDictation": "Voice dictation"
+      "voiceDictation": "Voice dictation",
+      "promptCache": "Prompt cache"
     },
     "shortcuts": {
       "actionWithShortcut": "{{action}} ({{shortcut}})",
@@ -1965,6 +1968,35 @@
       "selected": "In use",
       "sizeMb": "~{{mb}} MB",
       "use": "Use"
+    },
+    "cache": {
+      "control": "Cache control",
+      "controlOn": "On: each model runs with the setting below, and chats with the mode picked for them.",
+      "controlOff": "Off: Pi runs with its own cache settings. Your settings below are kept for when it's back on.",
+      "on": "On",
+      "off": "Off",
+      "undo": "Undo",
+      "reset": "Reset to defaults",
+      "resetConfirm": "Reset everything",
+      "cancel": "Cancel",
+      "resetDetail": "Clears every model's setting, turns cache control on and puts Pi's warming setting back to what it was before the first change.",
+      "model": "Model",
+      "lifetime": "Cache",
+      "setting": "Setting",
+      "proposed": "Proposed (last 30 days)",
+      "empty": "No model has a setting yet. Recommend lists the models you've used.",
+      "piDefault": "Pi default",
+      "settingFor": "Cache setting for {{model}}",
+      "pingsTitle": "Warm about {{minutes}} min after the agent stops; up to {{cap}} pings",
+      "minutes": "≈{{minutes}} min",
+      "keepWarmPings_one": "Keep warm · {{count}} ping",
+      "keepWarmPings_other": "Keep warm · {{count}} pings",
+      "saves": "saves {{amount}}/wk",
+      "apply": "Apply",
+      "or": "or {{setting}}",
+      "note": "Saved per model for every chat, in Pi Desktop and the Pi CLI. A mode picked for one chat still wins in that chat.",
+      "recommend": "Recommend",
+      "recommendAgain": "Recommend again"
     }
   },
   "sidebar": {
