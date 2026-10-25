@@ -97,6 +97,14 @@ What it measures:
 
 ![Prompt cache settings per model](docs/screenshots/analytics-cache.png)
 
+**Cache settings to apply**, under the signals, lists the settings Pi can run that would have cost less, per model, with the saving per week (for example "keep warm 13 min after the agent stops (2 refreshes), saves $0.92 a week"). They stay within what Pi does: it stops idle warming 30 minutes after a run, so a 5-minute cache gets at most 6 refreshes, and it cannot ask GPT-5.6+ for 12 hours. **Apply** puts one into the pi-analytics cache plan (`~/.pi/agent/pi-analytics/cache-plan.json`); a setting that refreshes after the agent stops first asks to turn on Pi's `cacheWarming: "idle"`, and **Undo last change** puts the plan and that setting back.
+
+![Cache settings to apply, with Apply and Undo](docs/screenshots/analytics-apply.png)
+
+The same report runs without the app: [`packages/pi-analytics`](packages/pi-analytics/README.md) is a Pi package and CLI (`pi-analytics report`, or `/analytics` inside Pi) that writes this view as one HTML file and applies, undoes and resets the same recommendations.
+
+![The pi-analytics HTML report](docs/screenshots/pi-analytics-report.png)
+
 **Retro** builds a digest of the report and puts a retrospective request in the composer: the session scope in the open chat, the overall scope in a new chat. Under Pi it runs the bundled `pi-retro` skill (`resources/skills/pi-retro`, loaded with `--skill`), adapted from the MIT-licensed [`retro` skill by Matt Pocock](https://github.com/mattpocock/skills) so that every proposed change cites a measured number. The copy button next to it copies the digest alone.
 
 Pi's session files stay the source of truth; Pi never deletes them on its own. The app keeps one row of facts per session file in `<GUI data dir>/analytics.sqlite` (Node's built-in SQLite), read again only when a file changes, so **Rebuild** can always recreate it. Rows outlive their files, so a deleted session keeps its history. billion-context writes delegate sessions to the temp folder, so they are copied to `<GUI data dir>/analytics-archive/` before they are read. A fork copies its parent's entries; those count once, in the parent.

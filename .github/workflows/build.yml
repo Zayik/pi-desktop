@@ -41,7 +41,7 @@ jobs:
         # runner version supports, so enumerate files with `find` instead of
         # relying on the shell/runtime to expand the pattern. `resources/` holds
         # the shared permission-rules engine's tests, so include it too.
-        run: npx --no-install tsx --test $(find src resources -name '*.test.ts')
+        run: npx --no-install tsx --test $(find src resources packages -name '*.test.ts' -not -path '*/node_modules/*')
 
   build:
     name: Build (${{ matrix.os }})

@@ -5,6 +5,7 @@
  */
 import { addModelUsage, type ModelUsage } from './agent-board'
 import { buildCacheReport, type CacheReport } from './cache-policy'
+import type { CachePlan } from '../../packages/pi-analytics/src/cache-plan'
 import {
   WORK_CATEGORIES,
   localDayKey,
@@ -36,6 +37,18 @@ export interface OverviewRequest {
   range: AnalyticsRangeKey
   /** Only sessions whose working folder is this project (or inside it). */
   projectPath: string | null
+}
+
+/** Apply the recommendation for `model` in the overview of `range` (and `projectPath`). */
+export interface ApplyCacheRecommendationRequest extends OverviewRequest {
+  model: string
+  allowIdleWarming: boolean
+}
+
+/** The pi-analytics cache plan and Pi's `cacheWarming`, which idle refreshes need set to "idle". */
+export interface CachePlanState {
+  plan: CachePlan
+  cacheWarming: string | null
 }
 
 export interface SessionReportRequest {

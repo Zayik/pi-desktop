@@ -3,7 +3,11 @@
   "compilerOptions": {
     "outDir": "../../out/renderer",
     "rootDir": "../..",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "composite": true,
     "declaration": true,
@@ -29,6 +33,10 @@
     "../../resources/system-prompt.test.ts",
     "../../resources/context-snapshot.ts",
     "../../resources/context-snapshot.test.ts",
-    "../../resources/locales/*/translation.json"
+    "../../resources/locales/*/translation.json",
+    "../../packages/pi-analytics/report/**/*.tsx",
+    "../../packages/pi-analytics/src/cache-plan.ts",
+    "../../packages/pi-analytics/src/recommendations.ts",
+    "../../packages/pi-analytics/src/envelope.ts"
   ]
 }

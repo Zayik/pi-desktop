@@ -3,8 +3,12 @@
   "compilerOptions": {
     "outDir": "../../out/main",
     "rootDir": "../..",
-    "lib": ["ES2022"],
-    "types": ["node"],
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "node"
+    ],
     "composite": true,
     "declaration": true
   },
@@ -25,6 +29,10 @@
     "../../resources/system-prompt.test.ts",
     "../../resources/context-snapshot.ts",
     "../../resources/context-snapshot.test.ts",
-    "../../resources/locales/*/translation.json"
+    "../../resources/locales/*/translation.json",
+    "../../packages/pi-analytics/src/**/*.ts"
+  ],
+  "exclude": [
+    "../../packages/pi-analytics/src/extension.ts"
   ]
 }

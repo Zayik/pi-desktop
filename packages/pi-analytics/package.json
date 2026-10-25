@@ -1,0 +1,22 @@
+{
+  "name": "pi-analytics",
+  "version": "0.1.0",
+  "description": "Cost and prompt-cache analytics for Pi sessions, with an HTML report and cache settings you can apply and undo",
+  "type": "module",
+  "license": "Apache-2.0",
+  "keywords": ["pi-package", "pi", "analytics", "prompt-cache"],
+  "bin": {
+    "pi-analytics": "./dist/cli.js"
+  },
+  "pi": {
+    "extensions": ["./dist/extension.js"],
+    "skills": ["./dist/skills"]
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

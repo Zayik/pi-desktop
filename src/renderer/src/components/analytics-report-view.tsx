@@ -126,12 +126,14 @@ function signalText(signal: AnalyticsSignal, t: Translate): string {
 }
 
 /** One report, for the session panel (narrow) or the Analytics view (wide). */
-export function AnalyticsReportView({ report, wide = false }: { report: AnalyticsReport; wide?: boolean }): React.JSX.Element {
+/** `actions` sits under the signals: the cache settings to apply, in the app and in the CLI's report. */
+export function AnalyticsReportView({ report, wide = false, actions }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <Tiles report={report} />
       <Signals signals={report.signals} />
+      {actions}
       {report.scope === 'overall' && report.days.length > 1 && <DailyCost report={report} />}
       <div className={clsx('space-y-4', wide && 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0')}>
         <WorkByKind report={report} />

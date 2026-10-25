@@ -11,7 +11,7 @@ const locales = readdirSync(LOCALES_DIR, { withFileTypes: true })
 export default defineConfig({
   locales,
   extract: {
-    input: ['src/**/*.{ts,tsx}'],
+    input: ['src/**/*.{ts,tsx}', 'packages/*/src/**/*.ts', 'packages/*/report/**/*.tsx'],
     ignore: ['**/*.test.ts', '**/*.d.ts'],
     output: `${LOCALES_DIR}/{{language}}/{{namespace}}.json`,
     defaultNS: 'translation',

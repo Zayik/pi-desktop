@@ -35,9 +35,17 @@ export default tseslint.config(
       globals: { ...globals.node },
     },
   },
+  // The pi-analytics package: its extension and CLI run in Node, its report
+  // page is a React page like the renderer.
+  {
+    files: ['packages/pi-analytics/src/**/*.ts', 'packages/pi-analytics/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
   // Renderer: React with browser globals + Rules of Hooks enforcement.
   {
-    files: ['src/renderer/**/*.{ts,tsx}'],
+    files: ['src/renderer/**/*.{ts,tsx}', 'packages/pi-analytics/report/**/*.tsx'],
     plugins: { 'react-hooks': reactHooks },
     languageOptions: {
       globals: { ...globals.browser },

@@ -132,6 +132,12 @@
       "show_other": "Show {{count}} models",
       "title": "Models"
     },
+    "page": {
+      "generated_one": "Generated {{date}} from the last day",
+      "generated_other": "Generated {{date}} from the last {{count}} days",
+      "noData": "This report has no data. Run pi-analytics report again.",
+      "title": "Pi analytics"
+    },
     "panel": {
       "close": "Close Analytics",
       "empty": "No analytics for this session yet. It appears after the first saved message.",
@@ -156,6 +162,29 @@
       "sevenDays": "7 D",
       "thirtyDays": "30 D",
       "threeMonths": "90 D"
+    },
+    "recommend": {
+      "applied": "Applied",
+      "apply": "Apply",
+      "beyondPi_one": "The replay's cheapest is {{count}} refresh ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
+      "beyondPi_other": "The replay's cheapest is {{count}} refreshes ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
+      "failed": "Could not change the cache plan: {{error}}",
+      "focus": "no refreshes after the agent stops",
+      "idleAccept": "Turn on and apply",
+      "idleCancel": "Cancel",
+      "idleMessage": "Refreshing the cache after the agent stops needs Pi's cacheWarming setting set to \"idle\". It applies to every Pi session; undo puts the old value back.",
+      "idleTitle": "Turn on idle cache warming?",
+      "keepWarm_one": "keep warm {{minutes}} min after the agent stops ({{count}} refresh)",
+      "keepWarm_other": "keep warm {{minutes}} min after the agent stops ({{count}} refreshes)",
+      "long": "use the {{policy}} cache",
+      "none": "Every model already runs with its cheapest setting.",
+      "note_one": "Saving per week, from the last day",
+      "note_other": "Saving per week, from the last {{count}} days",
+      "planned_one": "The cache plan sets 1 model.",
+      "planned_other": "The cache plan sets {{count}} models.",
+      "saving": "saves {{amount}} a week",
+      "title": "Cache settings to apply",
+      "undo": "Undo last change"
     },
     "retro": {
       "button": "Retro",
