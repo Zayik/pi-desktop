@@ -805,6 +805,9 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
         {snapshot.cacheMode && (
           <span>{t('chat.contextPanel.cache.mode', { mode: cacheModeLabel(snapshot.cacheMode, t) })}</span>
         )}
+        {snapshot.cacheMode === 'auto' && typeof snapshot.autoWarmLimit === 'number' && (
+          <span>{t('chat.contextPanel.cache.autoLimit', { count: snapshot.autoWarmLimit })}</span>
+        )}
         {snapshot.cacheWarming && (
           <span>{t('chat.contextPanel.cache.warming', { mode: snapshot.cacheWarming })}</span>
         )}

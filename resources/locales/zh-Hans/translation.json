@@ -250,10 +250,19 @@
     },
     "cacheMode": {
       "appliesNext": "",
+      "autoHour_other": "",
+      "autoHours": "",
+      "autoNoData": "",
+      "autoNow_other": "",
+      "autoOverride": "",
       "enableIdleWarming": "",
       "idleWarmingEnabled": "",
       "idleWarmingOff": "",
       "modes": {
+        "auto": {
+          "detail": "",
+          "label": ""
+        },
         "focus": {
           "detail": "",
           "label": ""
@@ -357,6 +366,7 @@
         "unattributedDetail": ""
       },
       "cache": {
+        "autoLimit_other": "",
         "cold": "",
         "hitRate": "",
         "mode": "",

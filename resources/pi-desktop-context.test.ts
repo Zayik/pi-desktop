@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { CACHE_MODE_ENV, CONTEXT_DIR_ENV, cacheModeFileName, snapshotFileName, type ContextSnapshot } from './context-snapshot'
+import { AUTO_WARM_FILE, CACHE_MODE_ENV, CONTEXT_DIR_ENV, MAX_IDLE_WARMS, cacheModeFileName, emptyAutoWarmSchedule, snapshotFileName, type ContextSnapshot } from './context-snapshot'
 
 const EXTENSION_URL = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'pi-desktop-context.ts')).href
 const SESSION_ID = 'sess-cache'
@@ -109,5 +109,41 @@ test('keep warm stops refreshing after its idle budget until the next real reque
     emit('context_with_system', { messages: [] })
     assert.deepEqual(emit('cache_warming_decision', idle), { action: 'warm' })
     emit('session_shutdown')
+  })
+})
+
+test('auto allows the idle refreshes the schedule gives the hour the break starts in', async () => {
+  await withDir(async (dir) => {
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'auto' })
+    emit('session_start')
+    const idle = { action: 'skip', continuationProbability: 0.15, warmCost: 0, missCost: 0 }
+    // Without a schedule yet, auto refreshes like keep warm.
+    emit('context_with_system', { messages: [] })
+    const fallback = Array.from({ length: MAX_IDLE_WARMS + 1 }, () => emit('cache_warming_decision', idle))
+    assert.deepEqual(fallback.at(-1), { action: 'stop' })
+    assert.equal(fallback.filter((answer) => (answer as { action: string }).action === 'warm').length, MAX_IDLE_WARMS)
+
+    const schedule = emptyAutoWarmSchedule(Date.now(), 30)
+    schedule.fallback = Array.from({ length: 24 }, (_, hour) => (hour === new Date().getHours() ? 1 : 5))
+    await writeFile(join(dir, AUTO_WARM_FILE), JSON.stringify(schedule))
+    emit('context_with_system', { messages: [] })
+    assert.deepEqual([1, 2].map(() => emit('cache_warming_decision', idle)), [{ action: 'warm' }, { action: 'stop' }])
+    const snapshot = await readSnapshot(dir, emit)
+    assert.equal(snapshot.cacheMode, 'auto')
+    assert.equal(snapshot.autoWarmLimit, 1)
+  })
+})
+
+test('a manual pick overrides auto', async () => {
+  await withDir(async (dir) => {
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'auto' })
+    emit('session_start')
+    emit('context_with_system', { messages: [] })
+    await writeFile(join(dir, cacheModeFileName(SESSION_ID)), JSON.stringify({ mode: 'focus', changedAt: 1234 }))
+    const idle = { action: 'warm', continuationProbability: 0.15, warmCost: 0, missCost: 0 }
+    assert.deepEqual(emit('cache_warming_decision', idle), { action: 'stop' })
+    const snapshot = await readSnapshot(dir, emit)
+    assert.equal(snapshot.cacheMode, 'focus')
+    assert.equal(snapshot.autoWarmLimit, null)
   })
 })

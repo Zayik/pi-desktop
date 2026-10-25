@@ -92,7 +92,7 @@ import type {
 } from '../shared/ipc-contracts'
 import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
-import type { CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
+import type { AutoWarmSchedule, CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
 import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
@@ -408,6 +408,8 @@ interface PiDesktopAPI {
     getCacheWarming(): Promise<string | null>
     /** Sets Pi's global `cacheWarming` to "idle", which keep-warm needs. */
     enableIdleCacheWarming(): Promise<void>
+    /** Auto mode's idle pings per hour of day, built from the last 30 days; null when there is none. */
+    getAutoWarmSchedule(): Promise<AutoWarmSchedule | null>
   }
 
   // Analytics: where cost and time went, per session and across sessions
@@ -728,6 +730,7 @@ const api: PiDesktopAPI = {
     setCacheMode: (sessionId, mode) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, sessionId, mode),
     getCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING),
     enableIdleCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING),
+    getAutoWarmSchedule: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AUTO_WARM_SCHEDULE),
   },
 
   analytics: {

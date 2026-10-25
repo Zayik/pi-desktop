@@ -110,6 +110,7 @@ export const IPC_CHANNELS = {
   CONTEXT_GET_CACHE_MODE: 'context:get-cache-mode',
   CONTEXT_SET_CACHE_MODE: 'context:set-cache-mode',
   CONTEXT_GET_CACHE_WARMING: 'context:get-cache-warming',
+  CONTEXT_GET_AUTO_WARM_SCHEDULE: 'context:get-auto-warm-schedule',
   CONTEXT_ENABLE_IDLE_CACHE_WARMING: 'context:enable-idle-cache-warming',
 
   // Analytics: cost and time per session and across sessions

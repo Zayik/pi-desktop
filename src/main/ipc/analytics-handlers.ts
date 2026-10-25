@@ -2,6 +2,7 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey, type AnalyticsReport, type OverviewRequest } from '../../shared/analytics-report'
 import { getAnalyticsIndex } from '../analytics-index'
+import { AUTO_WARM_REBUILD_MS, freshAutoWarmSchedule } from '../auto-warm'
 import { isWithinSessionRoots } from '../pi-paths'
 import { appLog } from '../app-log'
 import { assertTrustedSender, isObject, isString } from './validation'
@@ -11,10 +12,13 @@ const STARTUP_SCAN_DELAY_MS = 15_000
 
 export function registerAnalyticsHandlers(): void {
   setTimeout(() => {
-    void getAnalyticsIndex().refresh(true).catch((error: unknown) => {
-      appLog.warn('analytics', 'Could not index sessions for analytics', error)
-    })
+    void getAnalyticsIndex().refresh(true)
+      .then(() => updateAutoWarmSchedule())
+      .catch((error: unknown) => {
+        appLog.warn('analytics', 'Could not index sessions for analytics', error)
+      })
   }, STARTUP_SCAN_DELAY_MS).unref?.()
+  setInterval(() => void updateAutoWarmSchedule(), AUTO_WARM_REBUILD_MS).unref?.()
 
   ipcMain.handle(IPC_CHANNELS.ANALYTICS_GET_SESSION_REPORT, async (event: IpcMainInvokeEvent, sessionFile: unknown): Promise<AnalyticsReport | null> => {
     assertTrustedSender(event)
@@ -41,4 +45,18 @@ function parseOverviewRequest(value: unknown): OverviewRequest {
   const projectPath = value.projectPath
   if (projectPath !== null && !isString(projectPath)) throw new Error('projectPath must be a string or null')
   return { range: range as AnalyticsRangeKey, projectPath: projectPath || null }
+}
+
+/** The whole history's overview over a range, which auto cache mode's schedule is built from. */
+export function overviewForAutoWarm(range: AnalyticsRangeKey): Promise<AnalyticsReport> {
+  return getAnalyticsIndex().overview({ range, projectPath: null })
+}
+
+/** Rebuild auto cache mode's schedule when it is due. */
+async function updateAutoWarmSchedule(): Promise<void> {
+  try {
+    await freshAutoWarmSchedule(overviewForAutoWarm)
+  } catch (error) {
+    appLog.warn('analytics', 'Could not build the auto keep-warm schedule', error)
+  }
 }
