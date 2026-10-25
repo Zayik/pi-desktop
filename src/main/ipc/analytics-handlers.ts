@@ -4,7 +4,7 @@ import { ANALYTICS_RANGES, type AnalyticsRangeKey, type AnalyticsReport, type Ca
 import { applyRecommendations, readCacheWarming, undo } from '../../../packages/pi-analytics/src/apply'
 import { readPlan } from '../../../packages/pi-analytics/src/plan-file'
 import { planPath } from '../../../packages/pi-analytics/src/paths'
-import { recommendations, reportDays } from '../../../packages/pi-analytics/src/recommendations'
+import { recommendations, reportDays, withAlternative } from '../../../packages/pi-analytics/src/recommendations'
 import { getAnalyticsIndex } from '../analytics-index'
 import { AUTO_WARM_REBUILD_MS, freshAutoWarmSchedule } from '../auto-warm'
 import { isWithinSessionRoots } from '../pi-paths'
@@ -53,7 +53,8 @@ export function registerAnalyticsHandlers(): void {
     const overview = parseOverviewRequest(request)
     const now = Date.now()
     const report = await getAnalyticsIndex().overview(overview, now)
-    const recommendation = recommendations(report, now).find((rec) => rec.model === request.model)
+    const found = recommendations(report, now).find((rec) => rec.model === request.model)
+    const recommendation = found && request.long === true ? withAlternative(found) : found
     if (!recommendation) throw new Error(`No cache recommendation for ${request.model}`)
     const allow = request.allowIdleWarming
     await applyRecommendations([recommendation], { now, days: reportDays(report, now), allowIdleWarming: () => allow })

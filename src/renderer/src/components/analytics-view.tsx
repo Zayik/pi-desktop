@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { ClipboardList, RefreshCw } from 'lucide-react'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey, type AnalyticsReport, type CachePlanState } from '../../../shared/analytics-report'
 import { needsIdleWarming } from '../../../../packages/pi-analytics/src/cache-plan'
-import { recommendations, reportDays, type CacheRecommendation } from '../../../../packages/pi-analytics/src/recommendations'
+import { cacheChecks, recommendations, reportDays, type CacheRecommendation } from '../../../../packages/pi-analytics/src/recommendations'
 import { retroDigest, retroPrompt } from '../../../shared/retro-digest'
 import { useAppStore } from '../store'
 import { AnalyticsReportView } from './analytics-report-view'
@@ -34,7 +34,7 @@ export function AnalyticsView(): React.JSX.Element {
   const [planBusy, setPlanBusy] = useState(false)
   const [planError, setPlanError] = useState<string | null>(null)
   // A setting that refreshes after the agent stops, waiting for the user to allow Pi's idle warming.
-  const [askIdle, setAskIdle] = useState<CacheRecommendation | null>(null)
+  const [askIdle, setAskIdle] = useState<{ rec: CacheRecommendation; long: boolean } | null>(null)
 
   const load = useCallback(async (rebuild = false): Promise<void> => {
     setLoading(true)
@@ -58,6 +58,7 @@ export function AnalyticsView(): React.JSX.Element {
   }, [])
 
   const recs = useMemo(() => (report ? recommendations(report) : []), [report])
+  const checks = useMemo(() => (report ? cacheChecks(report) : []), [report])
   const changePlan = async (change: () => Promise<CachePlanState>): Promise<void> => {
     setPlanBusy(true)
     setPlanError(null)
@@ -70,11 +71,12 @@ export function AnalyticsView(): React.JSX.Element {
       setAskIdle(null)
     }
   }
-  const apply = (rec: CacheRecommendation, allowIdleWarming: boolean): Promise<void> =>
-    changePlan(() => window.piDesktop.analytics.applyCacheRecommendation({ range, projectPath, model: rec.model, allowIdleWarming }))
-  const requestApply = (rec: CacheRecommendation): void => {
-    if (needsIdleWarming({ ...rec.setting, appliedAt: 0 }) && planState?.cacheWarming !== 'idle') setAskIdle(rec)
-    else void apply(rec, false)
+  const apply = (rec: CacheRecommendation, long: boolean, allowIdleWarming: boolean): Promise<void> =>
+    changePlan(() => window.piDesktop.analytics.applyCacheRecommendation({ range, projectPath, model: rec.model, long, allowIdleWarming }))
+  const requestApply = (rec: CacheRecommendation, _index: number, long: boolean): void => {
+    const setting = long && rec.alternative ? rec.alternative.setting : rec.setting
+    if (needsIdleWarming({ ...setting, appliedAt: 0 }) && planState?.cacheWarming !== 'idle') setAskIdle({ rec, long })
+    else void apply(rec, long, false)
   }
 
   const digest = report ? retroDigest(report) : null
@@ -153,7 +155,7 @@ export function AnalyticsView(): React.JSX.Element {
                       <p className="font-medium text-primary">{t('analytics.recommend.idleTitle')}</p>
                       <p className="mt-1 text-muted">{t('analytics.recommend.idleMessage')}</p>
                       <div className="mt-2 flex gap-2">
-                        <button type="button" disabled={planBusy} onClick={() => void apply(askIdle, true)} className="rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-50">
+                        <button type="button" disabled={planBusy} onClick={() => void apply(askIdle.rec, askIdle.long, true)} className="rounded bg-accent px-2.5 py-1 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-50">
                           {t('analytics.recommend.idleAccept')}
                         </button>
                         <button type="button" disabled={planBusy} onClick={() => setAskIdle(null)} className="rounded border border-border px-2.5 py-1 text-[11px] text-muted hover:bg-surface-hover">
@@ -165,6 +167,7 @@ export function AnalyticsView(): React.JSX.Element {
                   {planError && <p className="text-xs text-error">{t('analytics.recommend.failed', { error: planError })}</p>}
                   <CacheRecommendations
                     recommendations={recs}
+                    checks={checks}
                     plan={planState?.plan ?? null}
                     days={reportDays(report)}
                     busy={planBusy}

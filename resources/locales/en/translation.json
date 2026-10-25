@@ -164,6 +164,7 @@
       "threeMonths": "90 D"
     },
     "recommend": {
+      "alternative": "or the {{policy}} cache instead: saves {{amount}} a week",
       "applied": "Applied",
       "apply": "Apply",
       "beyondPi_one": "The replay's cheapest is {{count}} refresh ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
@@ -183,6 +184,8 @@
       "planned_one": "The cache plan sets 1 model.",
       "planned_other": "The cache plan sets {{count}} models.",
       "saving": "saves {{amount}} a week",
+      "thin_one": "Not enough breaks yet for a recommendation: {{models}}.",
+      "thin_other": "Not enough breaks yet for a recommendation: {{models}}.",
       "title": "Cache settings to apply",
       "undo": "Undo last change"
     },

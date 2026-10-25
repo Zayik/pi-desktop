@@ -43,6 +43,8 @@ export interface OverviewRequest {
 export interface ApplyCacheRecommendationRequest extends OverviewRequest {
   model: string
   allowIdleWarming: boolean
+  /** Apply the long-cache alternative instead of the ping count. */
+  long?: boolean
 }
 
 /** The pi-analytics cache plan and Pi's `cacheWarming`, which idle refreshes need set to "idle". */

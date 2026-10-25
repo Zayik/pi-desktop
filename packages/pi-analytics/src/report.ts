@@ -11,7 +11,7 @@ import type { AnalyticsRangeKey } from '../../../src/shared/analytics-report'
 import { readPlan } from './plan-file'
 import { REPORT_DATA_MARKER, REPORT_ENVELOPE_VERSION, type ReportEnvelope } from './envelope'
 import { ARCHIVE_DIR, INDEX_FILE, REPORTS_DIR, analyticsDir, planPath } from './paths'
-import { recommendations, reportDays } from './recommendations'
+import { cacheChecks, recommendations, reportDays } from './recommendations'
 
 export const REPORT_TEMPLATE_FILE = 'report.html'
 
@@ -40,6 +40,7 @@ export async function buildEnvelope(options: BuildOptions = {}): Promise<ReportE
       data: {
         report,
         recommendations: recommendations(report, now),
+        checks: cacheChecks(report, now),
         plan: readPlan(planPath(dir)),
         days: reportDays(report, now),
         range,

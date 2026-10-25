@@ -10,7 +10,7 @@ import type { CacheRecommendation } from './recommendations'
 
 const rec: CacheRecommendation = {
   model: 'anthropic/claude-haiku-5-5', setting: { mode: 'keep-warm', idlePings: 3 }, policy: '5m', idleMinutes: 17,
-  currentCost: 10, cost: 6, saving: 4, weeklySaving: 20, beyondPi: null,
+  currentCost: 10, cost: 6, saving: 4, weeklySaving: 20, beyondPi: null, breaks: 40, alternative: null,
 }
 
 function setup(settings: string): { dir: string; settingsPath: string } {
