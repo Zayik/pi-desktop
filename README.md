@@ -215,7 +215,7 @@ powershell -c "irm https://pi.dev/install.ps1 | iex"     # Windows
 npm install -g @earendil-works/pi-coding-agent           # anywhere with Node.js
 ```
 
-If Pi Desktop cannot find Pi when it starts, it opens a setup page instead of the chat. The page has an Install button for each of those commands, lets you choose where Pi is, and lists every place it searched, in order, for your system: the Settings path, the `PI_DESKTOP_PI_PATH` environment variable, npm's global folder, the folders on PATH, the pi.dev installer's folders (`PI_MANAGED_INSTALL_ROOT`), Node version managers, and common folders (npm, winget, Scoop, Bun, Homebrew). On Windows it also re-reads PATH from the registry, so an install made while the app is open is found without a restart. Open it any time from the status bar when Pi fails to start, or from Settings > Agent Configuration.
+If Pi Desktop cannot find Pi when it starts, it opens a setup page instead of the chat. The page has an Install button for each of those commands, lets you choose where Pi is, and lists every place it searched, in order, for your system: the Settings path, the `PI_DESKTOP_PI_PATH` environment variable, npm's global folder, the folders on PATH, the pi.dev installer's folders (`PI_MANAGED_INSTALL_ROOT`), Node version managers, and common folders (npm, winget, Scoop, Bun, Homebrew). On Windows it also re-reads PATH from the registry, so an install made while the app is open is found without a restart. If you continue without Pi, a warning strip stays across the top of the window with a link back to the page. You can also open it from the status bar when Pi fails to start, or from Settings > Agent Configuration.
 
 ![Setup page when Pi is not installed](docs/screenshots/pi-setup.png)
 
