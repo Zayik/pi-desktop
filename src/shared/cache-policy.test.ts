@@ -251,11 +251,13 @@ test("counts Pi's warming pings apart from the calls", () => {
     ping(16.5 * MINUTE, 41_000, false),
     measured(30 * MINUTE, 42_000, false),
   ]
-  const model = buildCacheReport([session(calls)]).models[0]
+  // Through Copilot, whose models Pi's own list gives no lifetime: recorded pings show something warmed it anyway.
+  const model = buildCacheReport([session(calls, ['github-copilot/claude-sonnet-5.5'])]).models[0]
   assert.equal(model.calls, 3)
   const observed = model.observed
   assert.deepEqual([observed?.pings, observed?.pingHits, observed?.pingedGaps, observed?.pingedGapHits], [3, 2, 2, 1])
   assert.ok((observed?.pingCost ?? 0) > 0)
+  assert.ok(!model.notes.includes('pi-no-pings'))
   // Billed pings count in the measured cost, not in the replay's calls.
   assert.ok(model.measuredCost > calls.filter((entry) => entry[9] !== 1).reduce((sum, entry) => sum + entry[6] + entry[7] + entry[8], 0))
 })

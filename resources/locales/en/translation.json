@@ -44,7 +44,7 @@
         "copilotVendor": "Copilot runs this model on the vendor's own servers, so the vendor's cache lifetimes are assumed.",
         "implicitLifetime": "OpenAI caches this model automatically with no write charge. Lifetimes are typical values: in memory about 5 to 10 min (5 assumed), 24 h retention about 30 min.",
         "piNo12h": "Pi's long retention asks for 30 min on this model, so 12 h cannot be picked from Pi yet.",
-        "piNoPings": "Pi's cache warming only runs for models that declare a cache lifetime (direct Anthropic models), so pings here are a what-if."
+        "piNoPings": "No warming pings are on record for this model. Pi only warms models with a known cache lifetime (from its own list, models.json, or the app), so pings here are a what-if."
       },
       "observed": {
         "axis": "Break before the call (min); dashed line: the lifetime in use",

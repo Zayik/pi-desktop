@@ -50,7 +50,7 @@ export type CacheNote =
   | 'implicit-lifetime'
   /** Pi's long retention asks OpenAI for 30 minutes on this model, so 12 hours cannot be picked from Pi. */
   | 'pi-no-12h'
-  /** Pi's cache warming runs only for models that declare a cache lifetime, so pings here are a what-if. */
+  /** No pings on record, and Pi's built-in list gives this model no lifetime to warm, so pings here are a what-if. */
   | 'pi-no-pings'
 
 export interface PolicySpec {
@@ -708,6 +708,8 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       autoSaving: 0,
       observed: observeCache(events, profile, measuredPolicy ?? profile.defaultPolicy),
     }
+    // Pings on record show something gave the model a lifetime to warm (a models.json entry, or the app's own table).
+    if ((report.observed?.pings ?? 0) > 0) report.notes = report.notes.filter((note) => note !== 'pi-no-pings')
     if (profile.policies.length > 0 && prices) {
       // An option that did not exist yet when these calls ran is no fair comparison.
       report.policies = profile.policies.filter((spec) => spec.since === undefined || firstAt >= spec.since).map((spec) => {
