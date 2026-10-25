@@ -328,7 +328,12 @@
       "failed": "Could not read your sessions.",
       "intro": "{{model}}, from your last 30 days of sessions",
       "loading": "Replaying your sessions…",
+      "longOnly": "No ping count beats what you run now, but the {{policy}} cache would have cost noticeably less. Pick Long in the cache menu to try it.",
       "noHistory": "No calls to this model in the last 30 days yet, so there is nothing to recommend.",
+      "noSaving": "What you run now is already about the cheapest setting for this model.",
+      "notCovered": "This model's provider has no cache settings Pi can change, so there is nothing to recommend.",
+      "notEnoughData_one": "Only {{count}} break so far; a recommendation needs {{needed}} to be worth trusting.",
+      "notEnoughData_other": "Only {{count}} breaks so far; a recommendation needs {{needed}} to be worth trusting.",
       "title": "Cache recommendation"
     },
     "cacheMode": {

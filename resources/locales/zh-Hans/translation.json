@@ -311,7 +311,11 @@
       "failed": "",
       "intro": "",
       "loading": "",
+      "longOnly": "",
       "noHistory": "",
+      "noSaving": "",
+      "notCovered": "",
+      "notEnoughData_other": "",
       "title": ""
     },
     "cacheMode": {
