@@ -7,6 +7,210 @@
     "working": "Pi 正在工作",
     "workingInAnotherWorkspace": "Pi 正在另一个工作区工作"
   },
+  "analytics": {
+    "cache": {
+      "assumed": "{{policy}}（推定）",
+      "current": "当前",
+      "days": {
+        "bar": "{{day}}：{{hit}}% 的提示 token 来自缓存，{{calls}} 次调用中 {{cold}} 次未命中",
+        "input": "未缓存",
+        "read": "缓存命中",
+        "title": "每日缓存命中（实测）",
+        "write": "缓存写入"
+      },
+      "gaps": {
+        "bar_other": "",
+        "over": ">{{minutes}} 分",
+        "range": "{{from}}–{{to}} 分",
+        "title": "调用间隔",
+        "under": "<{{minutes}} 分"
+      },
+      "hourly": {
+        "cell_other": "{{hour}}:00：{{count}} 次保活，{{gaps}} 段空闲，比全天固定次数节省 {{saving}}",
+        "empty": "{{hour}}:00：无空闲",
+        "flat": "全天使用同一保活次数与按小时调整一样便宜。",
+        "saving": "按一天中的小时调整次数将花费 {{cost}}，比最佳固定次数少 {{saving}}。",
+        "title": "按一天中的小时的最便宜保活次数"
+      },
+      "keep": "按这种调用节奏，当前设置已接近最便宜。",
+      "measured": "已计费 {{cost}} · {{calls}} 次调用",
+      "noOptions": "该提供商没有可比较的缓存设置，仅显示计费金额。",
+      "note": "相同调用、相同时间，仅比较提示费用",
+      "pings_other": "{{count}} 次保活",
+      "policy": {
+        "fiveMinutes": "5 分钟",
+        "none": "不缓存",
+        "oneHour": "1 小时",
+        "thirtyMinutes": "30 分钟",
+        "twelveHours": "12 小时",
+        "warm30": "5 分钟 + 保活（空闲最多 30 分钟）",
+        "warm60": "5 分钟 + 保活（空闲最多 1 小时）",
+        "warmBreakEven": "5 分钟 + 保活（比重写便宜时）"
+      },
+      "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
+      "sweep": {
+        "axis": "每段空闲允许的保活次数（每 4 分钟一次）",
+        "best_other": "最便宜：5 分钟 + 每段空闲 {{count}} 次保活（空闲 {{minutes}} 分钟内保持缓存），{{cost}}。约可节省 {{saving}}（平均每会话 {{perSession}}）。",
+        "none_other": "最便宜的是每段空闲 {{count}} 次保活，{{cost}}，并不比当前便宜。",
+        "oneHour": "1 小时缓存 {{cost}}",
+        "point_other": "每段空闲 {{count}} 次保活（保持 {{minutes}} 分钟）：{{cost}}，实际发送 {{sent}} 次",
+        "title": "5 分钟缓存按每段空闲保活次数的费用"
+      },
+      "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 5 分钟",
+      "title": "提示缓存设置",
+      "unknown": "未知"
+    },
+    "category": {
+      "build": "构建",
+      "edit": "编辑",
+      "git": "Git",
+      "install": "安装",
+      "lint": "Lint 与类型",
+      "other": "其他工具",
+      "read": "读取文件",
+      "search": "搜索",
+      "shell": "其他命令",
+      "subagent": "子代理",
+      "test": "测试",
+      "web": "网络"
+    },
+    "daily": {
+      "bar": "{{day}}：{{cost}}，活跃 {{time}}",
+      "peak": "峰值 {{cost}}",
+      "title": "每日费用"
+    },
+    "kind": {
+      "child": "分叉",
+      "delegate": "委派",
+      "main": "主会话",
+      "subagent": "子代理"
+    },
+    "loading": "加载中…",
+    "models": {
+      "hide": "隐藏",
+      "model": "模型",
+      "show_other": "显示 {{count}} 个模型",
+      "title": "模型"
+    },
+    "panel": {
+      "close": "关闭分析",
+      "empty": "此会话暂无分析数据。保存第一条消息后显示。",
+      "noSession": "打开一个会话以查看其费用和时间的去向。",
+      "title": "分析"
+    },
+    "projects": {
+      "project": "项目",
+      "sessions": "会话",
+      "title": "项目"
+    },
+    "prompts": {
+      "cost": "费用",
+      "empty": "暂无提示。",
+      "prompt": "提示",
+      "time": "时间",
+      "title": "最昂贵的提示"
+    },
+    "ranges": {
+      "all": "全部",
+      "oneYear": "1 年",
+      "sevenDays": "7 天",
+      "thirtyDays": "30 天",
+      "threeMonths": "90 天"
+    },
+    "retro": {
+      "button": "复盘",
+      "overallTitle": "新建对话，根据这些数据进行复盘",
+      "sessionTitle": "将本会话数据的复盘请求放入输入框"
+    },
+    "sessions": {
+      "agentsTitle": "会话与代理",
+      "cost": "费用",
+      "session": "会话",
+      "time": "活跃",
+      "topTitle": "最昂贵的会话"
+    },
+    "showAll_other": "显示全部 {{count}} 项",
+    "showLess": "收起",
+    "signal": {
+      "buildTime": "构建占活跃时间的 {{share}}%（{{runs}} 次共 {{minutes}} 分钟）。",
+      "cachePolicy": "在 {{model}} 上用 {{policy}} 代替 {{current}} 约可节省 {{cost}}（占其提示费用的 {{share}}%）。",
+      "carriedTool": "{{tool}} 的结果随后续调用重复发送，占费用的 {{share}}%（{{cost}}）。",
+      "compactions": "{{sessions}} 个会话压缩了三次或更多（最多 {{most}} 次）。上下文增长很快。",
+      "failingCommand": "{{command}} 失败了 {{failures}} 次。",
+      "skillCost": "技能 {{skill}} 留在上下文中，占费用的 {{share}}%（加载 {{uses}} 次）。",
+      "slowTests": "测试运行时间中位数为 {{minutes}} 分钟（{{runs}} 次）。",
+      "subagentShare": "子代理占费用的 {{share}}%。",
+      "testReruns": "运行测试的会话平均运行 {{perSession}} 次测试（{{runs}} 次，{{failed}} 次失败）。",
+      "testTime": "测试占活跃时间的 {{share}}%（{{runs}} 次共 {{minutes}} 分钟）。"
+    },
+    "signals": {
+      "empty": "没有突出的问题。",
+      "note": "值得关注之处，按强度排序",
+      "title": "信号"
+    },
+    "skills": {
+      "skill": "技能",
+      "title": "技能",
+      "tokens": "Token",
+      "uses": "加载"
+    },
+    "slow": {
+      "call": "调用",
+      "command": "命令",
+      "empty": "暂无计时的工具调用。",
+      "failingTitle": "多次失败",
+      "failures": "失败",
+      "title": "最慢的工具调用"
+    },
+    "tests": {
+      "empty": "未发现测试运行。",
+      "failed": "失败",
+      "median": "运行中位数",
+      "perSession": "每会话运行次数",
+      "runs": "运行",
+      "share": "占活跃时间",
+      "title": "测试",
+      "total": "总时间"
+    },
+    "tiles": {
+      "cost": "费用",
+      "costDetail": "{{sessions}} 个会话 · {{calls}} 次调用",
+      "subagents": "子代理",
+      "subagentsDetail": "占费用 {{share}}",
+      "tests": "测试时间",
+      "testsDetail": "{{runs}} 次 · {{failed}} 次失败",
+      "time": "活跃时间",
+      "timeDetail": "{{prompts}} 个提示"
+    },
+    "tools": {
+      "calls": "调用",
+      "carried": "携带",
+      "empty": "暂无工具调用。",
+      "errors_other": "{{count}} 个错误",
+      "note": "携带：重复发送结果的费用",
+      "time": "时间",
+      "title": "工具",
+      "tool": "工具"
+    },
+    "untitled": "未命名",
+    "view": {
+      "empty": "此范围内没有会话。",
+      "error": "无法读取分析索引。",
+      "noProject": "未打开项目",
+      "projectOnly": "仅 {{project}}",
+      "range": "日期范围",
+      "rebuild": "重建",
+      "rebuildTitle": "重新读取所有会话文件",
+      "subtitle": "你的会话中费用和时间的去向。基于 Pi 的会话文件构建；已删除的会话保留其历史。",
+      "title": "分析"
+    },
+    "work": {
+      "kind": "类型",
+      "note": "每类工作的实际耗时",
+      "share": "占比",
+      "title": "按类型的工作"
+    }
+  },
   "app": {
     "dropFolder": {
       "description": "将该文件夹作为工作区打开（必要时会创建）",
@@ -310,6 +514,7 @@
       "viewSource": "查看源码"
     },
     "toolbar": {
+      "analytics": "分析",
       "context": "",
       "diffViewer": "差异查看器",
       "fileTree": "文件树",
@@ -1656,6 +1861,8 @@
     "tools": {
       "allWorkflows": "全部工作流",
       "allWorkflowsTitle": "来自所有项目的工作流运行",
+      "analytics": "分析",
+      "analyticsTitle": "跨会话的费用和时间",
       "diagnostics": "诊断",
       "notes": "笔记",
       "packages": "包",

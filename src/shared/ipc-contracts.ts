@@ -112,6 +112,11 @@ export const IPC_CHANNELS = {
   CONTEXT_GET_CACHE_WARMING: 'context:get-cache-warming',
   CONTEXT_ENABLE_IDLE_CACHE_WARMING: 'context:enable-idle-cache-warming',
 
+  // Analytics: cost and time per session and across sessions
+  ANALYTICS_GET_SESSION_REPORT: 'analytics:get-session-report',
+  ANALYTICS_GET_OVERVIEW: 'analytics:get-overview',
+  ANALYTICS_REBUILD: 'analytics:rebuild',
+
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',
 

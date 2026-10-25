@@ -14,6 +14,7 @@ import { typeSafeKeyEnv, typeSafeKeyStore } from '../typesafe-key-store'
 import { agentResourcePath } from '../agent-resources'
 import { CACHE_MODE_ENV, CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
 import { getContextSnapshotDir } from '../context-snapshots'
+import { RETRO_SKILL_NAME } from '../../shared/retro-digest'
 
 const READ_ONLY_TOOLS = 'read,grep,find,ls'
 const OMP_READ_ONLY_TOOLS = 'read,grep,glob'
@@ -21,6 +22,7 @@ const OMP_READ_ONLY_TOOLS = 'read,grep,glob'
 const PERMISSIONS_EXTENSION_PATH = agentResourcePath('pi-desktop-permissions.ts')
 const NEXT_STEPS_EXTENSION_PATH = agentResourcePath(NEXT_STEPS_EXTENSION_FILE)
 const CONTEXT_EXTENSION_PATH = agentResourcePath(CONTEXT_EXTENSION_FILE)
+const RETRO_SKILL_PATH = agentResourcePath(join('skills', RETRO_SKILL_NAME))
 
 const LOCALES_DIR_NAME = 'locales'
 // The language files ship next to the extension (resources/ is extraResources).
@@ -105,6 +107,8 @@ export function applyPermissionModeToStartOptions(
   // Records what fills the context for the Context panel and applies the cache mode.
   const recordsContext = existsSync(CONTEXT_EXTENSION_PATH)
   if (recordsContext) args.push('-e', CONTEXT_EXTENSION_PATH)
+  // The Analytics retro runs this skill with `/skill:pi-retro`; only Pi takes `--skill`.
+  if (engine === 'pi' && existsSync(RETRO_SKILL_PATH)) args.push('--skill', RETRO_SKILL_PATH)
 
   return {
     ...options,

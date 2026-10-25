@@ -94,6 +94,7 @@ import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
 import type { CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
+import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -409,6 +410,15 @@ interface PiDesktopAPI {
     enableIdleCacheWarming(): Promise<void>
   }
 
+  // Analytics: where cost and time went, per session and across sessions
+  analytics: {
+    /** Null for a session file outside the session stores. */
+    getSessionReport(sessionFile: string): Promise<AnalyticsReport | null>
+    getOverview(request: OverviewRequest): Promise<AnalyticsReport>
+    /** Read every session file again. */
+    rebuild(): Promise<void>
+  }
+
   // Diagnostics report
   diagnostics: {
     get(): Promise<DiagnosticsReport>
@@ -718,6 +728,12 @@ const api: PiDesktopAPI = {
     setCacheMode: (sessionId, mode) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, sessionId, mode),
     getCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING),
     enableIdleCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING),
+  },
+
+  analytics: {
+    getSessionReport: (sessionFile) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_SESSION_REPORT, sessionFile),
+    getOverview: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_OVERVIEW, request),
+    rebuild: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_REBUILD),
   },
 
   diagnostics: {
