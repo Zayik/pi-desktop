@@ -10,6 +10,18 @@
   "analytics": {
     "cache": {
       "assumed": "{{policy}}（推定）",
+      "auto": {
+        "auto": "按小时自动",
+        "better": "自动模式比最佳固定次数约节省 {{amount}}。",
+        "billed": "实际计费",
+        "disclaimer_other": "基于这些模型 {{count}} 天会话的估算：每天都用仅由此前各天构建的小时计划计价，与自动模式的实际运行方式一致。仅计提示成本，且限于 Pi 在运行结束后保持预热的 30 分钟内。记录的天数越多，估算越准确。",
+        "fixed": "最佳固定次数",
+        "row_other": "计费 {{billed}} · {{pings}} 次 {{fixed}} · 自动 {{auto}}（{{count}} 天）",
+        "same": "按小时调整次数与最佳固定次数的花费大致相同。",
+        "span_other": "{{count}} 天，{{from}} 至 {{to}}",
+        "title": "自动模式（实验性）对比",
+        "worse": "自动模式比最佳固定次数约多花 {{amount}}。"
+      },
       "current": "当前",
       "days": {
         "bar": "{{day}}：{{hit}}% 的提示 token 来自缓存，{{calls}} 次调用中 {{cold}} 次未命中",

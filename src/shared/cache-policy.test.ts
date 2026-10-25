@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildCacheReport, cacheProvider, replay, KEEP_WARM_EVERY_MS, MAX_SWEEP_PINGS } from './cache-policy'
-import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
+import { SESSION_ANALYTICS_VERSION, localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
 const PRICE = 3e-6
@@ -277,4 +277,30 @@ test('a provider without settings to compare reports its cost only', () => {
   assert.deepEqual(model.policies, [])
   assert.equal(model.recommended, null)
   assert.ok(model.measuredCost > 0)
+})
+
+test('Auto is compared walk-forward only once a model has 7 days of calls', () => {
+  const DAY = 24 * 60 * MINUTE
+  const daysOf = (count: number): CacheCall[] => {
+    const calls: CacheCall[] = []
+    for (let day = 0; day < count; day++) {
+      // Mornings: 12-minute breaks, which a few pings bridge. Afternoons: 3-hour breaks, which no count Pi sends covers.
+      const morning = T0 + day * DAY + 9 * 60 * MINUTE
+      for (let i = 0; i < 6; i++) calls.push(call(morning + i * 12 * MINUTE, 20_000 + i * 100, i === 0))
+      const afternoon = T0 + day * DAY + 13 * 60 * MINUTE
+      for (let i = 0; i < 3; i++) calls.push(call(afternoon + i * 180 * MINUTE, 20_000 + i * 100, i === 0))
+    }
+    return calls
+  }
+  assert.equal(buildCacheReport([session(daysOf(6))]).models[0].autoComparison, null)
+  const report = buildCacheReport([session(daysOf(8))])
+  const auto = report.models[0].autoComparison
+  assert.ok(auto)
+  // The first day has no history to plan from.
+  assert.equal(auto.days, 7)
+  assert.equal(auto.daily[0].day, localDayKey(T0 + DAY))
+  assert.ok(auto.fixedPings <= 6)
+  assert.ok(auto.auto <= auto.fixed + 1e-12)
+  assert.equal(report.autoComparison?.models, 1)
+  assert.ok(Math.abs((report.autoComparison?.billed ?? 0) - auto.daily.reduce((sum, day) => sum + day.billed, 0)) < 1e-12)
 })

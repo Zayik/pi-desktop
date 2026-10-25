@@ -5,16 +5,14 @@
  * for it. Each comes with its saving per week, so it can be applied as is.
  */
 import type { AnalyticsReport } from '../../../src/shared/analytics-report'
-import type { ModelCacheReport, PingSweepPoint } from '../../../src/shared/cache-policy'
+import { PI_REFRESH_AT, piMaxIdlePings, type ModelCacheReport, type PingSweepPoint } from '../../../src/shared/cache-policy'
+
+export { PI_IDLE_WARMING_MS, piMaxIdlePings } from '../../../src/shared/cache-policy'
 import type { ModelCachePlan } from './cache-plan'
 import { advertisedCacheLifetime } from '../../../resources/context-snapshot'
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
-/** Pi stops idle warming this long after a run ends (`MAX_IDLE_WARMING_AGE_MS` in its cache warmer). */
-export const PI_IDLE_WARMING_MS = 30 * MINUTE
-/** Pi refreshes an entry at this share of its lifetime. */
-const PI_REFRESH_AT = 0.9
 /** A recommendation must save at least this share of the current cost, and this much a week. */
 const MIN_SAVING_SHARE = 0.02
 const MIN_WEEKLY_SAVING = 0.01
@@ -62,11 +60,6 @@ export interface CacheCheck {
   recommendation: CacheRecommendation | null
   /** With `long-only`: no ping count is worth changing to, but the long lifetime is. */
   alternative: CacheOption | null
-}
-
-/** Most idle refreshes Pi sends for a model's short lifetime before it stops warming. */
-export function piMaxIdlePings(shortTtlMs: number): number {
-  return shortTtlMs > 0 ? Math.floor(PI_IDLE_WARMING_MS / (shortTtlMs * PI_REFRESH_AT)) : 0
 }
 
 /** A `provider/model` key's advertised short lifetime, or null for a model Pi has no lifetime for (and so never warms). */
