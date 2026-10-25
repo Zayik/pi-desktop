@@ -164,3 +164,17 @@ test('time spent waiting on a running tool counts as active', () => {
   ]
   assert.equal(summarizeSession(entries, '/x.jsonl')?.activeMs, 1_000 + 1_000 + 600_000 + 3_000)
 })
+
+test('keeps the subagent questions this session has not answered', () => {
+  const ask = (id: string, offsetMs: number) => ({
+    type: 'custom_message', id, parentId: null, timestamp: iso(offsetMs), customType: 'subagent_supervisor_request', display: true, content: 'q',
+    details: { id, requestId: id, expectsReply: true, runId: 'run-abc', agent: 'worker', childIndex: 0, requestBody: `question ${id}` },
+  })
+  const entries = [
+    header,
+    ask('q1', 1_000),
+    ask('q2', 2_000),
+    { type: 'custom', id: 'r1', parentId: null, timestamp: iso(3_000), customType: 'subagent_supervisor_reply', data: { requestId: 'q1' } },
+  ]
+  assert.deepEqual(summarizeSession(entries, '/x.jsonl')?.openQuestions?.map((question) => question.body), ['question q2'])
+})

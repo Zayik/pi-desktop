@@ -56,6 +56,8 @@
     "contextPanel": {
       "agents": {
         "card": {
+          "answerInChat": "",
+          "askedBy_other": "",
           "breakdown": "",
           "cost": "",
           "details": "",
@@ -63,6 +65,8 @@
           "lastTool": "",
           "nextWarm": "",
           "noSessionFile": "",
+          "question": "",
+          "questionInterview": "",
           "time": "",
           "toolCount_other": ""
         },
@@ -89,6 +93,7 @@
         "status": {
           "done": "",
           "failed": "",
+          "needsAnswer": "",
           "running": "",
           "stopped": ""
         },
@@ -277,6 +282,12 @@
       "finishedWithFailures_other": "{{count}} 个子智能体已结束，{{failed}} 个失败",
       "openPanel": "打开子智能体面板",
       "running_other": "{{count}} 个子智能体正在运行"
+    },
+    "subagentQuestion": {
+      "fromAgent": "",
+      "fromSubagent": "",
+      "hint": "",
+      "interview": ""
     },
     "svgBlock": {
       "renderedSvgAlt": "渲染后的 SVG",

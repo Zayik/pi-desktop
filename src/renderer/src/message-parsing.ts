@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n'
 import { isStoppedAnswer } from '../../shared/stopped-answer'
 import { splitClaudeCliMarkers } from './claude-cli-markers'
+import { questionFromCustomMessage } from '../../shared/subagent-questions'
 
 export interface DisplayAttachment {
   kind: 'image'
@@ -42,6 +43,8 @@ export interface DisplayMessage {
   isError?: boolean
   /** assistant only: the user stopped this answer before it finished. */
   stopped?: boolean
+  /** system only: a question a subagent asked this chat, so the reply after it reads as its answer. */
+  subagentQuestion?: { agent: string | null; reason: string | null }
 }
 
 let fallbackMessageCounter = 0
@@ -156,6 +159,18 @@ export function parseAgentMessage(msg: unknown): DisplayMessage | null {
       model: typeof m.model === 'string' ? m.model : undefined,
       provider: typeof m.provider === 'string' ? m.provider : undefined,
       stopped: isStoppedAnswer(m) || undefined,
+    }
+  }
+
+  if (role === 'custom') {
+    const question = questionFromCustomMessage(m.customType, m.details, m.content, parseTimestamp(m.timestamp))
+    if (!question) return null
+    return {
+      id: String(m.id ?? generateFallbackId()),
+      role: 'system',
+      content: question.body,
+      timestamp: question.at,
+      subagentQuestion: { agent: question.agent, reason: question.reason },
     }
   }
 

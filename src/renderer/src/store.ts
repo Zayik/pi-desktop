@@ -2510,6 +2510,12 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         // matching pending echo means skip. Assistant-role message_start is
         // ignored: assistant content renders via message_update / message_end.
         const startedMessage = (event as PiMessageStartEvent).message
+        // A subagent's question to this chat: shown before the reply it triggers.
+        if (startedMessage && (startedMessage as { role?: unknown }).role === 'custom') {
+          const parsed = parseAgentMessage(startedMessage)
+          if (parsed?.subagentQuestion) get().addMessage(parsed)
+          break
+        }
         if (startedMessage && (startedMessage as { role?: unknown }).role === 'user') {
           const parsed = parseAgentMessage(startedMessage)
           if (parsed && parsed.content.trim() && !consumeLocalEcho(parsed.content)) {

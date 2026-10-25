@@ -15,6 +15,7 @@ import {
   type SnapshotModel,
 } from '../../resources/context-snapshot'
 import { promptTokens } from './context-view'
+import { answeredRequestId, questionFromCustomMessage, type SubagentQuestion } from './subagent-questions'
 
 /** Gaps between entries longer than this are idle time, not work. */
 export const ACTIVE_GAP_MS = 5 * 60_000
@@ -87,6 +88,8 @@ export interface AgentSessionSummary {
   contextTokens: number | null
   /** Estimated from the conversation on the current branch; no system prompt or tools. */
   breakdown: ContextBreakdown | null
+  /** pi-subagents children's questions to this session that it has not answered yet, oldest first. */
+  openQuestions?: SubagentQuestion[]
 }
 
 export interface DelegateRun {
@@ -106,6 +109,8 @@ export interface AgentBoardChild {
   summary: AgentSessionSummary
   /** Set when the session ran with Pi Desktop's recorder. */
   snapshot: ContextSnapshot | null
+  /** A question the child asked and is still waiting on. */
+  question?: SubagentQuestion | null
 }
 
 export interface AgentBoard {
@@ -258,9 +263,12 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
     callCosts: [],
     contextTokens: null,
     breakdown: null,
+    openQuestions: [],
   }
   let previousAt: number | null = summary.startedAt
   const delegateAgents = new Map<string, string>()
+  const questions: SubagentQuestion[] = []
+  const answered = new Set<string>()
   for (const entry of entries) {
     if (entry === header) continue
     const at = entryTime(entry)
@@ -289,8 +297,23 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
       summary.name = str(entry.name) ?? summary.name
       continue
     }
+    if (entry.type === 'custom_message') {
+      const question = questionFromCustomMessage(entry.customType, entry.details, entry.content, at ?? 0)
+      if (question) questions.push(question)
+      continue
+    }
+    if (entry.type === 'custom') {
+      const requestId = answeredRequestId(entry)
+      if (requestId) answered.add(requestId)
+      continue
+    }
     if (entry.type !== 'message' || !isRecord(entry.message)) continue
     const message = entry.message
+    if (message.role === 'custom') {
+      const question = questionFromCustomMessage(message.customType, message.details, message.content, at ?? 0)
+      if (question) questions.push(question)
+      continue
+    }
     if (message.role === 'toolResult' && message.toolName === DELEGATE_TOOL) {
       const agent = str(message.toolCallId) ? delegateAgents.get(String(message.toolCallId)) ?? null : null
       for (const runId of contentText(message.content).match(DELEGATE_RUN_ID) ?? []) {
@@ -332,6 +355,7 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
     summary.breakdown = buildBreakdown({ systemPrompt: '', tools: [], messages, capturedAt: summary.lastActivityAt ?? 0, fromSession: true })
   }
   summary.models.sort((a, b) => b.calls - a.calls)
+  summary.openQuestions = questions.filter((question) => !answered.has(question.requestId))
   return summary
 }
 
