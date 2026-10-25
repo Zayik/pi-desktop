@@ -167,3 +167,27 @@ test('a /skill: command counts as a skill load', () => {
 test('needs a session header', () => {
   assert.equal(analyzeSession([user('u1', null, 0, 'hi')], '/x.jsonl'), null)
 })
+
+test("records Pi's cache-warming pings as billed pings, not calls", () => {
+  const warm = (id: string, parentId: string, offsetMs: number, cacheRead: number): Entry => ({
+    type: 'usage', id, parentId, timestamp: iso(offsetMs), kind: 'cache_warm', provider: 'anthropic', model: 'claude-sonnet-5-5-20261001',
+    usage: { input: 2, output: 1, cacheRead, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: cacheRead * 0.0000003, cacheWrite: 0, total: cacheRead * 0.0000003 } },
+  })
+  const entries = [
+    header,
+    user('u1', null, 1000, 'hello'),
+    assistant('a1', 'u1', 2000, [], 20_000),
+    warm('w1', 'a1', 272_000, 20_000),
+    warm('w2', 'w1', 542_000, 20_000),
+    user('u2', 'w2', 600_000, 'again'),
+    assistant('a2', 'u2', 601_000, [], 20_500),
+  ]
+  const facts = analyzeSession(entries, '/s.jsonl')!
+  assert.equal(facts.calls, 2)
+  assert.equal(facts.warmPings, 2)
+  assert.ok(Math.abs(facts.warmCost - 2 * 20_000 * 0.0000003) < 1e-12)
+  assert.equal(facts.cacheCalls.length, 4)
+  assert.deepEqual(facts.cacheCalls.map((call) => call[9] ?? 0), [0, 1, 1, 0])
+  // The ping's dated model name still files it under the chat's model.
+  assert.deepEqual(facts.cacheModels, ['anthropic/claude-sonnet-5-5'])
+})

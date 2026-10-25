@@ -18,9 +18,11 @@
  * - Earlier OpenAI models: automatic, no write charge, a model-dependent read
  *   price. In-memory entries live about 5 to 10 minutes idle; `24h` retention
  *   (no extra charge) typically about 30 minutes. Both are estimates.
- * - GitHub Copilot: billed per token at the upstream rates (Claude with the
- *   5 minute write price, GPT-5.6+ with the 30 minute one, older models with
- *   none), with no lifetime setting.
+ * - GitHub Copilot: billed per token at the upstream rates. It runs the
+ *   vendor's models on the vendor's caches (a Copilot user's rewrites jump
+ *   at exactly 5 minutes for Claude), so the vendor's lifetimes are assumed.
+ *   Its price list shows only the short lifetime, though its backend takes
+ *   Anthropic's `ttl: "1h"` (VS Code's extendedTtl setting sends it).
  */
 import { localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
 
@@ -38,8 +40,10 @@ export type CachePolicyId =
 
 /** Facts about a model's caching the cost table alone does not show. */
 export type CacheNote =
-  /** Copilot sets the lifetime itself; only keep-warm pings could change the timing. */
-  | 'copilot-lifetime'
+  /** Copilot serves the vendor's model from the vendor's cache, so the vendor's lifetimes are assumed. */
+  | 'copilot-vendor'
+  /** Copilot accepts Anthropic's 1 hour lifetime but does not document or list a price for it. */
+  | 'copilot-1h-unlisted'
   /** Copilot caches the model automatically and there is nothing to set. */
   | 'copilot-automatic'
   /** The automatic cache's lifetimes are typical values, not guarantees. */
@@ -54,6 +58,8 @@ export interface PolicySpec {
   ttlMs: number
   /** Cache write price as a multiple of the input price. */
   write: number
+  /** When the vendor started offering this option (local midnight), for calls older than that. */
+  since?: number
   /**
    * Set when a hit does not restart the lifetime (OpenAI's 12 hours): an
    * entry lives `ttlMs` from its write, or this long past its last read if
@@ -70,6 +76,13 @@ export interface PolicySpec {
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
+
+/** The day the rules below were last checked against the vendors' docs. */
+export const CACHE_RULES_CHECKED = '2026-10-25'
+/** Anthropic's 1 hour lifetime (beta `extended-cache-ttl-2025-04-11`). */
+const ANTHROPIC_1H_SINCE = new Date(2025, 3, 11).getTime()
+/** OpenAI's `24h` retention, introduced with GPT-5.1 (November 2025; the first of the month, to be safe). */
+const OPENAI_24H_SINCE = new Date(2025, 10, 1).getTime()
 /** A prompt this much smaller than the cached one no longer shares its prefix (a compaction or another branch). */
 const PREFIX_BREAK = 0.9
 /** Fewer calls than this say too little about timing to recommend anything. */
@@ -87,6 +100,12 @@ export const MAX_SWEEP_PINGS = Math.ceil((HOUR - 5 * MINUTE) / KEEP_WARM_EVERY_M
 const MIN_GAPS_PER_HOUR = 5
 /** The hourly schedule is worth mentioning from this share of the best fixed count's cost. */
 const MIN_AUTO_SAVING_SHARE = 0.01
+/** Upper bounds of the measured hit-rate buckets, in minutes; the last bucket is everything longer. */
+export const OBSERVED_GAP_MINUTES = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 45, 60, 90, 120]
+/** A bucket needs this many breaks before its hit rate counts. */
+const MIN_OBSERVED_GAPS = 3
+/** A call hit the cache when this share of the previous prompt came back as cache reads. */
+const HIT_SHARE = 0.5
 /** Upper bounds of the gap histogram's buckets; the last bucket is everything longer. */
 export const GAP_BUCKET_MINUTES = [1, 5, 10, 15, 30, 60]
 
@@ -157,44 +176,48 @@ export function cacheProvider(model: string): CacheProvider {
   return 'other'
 }
 
+/** The vendor's own settings; Copilot runs the vendor's models on the vendor's caches, so they are assumed to match. */
+function vendorProfile(kind: CacheProvider, id: string, calls: CacheCall[]): Omit<CacheProfile, 'route'> {
+  if (kind === 'anthropic') {
+    return { family: 'anthropic', policies: [...ANTHROPIC_SHORT, { id: '1h', ttlMs: HOUR, write: 2, since: ANTHROPIC_1H_SINCE }], defaultPolicy: '5m', longPolicy: '1h', sweep: ANTHROPIC_SWEEP, notes: [] }
+  }
+  if (kind === 'openai' && openAIHasLifetimes(id, calls)) {
+    return {
+      family: 'openai-ttl',
+      policies: [...OPENAI_SHORT, { id: '12h', ttlMs: 12 * HOUR, write: 2.5, hitKeepsMs: 30 * MINUTE }],
+      defaultPolicy: '30m',
+      longPolicy: '12h',
+      sweep: OPENAI_SWEEP,
+      notes: ['pi-no-12h', 'pi-no-pings'],
+    }
+  }
+  if (kind === 'openai') {
+    return {
+      family: 'openai-implicit',
+      // 24h retention typically holds about 30 minutes; it is the low end that decides misses.
+      policies: [...IMPLICIT_SHORT, { id: '24h', ttlMs: 30 * MINUTE, write: 1, since: OPENAI_24H_SINCE }],
+      defaultPolicy: 'in-memory',
+      longPolicy: '24h',
+      sweep: IMPLICIT_SWEEP,
+      notes: ['implicit-lifetime', 'pi-no-pings'],
+    }
+  }
+  return { family: 'none', policies: [], defaultPolicy: null, longPolicy: null, sweep: null, notes: [] }
+}
+
 function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
   const [provider, ...rest] = model.split('/')
   const id = rest.join('/').toLowerCase()
-  const route: CacheRoute = provider.toLowerCase() === 'github-copilot' ? 'copilot' : 'api'
   const kind = cacheProvider(model)
-  if (kind === 'anthropic') {
-    return route === 'copilot'
-      ? { family: 'anthropic', route, policies: ANTHROPIC_SHORT, defaultPolicy: '5m', longPolicy: null, sweep: ANTHROPIC_SWEEP, notes: ['copilot-lifetime', 'pi-no-pings'] }
-      : { family: 'anthropic', route, policies: [...ANTHROPIC_SHORT, { id: '1h', ttlMs: HOUR, write: 2 }], defaultPolicy: '5m', longPolicy: '1h', sweep: ANTHROPIC_SWEEP, notes: [] }
-  }
-  if (kind === 'openai' && openAIHasLifetimes(id, calls)) {
-    return route === 'copilot'
-      ? { family: 'openai-ttl', route, policies: OPENAI_SHORT, defaultPolicy: '30m', longPolicy: null, sweep: OPENAI_SWEEP, notes: ['copilot-lifetime', 'pi-no-pings'] }
-      : {
-        family: 'openai-ttl',
-        route,
-        policies: [...OPENAI_SHORT, { id: '12h', ttlMs: 12 * HOUR, write: 2.5, hitKeepsMs: 30 * MINUTE }],
-        defaultPolicy: '30m',
-        longPolicy: '12h',
-        sweep: OPENAI_SWEEP,
-        notes: ['pi-no-12h', 'pi-no-pings'],
-      }
-  }
-  if (kind === 'openai') {
-    return route === 'copilot'
-      ? { family: 'openai-implicit', route, policies: IMPLICIT_SHORT, defaultPolicy: 'in-memory', longPolicy: null, sweep: IMPLICIT_SWEEP, notes: ['copilot-lifetime', 'implicit-lifetime', 'pi-no-pings'] }
-      : {
-        family: 'openai-implicit',
-        route,
-        // 24h retention typically holds about 30 minutes; it is the low end that decides misses.
-        policies: [...IMPLICIT_SHORT, { id: '24h', ttlMs: 30 * MINUTE, write: 1 }],
-        defaultPolicy: 'in-memory',
-        longPolicy: '24h',
-        sweep: IMPLICIT_SWEEP,
-        notes: ['implicit-lifetime', 'pi-no-pings'],
-      }
-  }
-  return { family: 'none', route, policies: [], defaultPolicy: null, longPolicy: null, sweep: null, notes: route === 'copilot' ? ['copilot-automatic'] : [] }
+  const vendor = vendorProfile(kind, id, calls)
+  if (provider.toLowerCase() !== 'github-copilot') return { ...vendor, route: 'api' }
+  if (vendor.family === 'none') return { ...vendor, route: 'copilot', notes: ['copilot-automatic'] }
+  const notes: CacheNote[] = ['copilot-vendor']
+  // Copilot's price list shows only the 5 minute write, though its backend takes `ttl: "1h"` (VS Code's extendedTtl uses it).
+  if (vendor.family === 'anthropic') notes.push('copilot-1h-unlisted')
+  // Pi's warmer skips every Copilot model: none declares a cache lifetime.
+  notes.push(...vendor.notes.filter((note) => note !== 'pi-no-pings'), 'pi-no-pings')
+  return { ...vendor, route: 'copilot', notes }
 }
 
 /** Cache read price as a multiple of input, from the list prices, when the sessions never show one. */
@@ -276,6 +299,34 @@ export interface ModelCacheReport {
   autoCost: number | null
   /** What the hourly schedule saves over the best single count. */
   autoSaving: number
+  /** What the calls themselves show about the cache, or null when it never served a read. */
+  observed: ObservedCache | null
+}
+
+/** Real calls after a break of up to `upToMinutes` (null: longer than the last bound), and how many found the cache warm. */
+export interface ObservedGapBucket {
+  upToMinutes: number | null
+  gaps: number
+  hits: number
+}
+
+export interface ObservedCache {
+  /** Breaks with no ping in them, by length. */
+  buckets: ObservedGapBucket[]
+  /** The longest break bucket still mostly warm, and the start of the first mostly cold one. */
+  warmUpToMinutes: number | null
+  coldFromMinutes: number | null
+  /** The lifetime the calls ran with, in minutes. */
+  expectedMinutes: number | null
+  /** Whether the measured breaks agree with `expectedMinutes`. */
+  verdict: 'matches' | 'shorter' | 'longer' | 'unclear'
+  /** Warming pings Pi sent, how many found the cache warm, and their cost. */
+  pings: number
+  pingHits: number
+  pingCost: number
+  /** Real calls after a break that pings bridged, and how many of them hit. */
+  pingedGaps: number
+  pingedGapHits: number
 }
 
 export interface PingSweepPoint {
@@ -371,7 +422,6 @@ function measurePrices(totals: CallTotals, profile: CacheProfile, model: string)
  * automatic cache shows none.
  */
 function currentPolicy(profile: CacheProfile, totals: CallTotals, prices: Prices | null): CachePolicyId | null {
-  if (profile.route === 'copilot') return profile.defaultPolicy
   if (profile.family === 'anthropic') return totals.write === 0 ? null : totals.write1h > totals.write / 2 ? '1h' : '5m'
   if (profile.family === 'openai-ttl') {
     if (totals.write === 0 || totals.writeCost === 0 || !prices) return null
@@ -513,6 +563,84 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+function policyLifetimeMinutes(policy: CachePolicyId | null, profile: CacheProfile): number | null {
+  const spec = profile.policies.find((entry) => entry.id === policy)
+  return spec && spec.ttlMs > 0 ? spec.ttlMs / MINUTE : null
+}
+
+/**
+ * Read the cache's real behaviour off the calls: after a break of a given
+ * length, did the next call get the previous prompt back as cache reads?
+ * Breaks that Pi bridged with warming pings are counted apart, with the
+ * pings' own reads. Timestamps are when Pi recorded each message, so a
+ * long response shifts a break by its streaming time.
+ */
+function observeCache(events: CacheCall[][], profile: CacheProfile, policy: CachePolicyId | null): ObservedCache | null {
+  if (!events.some((run) => run.some((call) => call[3] > 0))) return null
+  const buckets: ObservedGapBucket[] = [...OBSERVED_GAP_MINUTES, null].map((upToMinutes) => ({ upToMinutes, gaps: 0, hits: 0 }))
+  const observed: ObservedCache = {
+    buckets,
+    warmUpToMinutes: null,
+    coldFromMinutes: null,
+    expectedMinutes: policyLifetimeMinutes(policy, profile),
+    verdict: 'unclear',
+    pings: 0,
+    pingHits: 0,
+    pingCost: 0,
+    pingedGaps: 0,
+    pingedGapHits: 0,
+  }
+  for (const run of events) {
+    let previous: CacheCall | null = null
+    let pinged = false
+    for (const call of run) {
+      if (call[9] === 1) {
+        observed.pings++
+        observed.pingCost += call[6] + call[7] + call[8]
+        if (call[3] >= promptTokens(call) * HIT_SHARE) observed.pingHits++
+        pinged = true
+        continue
+      }
+      if (previous) {
+        const cached = promptTokens(previous)
+        // A shorter prompt (a compaction or another branch) shares no prefix, so it says nothing about the lifetime.
+        if (cached > 0 && promptTokens(call) >= cached * PREFIX_BREAK) {
+          const hit = call[3] >= cached * HIT_SHARE
+          if (pinged) {
+            observed.pingedGaps++
+            if (hit) observed.pingedGapHits++
+          } else {
+            const minutes = (call[0] - previous[0]) / MINUTE
+            const bucket = buckets.find((entry) => entry.upToMinutes === null || minutes <= entry.upToMinutes)!
+            bucket.gaps++
+            if (hit) bucket.hits++
+          }
+        }
+      }
+      previous = call
+      pinged = false
+    }
+  }
+  const lowerBound = (index: number): number => (index === 0 ? 0 : OBSERVED_GAP_MINUTES[index - 1])
+  buckets.forEach((bucket, index) => {
+    if (bucket.gaps < MIN_OBSERVED_GAPS) return
+    const rate = bucket.hits / bucket.gaps
+    if (rate >= 0.8 && bucket.upToMinutes !== null) observed.warmUpToMinutes = Math.max(observed.warmUpToMinutes ?? 0, bucket.upToMinutes)
+    if (rate < 0.5 && observed.coldFromMinutes === null) observed.coldFromMinutes = lowerBound(index)
+  })
+  const expected = observed.expectedMinutes
+  if (expected !== null) {
+    const counted = buckets.map((bucket, index) => ({ bucket, from: lowerBound(index) })).filter(({ bucket }) => bucket.gaps >= MIN_OBSERVED_GAPS)
+    const warmBeyond = counted.some(({ bucket, from }) => from >= expected * 1.2 && bucket.hits / bucket.gaps >= 0.8)
+    const below = counted.some(({ bucket }) => bucket.upToMinutes !== null && bucket.upToMinutes <= expected)
+    const above = counted.some(({ from }) => from >= expected)
+    if (observed.coldFromMinutes !== null && observed.coldFromMinutes < expected * 0.8) observed.verdict = 'shorter'
+    else if (warmBeyond) observed.verdict = 'longer'
+    else if (below && above) observed.verdict = 'matches'
+  }
+  return observed
+}
+
 /** Per model across sessions: each session keeps its own cache, so each is replayed alone. */
 export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
   const byModel = new Map<string, CacheCall[][]>()
@@ -533,13 +661,17 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
   }
 
   const models: ModelCacheReport[] = []
-  for (const [model, runs] of byModel) {
+  for (const [model, events] of byModel) {
+    // The replay sends its own pings, so it runs on the real calls; the pings Pi did send are measured below.
+    const runs = events.map((run) => run.filter((call) => call[9] !== 1)).filter((run) => run.length > 0)
     const all = runs.flat()
+    if (all.length === 0) continue
     const profile = cacheProfile(model, all)
+    const firstAt = Math.min(...all.map((call) => call[0]))
     const shortTtlMs = profile.sweep?.ttlMs ?? 5 * MINUTE
     const gaps: number[] = []
     for (const run of runs) for (let index = 1; index < run.length; index++) gaps.push(run[index][0] - run[index - 1][0])
-    const measuredCost = all.reduce((sum, call) => sum + call[6] + call[7] + call[8], 0)
+    const measuredCost = events.flat().reduce((sum, call) => sum + call[6] + call[7] + call[8], 0)
     const totals = callTotals(all)
     const prices = measurePrices(totals, profile, model)
     const measuredPolicy = currentPolicy(profile, totals, prices)
@@ -574,9 +706,11 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       hourly: [],
       autoCost: null,
       autoSaving: 0,
+      observed: observeCache(events, profile, measuredPolicy ?? profile.defaultPolicy),
     }
     if (profile.policies.length > 0 && prices) {
-      report.policies = profile.policies.map((spec) => {
+      // An option that did not exist yet when these calls ran is no fair comparison.
+      report.policies = profile.policies.filter((spec) => spec.since === undefined || firstAt >= spec.since).map((spec) => {
         const total: PolicyCost = { policy: spec.id, cost: 0, pings: 0, coldCalls: 0 }
         for (const run of runs) {
           const part = replay(run, spec, prices)

@@ -13,7 +13,7 @@ import { callFromMessage, estimateTextTokens, type ModelCall } from '../../resou
 import { ACTIVE_GAP_MS, DELEGATE_RUN_ID, TOOL_WAIT_GAP_MS, addModelUsage, callCost, type DelegateRun, type ModelUsage } from './agent-board'
 
 /** Bump when the facts change shape or meaning, so the index reads every file again. */
-export const SESSION_ANALYTICS_VERSION = 2
+export const SESSION_ANALYTICS_VERSION = 3
 
 /** What a tool call was for. Shell commands are sorted by what they run. */
 export const WORK_CATEGORIES = ['test', 'build', 'lint', 'install', 'git', 'shell', 'read', 'search', 'edit', 'subagent', 'web', 'other'] as const
@@ -108,6 +108,8 @@ export type CacheCall = [
   inputCost: number,
   cacheReadCost: number,
   cacheWriteCost: number,
+  /** 1 for a cache-warming ping Pi sent while idle; missing or 0 for a real call (rows from before version 3 have none). */
+  ping?: number,
 ]
 
 export interface DayFact {
@@ -150,8 +152,11 @@ export interface SessionAnalytics {
   delegateRuns: DelegateRun[]
   /** `provider/model` names `cacheCalls` point at. */
   cacheModels: string[]
-  /** Every model call of the session, oldest first (the newest `MAX_CACHE_CALLS`). */
+  /** Every model call of the session, oldest first (the newest `MAX_CACHE_CALLS`), with the warming pings between them. */
   cacheCalls: CacheCall[]
+  /** Cache-warming pings Pi sent (its `cache_warm` usage entries) and what they cost; their cost is also in `cost`. */
+  warmPings: number
+  warmCost: number
 }
 
 type UnknownRecord = Record<string, unknown>
@@ -312,6 +317,8 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
     delegateRuns: [],
     cacheModels: [],
     cacheCalls: [],
+    warmPings: 0,
+    warmCost: 0,
   }
 
   const toolStat = (tool: string, category: WorkCategory): ToolStat => {
@@ -402,6 +409,19 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
     }
     if (entry.type === 'session_info') {
       facts.name = str(entry.name) ?? facts.name
+      continue
+    }
+    // Pi records each cache-warming refresh as a usage entry: billed, but no turn of the conversation.
+    if (entry.type === 'usage' && entry.kind === 'cache_warm' && isRecord(entry.usage)) {
+      const call = callFromMessage({ role: 'assistant', usage: entry.usage, provider: entry.provider, model: entry.model }, at ?? 0)
+      if (call) {
+        const cost = callCost(call)
+        addCall(facts, call, turn, day, false)
+        addModelUsage(facts.models, call, cost)
+        facts.warmPings++
+        facts.warmCost += cost
+        recordCacheCall(facts, call, entry.usage.cacheWrite1h, true)
+      }
       continue
     }
     if (entry.type !== 'message' || !isRecord(entry.message)) continue
@@ -535,19 +555,28 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
   return facts
 }
 
-function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown): void {
+function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown, ping = false): void {
   if (call.at <= 0) return
-  const name = `${call.provider}/${call.model}`
-  let model = facts.cacheModels.indexOf(name)
-  if (model < 0) model = facts.cacheModels.push(name) - 1
+  let model: number
+  const last = facts.cacheCalls[facts.cacheCalls.length - 1]
+  // A ping refreshes the last request's cache; its usage may name the served model differently.
+  if (ping && last) model = last[1]
+  else {
+    const name = `${call.provider}/${call.model}`
+    model = facts.cacheModels.indexOf(name)
+    if (model < 0) model = facts.cacheModels.push(name) - 1
+  }
   const oneHour = typeof cacheWrite1h === 'number' && Number.isFinite(cacheWrite1h) ? Math.min(cacheWrite1h, call.cacheWrite) : 0
-  facts.cacheCalls.push([call.at, model, call.input, call.cacheRead, call.cacheWrite, oneHour, call.cost.input, call.cost.cacheRead, call.cost.cacheWrite])
+  const row: CacheCall = [call.at, model, call.input, call.cacheRead, call.cacheWrite, oneHour, call.cost.input, call.cost.cacheRead, call.cost.cacheWrite]
+  if (ping) row.push(1)
+  facts.cacheCalls.push(row)
   if (facts.cacheCalls.length > MAX_CACHE_CALLS) facts.cacheCalls.shift()
 }
 
-function addCall(facts: SessionAnalytics, call: ModelCall, turn: TurnFact | null, day: (at: number) => DayFact): void {
+/** `counted` false adds a ping's cost and tokens without counting it as a model call of the conversation. */
+function addCall(facts: SessionAnalytics, call: ModelCall, turn: TurnFact | null, day: (at: number) => DayFact, counted = true): void {
   const cost = callCost(call)
-  facts.calls++
+  if (counted) facts.calls++
   facts.cost += cost
   facts.input += call.input
   facts.output += call.output
@@ -556,11 +585,11 @@ function addCall(facts: SessionAnalytics, call: ModelCall, turn: TurnFact | null
   if (call.at > 0) {
     const bucket = day(call.at)
     bucket.cost += cost
-    bucket.calls++
+    if (counted) bucket.calls++
   }
   if (turn) {
     turn.cost += cost
-    turn.calls++
+    if (counted) turn.calls++
   }
 }
 
