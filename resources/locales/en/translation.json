@@ -19,8 +19,8 @@
         "write": "Cache writes"
       },
       "gaps": {
-        "bar_one": "",
-        "bar_other": "",
+        "bar_one": "{{range}}: {{count}} gap",
+        "bar_other": "{{range}}: {{count}} gaps",
         "over": ">{{minutes}}m",
         "range": "{{from}}–{{to}}m",
         "title": "Gaps between calls",
