@@ -6,10 +6,11 @@ import { validateStartOptions, applyResumePreference, applyPermissionModeToStart
 import { loadAppSettings } from './settings'
 import type { IpcContext } from './context'
 import { detectPiInstallations, getConfiguredEngineKind } from '../pi-rpc-manager'
+import { buildPiSetupReport, isPiInstallMethod, runPiInstall } from '../pi-setup'
 import { t } from '../../shared/i18n'
 
 export function registerPiHandlers(ctx: IpcContext): void {
-  const { workspaceManager, getActivePi } = ctx
+  const { workspaceManager, getActivePi, broadcast } = ctx
 
   // ─── Pi Process Lifecycle ───────────────────────────────────────────────
 
@@ -97,6 +98,24 @@ export function registerPiHandlers(ctx: IpcContext): void {
   ipcMain.handle(IPC_CHANNELS.PI_DETECT_INSTALLATIONS, async (_event, options?: unknown) => ({
     installations: detectPiInstallations(isObject(options) && options.force === true),
   }))
+
+  // Searches from scratch every time: the setup screen asks after the user
+  // installed Pi or picked a path, and a cached "not found" would hide that.
+  ipcMain.handle(IPC_CHANNELS.PI_SETUP_REPORT, async () => buildPiSetupReport())
+
+  // Only one install at a time: two package managers writing the same global
+  // folder at once leave it half-installed.
+  let installing = false
+  ipcMain.handle(IPC_CHANNELS.PI_INSTALL, async (_event, method: unknown) => {
+    if (!isPiInstallMethod(method)) throw new Error('unknown install method')
+    if (installing) throw new Error(t('errors.pi.installRunning'))
+    installing = true
+    try {
+      return await runPiInstall(method, (chunk) => broadcast(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, chunk))
+    } finally {
+      installing = false
+    }
+  })
 
   // ─── Pi Commands ────────────────────────────────────────────────────────
 

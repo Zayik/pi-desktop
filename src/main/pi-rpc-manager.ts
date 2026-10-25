@@ -1,5 +1,5 @@
 import { ChildProcess, SpawnOptions, spawn, spawnSync } from 'child_process'
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import { EventEmitter } from 'events'
 import { StringDecoder } from 'string_decoder'
@@ -16,6 +16,8 @@ import type {
 } from '../shared/ipc-contracts'
 import type { CaptureOptions, PiEngine, PiResolution, PiStartFailure, ResolutionDeps } from './pi-binary-resolution'
 import {
+  PI_MANAGED_ROOT_ENV,
+  PiSearchTrace,
   describePiStartFailure,
   isOmpExecutable,
   normalizeOverride,
@@ -240,7 +242,19 @@ export const RESOLUTION_DEPS: ResolutionDeps = {
     }
   },
   capture: (command, args, options) => runCapture(command, args, options),
+  readText: (path) => {
+    try {
+      // Launchers and version files are tiny; anything large is not one.
+      if (statSync(path).size > MAX_PROBE_TEXT_BYTES) return null
+      return readFileSync(path, 'utf-8')
+    } catch (err) {
+      if (isFsAccessError(err) || (err as NodeJS.ErrnoException | null)?.code === 'EISDIR') return null
+      throw err
+    }
+  },
 }
+
+const MAX_PROBE_TEXT_BYTES = 64 * 1024
 
 const FS_ACCESS_ERROR_CODES = new Set(['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM', 'ELOOP'])
 
@@ -374,9 +388,33 @@ function getResolution(): PiResolution {
   if (resolution.pathEnv && resolution.pathEnv !== process.env.PATH) {
     process.env.PATH = resolution.pathEnv
   }
+  // Spawning a managed install's cli.js directly skips its launcher, which is
+  // what tells Pi it is managed (and how `pi update` should behave).
+  if (resolution.managedRoot) process.env[PI_MANAGED_ROOT_ENV] = resolution.managedRoot
   cachedResolution = resolution
   logResolution(resolution)
   return resolution
+}
+
+/**
+ * Forget every cached lookup, so the next start searches again. For "Try
+ * again" and after an install: both mean the filesystem just changed.
+ */
+export function refreshPiResolution(): void {
+  cachedResolution = null
+  engineResolutions.clear()
+  cachedNodeBinary = undefined
+  detectedInstallationsCache = null
+}
+
+/**
+ * Run the configured search again with every probe recorded, for the setup
+ * screen's "where we looked" list. Does not touch the cached resolution.
+ */
+export function tracePiSearch(): { resolution: PiResolution; trace: PiSearchTrace } {
+  const trace = new PiSearchTrace()
+  const resolution = resolvePiBinary(RESOLUTION_DEPS, configuredOverride, configuredEngine, trace)
+  return { resolution, trace }
 }
 
 /**

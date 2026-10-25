@@ -11,6 +11,7 @@ import { HomeScreen } from './components/home-screen'
 import { NotesPanel } from './components/notes-panel'
 import { SkillsPanel } from './components/skills-panel'
 import { DiagnosticsPanel } from './components/diagnostics-panel'
+import { PiSetupScreen } from './components/pi-setup-screen'
 import { MissionControl } from './components/mission-control'
 import { TaskLauncher } from './components/task-launcher'
 import { NotePicker } from './components/note-picker'
@@ -46,6 +47,23 @@ export function App(): React.JSX.Element {
   const workflowPanelOpen = useAppStore((state) => state.workflowPanelOpen)
   const workflowPanelFilter = useAppStore((state) => state.workflowPanelFilter)
   const workflowPanelWorkspaceId = useAppStore((state) => state.workflowPanelWorkspaceId)
+  const piSetupOpen = useAppStore((state) => state.piSetupOpen)
+  const setPiSetupOpen = useAppStore((state) => state.setPiSetupOpen)
+
+  // Nothing works without Pi, so a launch that cannot find it opens straight
+  // onto the setup screen instead of a chat that fails on first use.
+  useEffect(() => {
+    let cancelled = false
+    window.piDesktop.pi
+      .getSetupReport()
+      .then((report) => {
+        if (!cancelled && report.failure !== null) setPiSetupOpen(true)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [setPiSetupOpen])
 
   // Global context menu
   const { show, ContextMenuComponent } = useContextMenu()
@@ -187,6 +205,7 @@ export function App(): React.JSX.Element {
 
       {showChrome && <StatusBar />}
       {showChrome && !globalWorkflowOpen && <WorkflowNavigator />}
+      {piSetupOpen && <PiSetupScreen />}
       <ExtensionUiDialog />
       <LinkedTaskDialog />
       <AppConfirmDialog />

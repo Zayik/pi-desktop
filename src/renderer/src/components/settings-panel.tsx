@@ -87,6 +87,7 @@ export function SettingsPanel(): React.JSX.Element {
   const shortcuts = useAppStore(activeShortcuts)
   const shortcutsInvalid = shortcutProblem(shortcuts, window.piDesktop.system.platform) !== null
   const loadSettings = useAppStore((state) => state.loadSettings)
+  const setPiSetupOpen = useAppStore((state) => state.setPiSetupOpen)
   const setSettingsDraft = useAppStore((state) => state.setSettingsDraft)
   const clearSettingsDraft = useAppStore((state) => state.clearSettingsDraft)
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
@@ -784,6 +785,13 @@ export function SettingsPanel(): React.JSX.Element {
               {agentChangePending && (
                 <div className="text-xs text-warning" role="status">{t('settings.agentInstallation.appliesToNewSessions')}</div>
               )}
+              <button
+                type="button"
+                onClick={() => setPiSetupOpen(true)}
+                className="self-start text-xs text-accent hover:underline"
+              >
+                {t('settings.agentInstallation.showSearch')}
+              </button>
             </div>
           </SettingsRow>
         </SettingsSection>
