@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
 import { isCacheMode, type AutoWarmSchedule, type CacheModeChoice, type ContextSnapshot } from '../../../resources/context-snapshot'
-import { enableIdleCacheWarming, readCacheMode, readPiCacheWarming, writeCacheMode } from '../cache-modes'
+import { enableIdleCacheWarming, enableModelCacheLifetime, readCacheMode, readPiCacheWarming, writeCacheMode } from '../cache-modes'
 import { freshAutoWarmSchedule, readAutoWarmSchedule } from '../auto-warm'
 import { overviewForAutoWarm } from './analytics-handlers'
 import { pruneContextSnapshots, readContextSnapshot } from '../context-snapshots'
@@ -12,6 +12,7 @@ import { assertTrustedSender, isObject, isString } from './validation'
 
 /** A renderer could send any number of paths; a chat never has this many subagents open. */
 const MAX_SUBAGENT_FILES = 100
+const MAX_CACHE_LIFETIME_SECONDS = 24 * 60 * 60
 
 export function registerContextHandlers(): void {
   void pruneContextSnapshots().catch((error: unknown) => {
@@ -53,6 +54,13 @@ export function registerContextHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<string | null> => {
     assertTrustedSender(event)
     return readPiCacheWarming()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_ENABLE_MODEL_CACHE_LIFETIME, async (event: IpcMainInvokeEvent, provider: unknown, modelId: unknown, seconds: unknown): Promise<void> => {
+    assertTrustedSender(event)
+    if (!isString(provider) || !provider || !isString(modelId) || !modelId) throw new Error('provider and modelId must be non-empty strings')
+    if (typeof seconds !== 'number' || !Number.isInteger(seconds) || seconds <= 0 || seconds > MAX_CACHE_LIFETIME_SECONDS) throw new Error('seconds must be a whole number of seconds up to a day')
+    await enableModelCacheLifetime(provider, modelId, seconds)
   })
 
   ipcMain.handle(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<void> => {

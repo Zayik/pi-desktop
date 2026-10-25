@@ -19,7 +19,7 @@ function session(calls: CacheCall[], models = [SONNET]): SessionAnalytics {
     version: SESSION_ANALYTICS_VERSION, sessionId: 's', sessionFile: '/s.jsonl', cwd: null, parentSession: null, name: null, label: null,
     startedAt: 0, lastActivityAt: 0, activeMs: 0, turns: 0, calls: calls.length, cost: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
     compactions: 0, models: [], tools: [], categories: [], skills: [], testRuns: [], slowCalls: [], failedCommands: [], turnFacts: [],
-    days: {}, delegateRuns: [], cacheModels: models, cacheCalls: calls,
+    days: {}, delegateRuns: [], cacheModels: models, cacheCalls: calls, warmPings: 0, warmCost: 0,
   }
 }
 
@@ -34,7 +34,7 @@ function workdays(): SessionAnalytics[] {
 }
 
 test('the extension accepts as many pings as the sweep tries', () => {
-  assert.equal(MAX_AUTO_WARMS, MAX_SWEEP_PINGS)
+  assert.ok(MAX_AUTO_WARMS >= MAX_SWEEP_PINGS)
 })
 
 test('plans each hour on its cheapest count and other hours on the best fixed count', () => {
@@ -51,12 +51,18 @@ test('plans each hour on its cheapest count and other hours on the best fixed co
   assert.equal(schedule.models['google/gemini-4-argon'], undefined, 'no sweep, no plan')
 })
 
-test('leaves out models Pi does not warm with 5-minute pings', () => {
+test('plans Copilot and OpenAI models on their own cache lifetimes', () => {
   const copilot = 'github-copilot/claude-sonnet-5-5'
   const openai = 'openai/gpt-6.1'
-  const schedule = buildAutoWarmSchedule(buildCacheReport([...workdays().map((facts) => ({ ...facts, cacheModels: [copilot] })), ...workdays().map((facts) => ({ ...facts, cacheModels: [openai] }))]), 1000, 30)
-  assert.deepEqual(schedule.models, {})
-  assert.equal(schedule.fallback, null)
+  const schedule = buildAutoWarmSchedule(buildCacheReport([
+    ...workdays().map((facts) => ({ ...facts, cacheModels: [copilot] })),
+    ...workdays().map((facts) => ({ ...facts, cacheModels: [openai] })),
+  ]), 1000, 30)
+  assert.ok(isAutoWarmSchedule(schedule))
+  assert.equal(schedule.models[copilot]?.[15], 2)
+  assert.ok(schedule.models[openai])
+  assert.deepEqual(schedule.lifetimes, { [copilot]: 300, [openai]: 1800 })
+  assert.deepEqual(schedule.fallback, schedule.models[copilot], 'only a 5-minute plan stands in for other models')
 })
 
 test('looks up the hour the break starts in, falling back to the main plan and then to keep warm', () => {

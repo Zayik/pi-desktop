@@ -410,6 +410,8 @@ interface PiDesktopAPI {
     enableIdleCacheWarming(): Promise<void>
     /** Auto mode's idle pings per hour of day, built from the last 30 days; null when there is none. */
     getAutoWarmSchedule(): Promise<AutoWarmSchedule | null>
+    /** Sets a model's short prompt cache lifetime in Pi's models.json, so Pi keeps it warm. */
+    enableModelCacheLifetime(provider: string, modelId: string, seconds: number): Promise<void>
   }
 
   // Analytics: where cost and time went, per session and across sessions
@@ -731,6 +733,7 @@ const api: PiDesktopAPI = {
     getCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING),
     enableIdleCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING),
     getAutoWarmSchedule: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AUTO_WARM_SCHEDULE),
+    enableModelCacheLifetime: (provider, modelId, seconds) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_MODEL_CACHE_LIFETIME, provider, modelId, seconds),
   },
 
   analytics: {

@@ -65,6 +65,15 @@ function AutoWarmPlan({ schedule, model }: { schedule: AutoWarmSchedule | null; 
   )
 }
 
+/** The chat's model as the picker needs it: whether Pi knows a cache lifetime for it decides whether Pi warms it at all. */
+interface ChatModel {
+  key: string
+  provider: string
+  id: string
+  name: string
+  hasLifetime: boolean
+}
+
 interface CacheModeSelectorProps {
   className?: string
 }
@@ -80,7 +89,8 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   const piStatus = useAppStore((state) => state.piStatus)
   const [picked, setPicked] = useState<{ sessionId: string; mode: CacheMode } | null>(null)
   const [warming, setWarming] = useState<{ value: string | null; enabledNow: boolean } | null>(null)
-  const [auto, setAuto] = useState<{ schedule: AutoWarmSchedule | null; model: string | null } | null>(null)
+  const [auto, setAuto] = useState<{ schedule: AutoWarmSchedule | null; model: ChatModel | null } | null>(null)
+  const [lifetimeSet, setLifetimeSet] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -108,7 +118,15 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
         window.piDesktop.context.getSnapshot(sessionId).catch(() => null),
       ]).then(([schedule, snapshot]) => setAuto({
         schedule,
-        model: snapshot?.model ? `${snapshot.model.provider}/${snapshot.model.id}` : null,
+        model: snapshot?.model
+          ? {
+              key: `${snapshot.model.provider}/${snapshot.model.id}`,
+              provider: snapshot.model.provider,
+              id: snapshot.model.id,
+              name: snapshot.model.name,
+              hasLifetime: Boolean(snapshot.model.promptCache?.short),
+            }
+          : null,
       }))
     }
     const handleClick = (event: MouseEvent): void => {
@@ -139,7 +157,18 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
       // Pi's settings file could not be read or written; the note stays.
     }
   }
+  const enableLifetime = async (model: ChatModel, seconds: number): Promise<void> => {
+    try {
+      await window.piDesktop.context.enableModelCacheLifetime(model.provider, model.id, seconds)
+      setLifetimeSet(model.key)
+    } catch {
+      // Pi's models file could not be read or written; the note stays.
+    }
+  }
   const label = cacheModeLabel(current, t)
+  const warms = current === 'auto' || current === 'keep-warm'
+  const unwarmed = warms && auto?.model && !auto.model.hasLifetime ? auto.model : null
+  const suggestedLifetime = unwarmed ? auto?.schedule?.lifetimes?.[unwarmed.key] ?? null : null
 
   return (
     <div ref={ref} className={clsx('relative', className)}>
@@ -187,8 +216,25 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               </span>
             </button>
           ))}
-          {current === 'auto' && auto && <AutoWarmPlan schedule={auto.schedule} model={auto.model} />}
-          {(current === 'keep-warm' || current === 'auto') && warming && warming.value !== 'idle' && (
+          {current === 'auto' && auto && <AutoWarmPlan schedule={auto.schedule} model={auto.model?.key ?? null} />}
+          {unwarmed && lifetimeSet !== unwarmed.key && (
+            <div className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">
+              <p>{t('chat.cacheMode.noLifetime', { model: unwarmed.name })}</p>
+              {suggestedLifetime !== null && (
+                <button
+                  type="button"
+                  onClick={() => void enableLifetime(unwarmed, suggestedLifetime)}
+                  className="mt-1.5 rounded-md border border-border-strong bg-card px-2 py-1 text-[11px] text-primary hover:bg-surface-hover"
+                >
+                  {t('chat.cacheMode.setLifetime', { minutes: Math.round(suggestedLifetime / 60) })}
+                </button>
+              )}
+            </div>
+          )}
+          {unwarmed && lifetimeSet === unwarmed.key && (
+            <p className="mx-3 mb-1 mt-1 text-[11px] text-faint">{t('chat.cacheMode.lifetimeSet')}</p>
+          )}
+          {warms && warming && warming.value !== 'idle' && (
             <div className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">
               <p>{t('chat.cacheMode.idleWarmingOff')}</p>
               <button
@@ -200,7 +246,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               </button>
             </div>
           )}
-          {(current === 'keep-warm' || current === 'auto') && warming?.enabledNow && (
+          {warms && warming?.enabledNow && (
             <p className="mx-3 mb-1 mt-1 text-[11px] text-faint">{t('chat.cacheMode.idleWarmingEnabled')}</p>
           )}
           <p className="border-t border-border px-3 py-1.5 text-[11px] text-dim">{t('chat.cacheMode.appliesNext')}</p>

@@ -302,6 +302,7 @@
       "enableIdleWarming": "Turn on idle warming",
       "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
       "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
+      "lifetimeSet": "Lifetime set. Restart this agent to start warming the model.",
       "modes": {
         "auto": {
           "detail": "Keep warm with the number of idle pings that cost least at this hour of day, learned from your last 30 days.",
@@ -320,6 +321,8 @@
           "label": "Long"
         }
       },
+      "noLifetime": "Pi does not keep {{model}} warm, because Pi has no cache lifetime for it. Setting one adds it to Pi's models.json, for every Pi session.",
+      "setLifetime": "Set a {{minutes}}-minute lifetime",
       "title": "Prompt cache",
       "withMode": "Prompt cache: {{mode}}"
     },

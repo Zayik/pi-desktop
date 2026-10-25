@@ -222,8 +222,8 @@ export function cacheWarmingOverride(mode: CacheMode, continuationProbability: n
 export const AUTO_WARM_FILE = 'auto-warm.json'
 const AUTO_WARM_VERSION = 1
 const HOURS_PER_DAY = 24
-/** Refreshes 4 minutes apart that keep a 5-minute cache warm through an hour; more never pays against the 1-hour tier. */
-export const MAX_AUTO_WARMS = 14
+/** Most idle refreshes a plan holds: a 30-minute cache refreshed every 24 minutes through 12 hours. Pi itself stops idle warming 30 minutes after a run. */
+export const MAX_AUTO_WARMS = 29
 
 /**
  * Idle refreshes per local hour of the day (index 0 to 23), per
@@ -238,6 +238,8 @@ export interface AutoWarmSchedule {
   days: number
   models: Record<string, number[]>
   fallback: number[] | null
+  /** The cache lifetime (seconds) each planned model's pings assume, which Pi needs to warm it at all. */
+  lifetimes?: Record<string, number>
 }
 
 function isHourPlan(value: unknown): value is number[] {
@@ -248,11 +250,12 @@ function isHourPlan(value: unknown): value is number[] {
 export function isAutoWarmSchedule(value: unknown): value is AutoWarmSchedule {
   if (!isRecord(value) || value.version !== AUTO_WARM_VERSION || typeof value.builtAt !== 'number' || typeof value.days !== 'number') return false
   if (value.fallback !== null && !isHourPlan(value.fallback)) return false
+  if (value.lifetimes !== undefined && !(isRecord(value.lifetimes) && Object.values(value.lifetimes).every((seconds) => typeof seconds === 'number' && seconds > 0))) return false
   return isRecord(value.models) && Object.values(value.models).every(isHourPlan)
 }
 
 export function emptyAutoWarmSchedule(builtAt: number, days: number): AutoWarmSchedule {
-  return { version: AUTO_WARM_VERSION, builtAt, days, models: {}, fallback: null }
+  return { version: AUTO_WARM_VERSION, builtAt, days, models: {}, fallback: null, lifetimes: {} }
 }
 
 /**
