@@ -7,7 +7,7 @@ import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/an
 import { applyRecommendations, describePlan, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
-import { describeRecommendation } from './recommendations'
+import { describeRecommendation, withAlternative, LONG_MARGIN, type CacheRecommendation } from './recommendations'
 import { buildEnvelope, writeReport } from './report'
 
 export const USAGE = [
@@ -15,8 +15,9 @@ export const USAGE = [
   '    Write the HTML report (the same view as Pi Desktop) and open it.',
   'pi-analytics recommend [--range ...]',
   '    List cache settings that would have cost less, numbered.',
-  'pi-analytics apply <number>... | all [--range ...] [--yes]',
-  '    Put recommendations into the cache plan Pi runs with. --yes lets it turn on Pi\'s idle warming when a setting needs it.',
+  'pi-analytics apply <number>... | all [--range ...] [--long] [--yes]',
+  '    Put recommendations into the cache plan Pi runs with. --long takes the long-cache alternative instead.',
+  '    --yes lets it turn on Pi\'s idle warming when a setting needs it.',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
 ]
@@ -91,14 +92,23 @@ export async function runCommand(args: string | string[], options: CommandOption
       const recs = envelope.data.recommendations
       return [
         `Report written to ${path}`,
-        ...(recs.length > 0 ? ['', 'Cheaper cache settings (apply with "apply <number>"):', ...recs.map((rec, i) => `${i + 1}. ${describeRecommendation(rec)}`)] : []),
+        ...(recs.length > 0 ? ['', 'Cheaper cache settings (apply with "apply <number>"):', ...listLines(recs)] : []),
       ]
     }
     case 'recommend': {
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
       const recs = envelope.data.recommendations
-      if (recs.length === 0) return [`No cache setting would have cost noticeably less over the last ${Math.round(envelope.data.days)} days.`]
-      return [`Over the last ${Math.round(envelope.data.days)} days:`, ...recs.map((rec, i) => `${i + 1}. ${describeRecommendation(rec)}`)]
+      const days = Math.round(envelope.data.days)
+      const notes = envelope.data.checks.flatMap((check) => {
+        if (check.status === 'not-enough-data') return [`${check.model}: not enough breaks yet (${check.breaks} of ${check.minBreaks}).`]
+        if (check.status === 'long-only' && check.alternative) return [`${check.model}: no ping count is worth changing to; the ${check.alternative.policy} cache would save $${check.alternative.weeklySaving.toFixed(2)} a week; pick Long for a chat to use it.`]
+        return []
+      })
+      return [
+        recs.length === 0 ? `No cache setting would have cost noticeably less over the last ${days} days.` : `Over the last ${days} days:`,
+        ...listLines(recs),
+        ...(notes.length > 0 ? ['', ...notes] : []),
+      ]
     }
     case 'apply': {
       if (positional.length === 0) return ['Name what to apply: a number from "recommend", or "all".']
@@ -110,6 +120,11 @@ export async function runCommand(args: string | string[], options: CommandOption
         return recs[index]
       })
       if (picked.length === 0) return ['Nothing to apply: no cache setting would have cost noticeably less.']
+      if (flags.has('long')) {
+        const missing = picked.find((rec) => !rec.alternative)
+        if (missing) return [`${missing.model} has no long-cache alternative: it is offered only when it costs ${LONG_MARGIN * 100}% less than the best ping count.`]
+        picked.splice(0, picked.length, ...picked.map((rec) => withAlternative(rec) as CacheRecommendation))
+      }
       const result = await applyRecommendations(picked, {
         dir,
         settingsPath: options.settingsPath,
@@ -156,6 +171,17 @@ export async function runCommand(args: string | string[], options: CommandOption
     default:
       return [`Unknown command "${command}".`, ...USAGE]
   }
+}
+
+/** Numbered lines, each followed by its long alternative when there is one. */
+function listLines(recs: CacheRecommendation[]): string[] {
+  return recs.flatMap((rec, i) => {
+    const alt = rec.alternative
+    return [
+      `${i + 1}. ${describeRecommendation(rec)}`,
+      ...(alt ? [`   or the ${alt.policy} cache instead: saves $${alt.weeklySaving.toFixed(2)} a week (apply ${i + 1} --long)`] : []),
+    ]
+  })
 }
 
 function readCacheWarmingLabel(value: string | undefined): string {

@@ -18,22 +18,49 @@ const PI_REFRESH_AT = 0.9
 const MIN_SAVING_SHARE = 0.02
 const MIN_WEEKLY_SAVING = 0.01
 
-export interface CacheRecommendation {
-  /** `provider/model`. */
-  model: string
+/** Breaks longer than the short lifetime a model needs on record before it gets a recommendation. */
+export const MIN_BREAKS = 20
+/** The long lifetime is offered beside the ping count only when it costs at least this share less. */
+export const LONG_MARGIN = 0.1
+
+/** One setting and what it would have saved. */
+export interface CacheOption {
   /** The plan entry that applies it (without `appliedAt`). */
   setting: Omit<ModelCachePlan, 'appliedAt' | 'source'>
   /** The report's name for the setting, e.g. `5m` or `1h`. */
   policy: string
   /** Idle time the refreshes keep the cache warm through, for keep-warm. */
   idleMinutes: number | null
-  currentCost: number
   cost: number
   /** Over the report's window, and per week. */
   saving: number
   weeklySaving: number
+}
+
+/** The best ping count Pi can run for a model, and the long lifetime when it is clearly cheaper still. */
+export interface CacheRecommendation extends CacheOption {
+  /** `provider/model`. */
+  model: string
+  currentCost: number
+  /** Breaks longer than the short lifetime the figures rest on. */
+  breaks: number
   /** The cheapest count in the replay, when Pi stops warming before it. */
   beyondPi: PingSweepPoint | null
+  /** The long lifetime, opt-in: only when it costs `LONG_MARGIN` less than the ping count. */
+  alternative: CacheOption | null
+}
+
+export type CacheCheckStatus = 'recommend' | 'not-enough-data' | 'no-saving' | 'long-only' | 'not-covered'
+
+/** What checking one model found, including why there is no recommendation. */
+export interface CacheCheck {
+  model: string
+  status: CacheCheckStatus
+  breaks: number
+  minBreaks: number
+  recommendation: CacheRecommendation | null
+  /** With `long-only`: no ping count is worth changing to, but the long lifetime is. */
+  alternative: CacheOption | null
 }
 
 /** Most idle refreshes Pi sends for a model's short lifetime before it stops warming. */
@@ -58,30 +85,55 @@ function currentCost(model: ModelCacheReport): number | null {
   return current?.cost ?? model.pingSweep[0]?.cost ?? null
 }
 
-/** The cheapest setting Pi can run for one model, when it beats the current one by enough to act on. */
-export function recommendFor(model: ModelCacheReport, days: number): CacheRecommendation | null {
+/** Breaks longer than the model's short lifetime. */
+export function breaksOf(model: ModelCacheReport): number {
+  const gaps = model.gapBuckets.reduce((sum, count) => sum + count, 0)
+  return Math.round(gaps * model.longGapShare)
+}
+
+/** Check one model: the best ping count Pi can run, the long lifetime as an opt-in, or why there is nothing to recommend. */
+export function checkModel(model: ModelCacheReport, days: number): CacheCheck {
+  const breaks = breaksOf(model)
+  const result = (status: CacheCheckStatus, recommendation: CacheRecommendation | null = null, alternative: CacheOption | null = null): CacheCheck =>
+    ({ model: model.model, status, breaks, minBreaks: MIN_BREAKS, recommendation, alternative })
   const current = currentCost(model)
-  if (current === null || !model.sweepPolicy || model.pingSweep.length === 0) return null
+  if (current === null || !model.sweepPolicy || model.pingSweep.length === 0) return result('not-covered')
+  if (breaks < MIN_BREAKS) return result('not-enough-data')
   const cap = piMaxIdlePings(model.shortTtlMs)
-  const reachable = model.pingSweep.filter((point) => point.pings <= cap)
-  const best = reachable.reduce<PingSweepPoint | null>((low, point) => (low === null || point.cost < low.cost ? point : low), null)
+  const best = model.pingSweep
+    .filter((point) => point.pings <= cap)
+    .reduce<PingSweepPoint | null>((low, point) => (low === null || point.cost < low.cost ? point : low), null)
+  if (!best) return result('not-covered')
+  const option = (setting: CacheOption['setting'], policy: string, cost: number, idleMinutes: number | null): CacheOption =>
+    ({ setting, policy, idleMinutes, cost, saving: current - cost, weeklySaving: ((current - cost) / days) * 7 })
+  const worthIt = (candidate: CacheOption): boolean => candidate.saving > current * MIN_SAVING_SHARE && candidate.weeklySaving >= MIN_WEEKLY_SAVING
+  const pings = best.pings === 0
+    ? option({ mode: 'focus' }, model.sweepPolicy, best.cost, null)
+    : option({ mode: 'keep-warm', idlePings: best.pings }, model.sweepPolicy, best.cost, best.idleMinutes)
+  const long = model.longPolicy && model.longCost !== null && piCanRunLong(model) && model.longCost <= best.cost * (1 - LONG_MARGIN)
+    ? option({ mode: 'long' }, model.longPolicy, model.longCost, null)
+    : null
+  const alternative = long && worthIt(long) ? long : null
+  if (!worthIt(pings)) return alternative ? result('long-only', null, alternative) : result('no-saving')
   const overall = model.bestPings
-  const beyondPi = overall && best && overall.pings > cap && overall.cost < best.cost ? overall : null
-  const options: { setting: CacheRecommendation['setting']; policy: string; cost: number; idleMinutes: number | null }[] = []
-  if (best) {
-    options.push(best.pings === 0
-      ? { setting: { mode: 'focus' }, policy: model.sweepPolicy, cost: best.cost, idleMinutes: null }
-      : { setting: { mode: 'keep-warm', idlePings: best.pings }, policy: model.sweepPolicy, cost: best.cost, idleMinutes: best.idleMinutes })
-  }
-  if (model.longPolicy && model.longCost !== null && piCanRunLong(model)) {
-    options.push({ setting: { mode: 'long' }, policy: model.longPolicy, cost: model.longCost, idleMinutes: null })
-  }
-  const pick = options.reduce<(typeof options)[number] | null>((low, option) => (low === null || option.cost < low.cost ? option : low), null)
-  if (!pick) return null
-  const saving = current - pick.cost
-  const weeklySaving = (saving / days) * 7
-  if (saving <= current * MIN_SAVING_SHARE || weeklySaving < MIN_WEEKLY_SAVING) return null
-  return { model: model.model, setting: pick.setting, policy: pick.policy, idleMinutes: pick.idleMinutes, currentCost: current, cost: pick.cost, saving, weeklySaving, beyondPi }
+  const beyondPi = overall && overall.pings > cap && overall.cost < best.cost ? overall : null
+  return result('recommend', { ...pings, model: model.model, currentCost: current, breaks, beyondPi, alternative }, alternative)
+}
+
+/** The recommendation for one model, or null. */
+export function recommendFor(model: ModelCacheReport, days: number): CacheRecommendation | null {
+  return checkModel(model, days).recommendation
+}
+
+/** Every model the report covers, checked. */
+export function cacheChecks(report: AnalyticsReport, now = Date.now()): CacheCheck[] {
+  const days = reportDays(report, now)
+  return report.cache.models.map((model) => checkModel(model, days))
+}
+
+/** A recommendation with its long alternative as the setting, to apply that instead. */
+export function withAlternative(rec: CacheRecommendation): CacheRecommendation | null {
+  return rec.alternative ? { ...rec, ...rec.alternative, alternative: null } : null
 }
 
 /** Every model's recommendation, the biggest weekly saving first. */

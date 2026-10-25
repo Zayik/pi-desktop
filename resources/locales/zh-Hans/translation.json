@@ -154,6 +154,7 @@
       "threeMonths": "90 天"
     },
     "recommend": {
+      "alternative": "或改用 {{policy}} 缓存：每周节省 {{amount}}",
       "applied": "已应用",
       "apply": "应用",
       "beyondPi_other": "回放中最便宜的是刷新 {{count}} 次（{{minutes}} 分钟），但 Pi 在运行结束 30 分钟后停止预热。",
@@ -169,6 +170,7 @@
       "note_other": "每周节省，基于最近 {{count}} 天",
       "planned_other": "缓存计划设置了 {{count}} 个模型。",
       "saving": "每周节省 {{amount}}",
+      "thin_other": "中断次数还不够，暂无建议：{{models}}。",
       "title": "可应用的缓存设置",
       "undo": "撤销上次更改"
     },
