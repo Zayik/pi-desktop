@@ -11,6 +11,21 @@
     "cache": {
       "assumed": "{{policy}} (assumed)",
       "current": "now",
+      "days": {
+        "bar": "{{day}}: {{hit}}% of prompt tokens from the cache, {{cold}} of {{calls}} calls cold",
+        "input": "Uncached",
+        "read": "Cache hits",
+        "title": "Cache hits per day (measured)",
+        "write": "Cache writes"
+      },
+      "gaps": {
+        "bar_one": "",
+        "bar_other": "",
+        "over": ">{{minutes}}m",
+        "range": "{{from}}–{{to}}m",
+        "title": "Gaps between calls",
+        "under": "<{{minutes}}m"
+      },
       "keep": "The current setting is already about the cheapest for this timing.",
       "measured": "{{cost}} billed · {{calls}} calls",
       "noOptions": "This provider has no cache settings to compare; only the billed cost is shown.",
@@ -28,6 +43,12 @@
         "warmBreakEven": "5 min + pings (while cheaper than rewriting)"
       },
       "recommend": "Cheapest: {{policy}}, about {{saving}} less on these calls.",
+      "sweep": {
+        "best": "Keeping the 5 min cache warm for up to {{minutes}} min of idle would have saved about {{saving}} ({{perSession}} per session on average).",
+        "minutes": "{{minutes}}m",
+        "point": "Pings for up to {{minutes}} min idle: {{cost}}, {{pings}} pings",
+        "title": "5 min + pings, by how long pinging continues (vs now)"
+      },
       "timing": "Now {{current}} · median gap {{gap}} · {{share}}% of gaps over 5 min",
       "title": "Prompt cache settings",
       "unknown": "unknown"

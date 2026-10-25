@@ -79,6 +79,22 @@ test('recommends a longer lifetime for calls with 10 to 40 minute gaps', () => {
   assert.equal(report.saving, model.saving)
 })
 
+test('sweeps keep-warm limits and buckets the gaps', () => {
+  const calls: CacheCall[] = [call(0, 40_000, true)]
+  // Gaps of 14 minutes need 3 pings: pinging for 15 minutes of idle covers them, 10 (2 pings) does not.
+  for (let index = 1; index <= 20; index++) calls.push(call(index * 14 * MINUTE, 40_000 + index * 500))
+  const report = buildCacheReport([session(calls)])
+  const model = report.models[0]
+  assert.deepEqual(model.gapBuckets, [0, 0, 0, 20, 0, 0, 0])
+  const at = (minutes: number) => model.warmSweep.find((point) => point.idleMinutes === minutes)
+  assert.ok((at(15)?.saving ?? 0) > 0)
+  assert.ok((at(10)?.saving ?? 0) < (at(15)?.saving ?? 0))
+  assert.equal(model.bestWarm?.idleMinutes, 15)
+  assert.equal(report.days.length, 1)
+  assert.equal(report.days[0].calls, 21)
+  assert.equal(report.days[0].coldCalls, 1)
+})
+
 test('back-to-back calls keep the 5 minute default', () => {
   const calls: CacheCall[] = [call(0, 20_000, true)]
   for (let index = 1; index <= 20; index++) calls.push(call(index * 30_000, 20_000 + index * 800))

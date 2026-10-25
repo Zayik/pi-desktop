@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../../../shared/analytics-report'
 import type { WorkCategory } from '../../../shared/session-analytics'
-import type { CachePolicyId, ModelCacheReport } from '../../../shared/cache-policy'
+import { GAP_BUCKET_MINUTES, type CacheDay, type CachePolicyId, type ModelCacheReport } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
 
@@ -309,6 +309,7 @@ function CachePolicies({ report }: { report: AnalyticsReport }): React.JSX.Eleme
   return (
     <Section title={t('analytics.cache.title')} note={t('analytics.cache.note')}>
       <div className="space-y-3">
+        {report.cache.days.length > 1 && <CacheDays days={report.cache.days} />}
         {models.slice(0, MAX_ROWS).map((model) => <ModelCache key={model.model} model={model} />)}
       </div>
     </Section>
@@ -334,6 +335,7 @@ function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
           share: Math.round(model.longGapShare * 100),
         })}
       </div>
+      <GapHistogram buckets={model.gapBuckets} />
       {model.policies.length === 0 ? (
         <p className="mt-1.5 text-[11px] text-dim">{t('analytics.cache.noOptions')}</p>
       ) : (
@@ -352,12 +354,112 @@ function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
               ))}
             </tbody>
           </table>
+          {model.warmSweep.length > 0 && <WarmSweep model={model} />}
           <p className="mt-1.5 text-[11px] text-secondary">
             {model.recommended
               ? t('analytics.cache.recommend', { policy: policyLabel(model.recommended, t), saving: formatUsd(model.saving) })
               : t('analytics.cache.keep')}
           </p>
         </>
+      )}
+    </div>
+  )
+}
+
+/** Measured prompt tokens per day: read from the cache, written to it, sent uncached. */
+function CacheDays({ days }: { days: CacheDay[] }): React.JSX.Element {
+  const { t, i18n } = useTranslation()
+  const format = (key: string): string => new Date(`${key}T00:00:00`).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="text-xs text-secondary">{t('analytics.cache.days.title')}</span>
+        <span className="flex items-center gap-2 text-[10px] text-dim">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-success" aria-hidden="true" />{t('analytics.cache.days.read')}</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-warning" aria-hidden="true" />{t('analytics.cache.days.write')}</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-border-strong" aria-hidden="true" />{t('analytics.cache.days.input')}</span>
+        </span>
+      </div>
+      <div className="flex h-16 items-end gap-px" role="img" aria-label={t('analytics.cache.days.title')}>
+        {days.map((day) => {
+          const total = day.readTokens + day.writeTokens + day.inputTokens
+          const share = (part: number): string => `${total > 0 ? (part / total) * 100 : 0}%`
+          return (
+            <div
+              key={day.day}
+              className="flex h-full min-w-0 flex-1 flex-col-reverse overflow-hidden rounded-t-sm"
+              title={t('analytics.cache.days.bar', { day: format(day.day), hit: Math.round(total > 0 ? (day.readTokens / total) * 100 : 0), cold: day.coldCalls, calls: day.calls })}
+            >
+              <div className="bg-success" style={{ height: share(day.readTokens) }} />
+              <div className="bg-warning" style={{ height: share(day.writeTokens) }} />
+              <div className="bg-border-strong" style={{ height: share(day.inputTokens) }} />
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-faint tabular-nums">
+        <span>{format(days[0].day)}</span>
+        <span>{format(days[days.length - 1].day)}</span>
+      </div>
+    </div>
+  )
+}
+
+/** How long the model sat idle between calls: the gaps that decide which lifetime pays. */
+function GapHistogram({ buckets }: { buckets: number[] }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const max = Math.max(...buckets, 0)
+  if (max === 0) return null
+  const label = (index: number): string => index === 0
+    ? t('analytics.cache.gaps.under', { minutes: GAP_BUCKET_MINUTES[0] })
+    : index < GAP_BUCKET_MINUTES.length
+      ? t('analytics.cache.gaps.range', { from: GAP_BUCKET_MINUTES[index - 1], to: GAP_BUCKET_MINUTES[index] })
+      : t('analytics.cache.gaps.over', { minutes: GAP_BUCKET_MINUTES[GAP_BUCKET_MINUTES.length - 1] })
+  return (
+    <div className="mt-2">
+      <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.gaps.title')}</div>
+      <div className="flex items-end gap-1">
+        {buckets.map((count, index) => (
+          <div key={index} className="flex min-w-0 flex-1 flex-col items-center gap-0.5" title={t('analytics.cache.gaps.bar', { range: label(index), count })}>
+            <span className="text-[9px] text-dim tabular-nums">{count}</span>
+            <div className="h-8 w-full overflow-hidden rounded-sm bg-card">
+              {/* Gaps within five minutes keep a 5 minute cache warm; longer ones do not. */}
+              <div className={clsx('w-full', index < 2 ? 'bg-success' : 'bg-warning')} style={{ height: `${(count / max) * 100}%`, marginTop: `${100 - (count / max) * 100}%` }} />
+            </div>
+            <span className="truncate text-[9px] text-faint">{label(index)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 5 minutes plus pings, by how long the pinging keeps going, against the current setting. */
+function WarmSweep({ model }: { model: ModelCacheReport }): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <div className="mt-2">
+      <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.sweep.title')}</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(52px,1fr))] gap-1">
+        {model.warmSweep.map((point) => (
+          <div
+            key={point.idleMinutes}
+            className={clsx('rounded border px-1 py-0.5 text-center', point === model.bestWarm ? 'border-success text-success' : 'border-border text-muted')}
+            title={t('analytics.cache.sweep.point', { minutes: point.idleMinutes, cost: formatUsd(point.cost), pings: point.pings })}
+          >
+            <div className="text-[10px]">{t('analytics.cache.sweep.minutes', { minutes: point.idleMinutes })}</div>
+            <div className="text-[11px] tabular-nums">{point.saving >= 0 ? `−${formatUsd(point.saving)}` : `+${formatUsd(-point.saving)}`}</div>
+          </div>
+        ))}
+      </div>
+      {model.bestWarm && (
+        <p className="mt-1 text-[11px] text-secondary">
+          {t('analytics.cache.sweep.best', {
+            minutes: model.bestWarm.idleMinutes,
+            saving: formatUsd(model.bestWarm.saving),
+            perSession: formatUsd(model.bestWarm.saving / Math.max(1, model.sessions)),
+          })}
+        </p>
       )}
     </div>
   )

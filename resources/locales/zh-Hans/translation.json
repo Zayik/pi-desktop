@@ -11,6 +11,20 @@
     "cache": {
       "assumed": "{{policy}}（推定）",
       "current": "当前",
+      "days": {
+        "bar": "{{day}}：{{hit}}% 的提示 token 来自缓存，{{calls}} 次调用中 {{cold}} 次未命中",
+        "input": "未缓存",
+        "read": "缓存命中",
+        "title": "每日缓存命中（实测）",
+        "write": "缓存写入"
+      },
+      "gaps": {
+        "bar_other": "",
+        "over": ">{{minutes}} 分",
+        "range": "{{from}}–{{to}} 分",
+        "title": "调用间隔",
+        "under": "<{{minutes}} 分"
+      },
       "keep": "按这种调用节奏，当前设置已接近最便宜。",
       "measured": "已计费 {{cost}} · {{calls}} 次调用",
       "noOptions": "该提供商没有可比较的缓存设置，仅显示计费金额。",
@@ -27,6 +41,12 @@
         "warmBreakEven": "5 分钟 + 保活（比重写便宜时）"
       },
       "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
+      "sweep": {
+        "best": "空闲时将 5 分钟缓存保活最多 {{minutes}} 分钟约可节省 {{saving}}（平均每会话 {{perSession}}）。",
+        "minutes": "{{minutes}} 分",
+        "point": "空闲最多 {{minutes}} 分钟内保活：{{cost}}，{{pings}} 次",
+        "title": "5 分钟 + 保活，按保活时长（与当前相比）"
+      },
       "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 5 分钟",
       "title": "提示缓存设置",
       "unknown": "未知"

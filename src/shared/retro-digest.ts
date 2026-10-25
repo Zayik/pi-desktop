@@ -108,6 +108,7 @@ export function retroDigest(report: AnalyticsReport, title: string | null = null
     lines.push('Prompt cost of the same calls at the same times under each setting; measured is what was billed. 5m-warm pings every 4 minutes for up to 1 hour of idle.', '')
     for (const model of report.cache.models.filter((entry) => entry.policies.length > 0).slice(0, MAX_DIGEST_ROWS)) {
       const options = model.policies.map((policy) => `${policy.policy} ${money(policy.cost)}`).join(', ')
+      if (model.bestWarm) lines.push(`  - Keeping the 5 minute cache warm for up to ${model.bestWarm.idleMinutes} min of idle would have saved ${money(model.bestWarm.saving)} (${money(model.bestWarm.saving / Math.max(1, model.sessions))} per session, ${model.bestWarm.pings} pings).`)
       lines.push(`- ${model.model} (${model.calls} calls, now ${model.currentPolicy ?? 'unknown'}${model.currentPolicyMeasured ? '' : ' (assumed)'}, measured ${money(model.measuredCost)}, median gap ${duration(model.medianGapMs)}): ${options}${model.recommended ? `; cheapest ${model.recommended}, saves ${money(model.saving)}` : ''}`)
     }
     lines.push('')

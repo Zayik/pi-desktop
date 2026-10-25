@@ -216,7 +216,7 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
     subagentCost: 0,
     days: [],
     projects: [],
-    cache: { models: [], saving: 0 },
+    cache: { models: [], days: [], saving: 0 },
     signals: [],
   }
   const days = new Map<string, DayPoint>()

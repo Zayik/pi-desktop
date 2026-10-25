@@ -8,7 +8,7 @@
  * and that each call reuses the previous call's prompt as its cached prefix.
  * The measured cost next to it is what the provider billed.
  */
-import type { CacheCall, SessionAnalytics } from './session-analytics'
+import { localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 export type CacheProvider = 'anthropic' | 'openai' | 'other'
 
@@ -37,6 +37,10 @@ const MIN_CALLS_FOR_ADVICE = 10
 const MIN_SAVING_SHARE = 0.05
 
 export const KEEP_WARM_EVERY_MS = 4 * MINUTE
+/** Idle limits the keep-warm sweep tries: how long to keep pinging before letting the cache go. */
+export const WARM_SWEEP_MINUTES = [5, 10, 15, 20, 30, 45, 60, 90, 120]
+/** Upper bounds of the gap histogram's buckets; the last bucket is everything longer. */
+export const GAP_BUCKET_MINUTES = [1, 5, 10, 15, 30, 60]
 
 /**
  * Settings per provider, with list prices as multiples of the input price
@@ -104,10 +108,38 @@ export interface ModelCacheReport {
   medianGapMs: number
   /** Share of gaps longer than five minutes. */
   longGapShare: number
+  /** Gaps between calls per `GAP_BUCKET_MINUTES` bucket, plus one for longer gaps. */
+  gapBuckets: number[]
+  /**
+   * 5 minutes with keep-warm pings for up to each `WARM_SWEEP_MINUTES` of
+   * idle (Anthropic only), and the limit that would have cost least.
+   */
+  warmSweep: WarmSweepPoint[]
+  bestWarm: WarmSweepPoint | null
+}
+
+export interface WarmSweepPoint {
+  idleMinutes: number
+  cost: number
+  pings: number
+  /** Against the current setting; negative when it costs more. */
+  saving: number
+}
+
+/** Measured cache use of one day: prompt tokens read from the cache, written to it, and sent uncached. */
+export interface CacheDay {
+  day: string
+  calls: number
+  /** Calls that read nothing from the cache. */
+  coldCalls: number
+  readTokens: number
+  writeTokens: number
+  inputTokens: number
 }
 
 export interface CacheReport {
   models: ModelCacheReport[]
+  days: CacheDay[]
   /** Sum of the recommended savings. */
   saving: number
 }
@@ -220,6 +252,33 @@ export function replay(calls: CacheCall[], spec: PolicySpec, prices: Pick<Prices
   return result
 }
 
+function gapBuckets(gaps: number[]): number[] {
+  const buckets = new Array<number>(GAP_BUCKET_MINUTES.length + 1).fill(0)
+  for (const gap of gaps) {
+    const index = GAP_BUCKET_MINUTES.findIndex((limit) => gap <= limit * MINUTE)
+    buckets[index < 0 ? GAP_BUCKET_MINUTES.length : index]++
+  }
+  return buckets
+}
+
+/** Measured cache use per local day, every model together. */
+function cacheDays(sessions: SessionAnalytics[]): CacheDay[] {
+  const days = new Map<string, CacheDay>()
+  for (const facts of sessions) {
+    for (const call of facts.cacheCalls) {
+      const day = localDayKey(call[0])
+      const entry = days.get(day) ?? { day, calls: 0, coldCalls: 0, readTokens: 0, writeTokens: 0, inputTokens: 0 }
+      entry.calls++
+      if (call[3] === 0) entry.coldCalls++
+      entry.readTokens += call[3]
+      entry.writeTokens += call[4]
+      entry.inputTokens += call[2]
+      days.set(day, entry)
+    }
+  }
+  return [...days.values()].sort((a, b) => a.day.localeCompare(b.day))
+}
+
 function median(values: number[]): number {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -271,6 +330,9 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       savingShare: 0,
       medianGapMs: median(gaps),
       longGapShare: gaps.length > 0 ? gaps.filter((gap) => gap > 5 * MINUTE).length / gaps.length : 0,
+      gapBuckets: gapBuckets(gaps),
+      warmSweep: [],
+      bestWarm: null,
     }
     if (provider !== 'other' && prices) {
       report.policies = POLICIES[provider].map((spec) => {
@@ -294,8 +356,24 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
         }
       }
     }
+    if (provider === 'anthropic' && prices) {
+      const current = report.policies.find((entry) => entry.policy === report.currentPolicy)?.cost ?? 0
+      report.warmSweep = WARM_SWEEP_MINUTES.map((idleMinutes) => {
+        const spec: PolicySpec = { id: '5m-warm-60m', ttlMs: 5 * MINUTE, write: 1.25, warm: { everyMs: KEEP_WARM_EVERY_MS, forMs: idleMinutes * MINUTE } }
+        let cost = 0
+        let pings = 0
+        for (const run of runs) {
+          const part = replay(run, spec, prices)
+          cost += part.cost
+          pings += part.pings
+        }
+        return { idleMinutes, cost, pings, saving: current - cost }
+      })
+      const best = [...report.warmSweep].sort((a, b) => a.cost - b.cost || a.idleMinutes - b.idleMinutes)[0]
+      report.bestWarm = best && best.saving > 0 ? best : null
+    }
     models.push(report)
   }
   models.sort((a, b) => b.measuredCost - a.measuredCost)
-  return { models, saving: models.reduce((sum, model) => sum + model.saving, 0) }
+  return { models, days: cacheDays(sessions), saving: models.reduce((sum, model) => sum + model.saving, 0) }
 }
