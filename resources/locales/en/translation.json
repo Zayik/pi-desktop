@@ -10,6 +10,21 @@
   "analytics": {
     "cache": {
       "assumed": "{{policy}} (assumed)",
+      "auto": {
+        "auto": "Auto by hour",
+        "better": "Auto would have saved about {{amount}} over the best fixed count.",
+        "billed": "Billed",
+        "disclaimer_one": "An estimate from {{count}} day of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
+        "disclaimer_other": "An estimate from {{count}} days of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
+        "fixed": "Best fixed count",
+        "row_one": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} day)",
+        "row_other": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} days)",
+        "same": "Changing the count by hour would have cost about the same as the best fixed count.",
+        "span_one": "{{count}} day, {{from}} to {{to}}",
+        "span_other": "{{count}} days, {{from}} to {{to}}",
+        "title": "Auto (experimental) compared",
+        "worse": "Auto would have cost about {{amount}} more than the best fixed count."
+      },
       "current": "now",
       "days": {
         "bar": "{{day}}: {{hit}}% of prompt tokens from the cache, {{cold}} of {{calls}} calls cold",

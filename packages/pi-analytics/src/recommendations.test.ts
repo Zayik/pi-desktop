@@ -17,7 +17,7 @@ function model(change: Partial<ModelCacheReport>): ModelCacheReport {
     policies: [{ policy: '5m', cost: 10, pings: 0, coldCalls: 20 }], recommended: null, saving: 0, savingShare: 0,
     medianGapMs: MINUTE, longGapShare: 0.2, shortTtlMs: 5 * MINUTE, gapBuckets: [100, 50, 30, 20], sweepPolicy: '5m', pingEveryMs: 4 * MINUTE,
     pingSweep, bestPings: pingSweep.reduce((low, p) => (p.cost < low.cost ? p : low)), longPolicy: '1h', longCost: 9,
-    hourly: [], autoCost: null, autoSaving: 0, observed: null,
+    hourly: [], autoCost: null, autoSaving: 0, autoComparison: null, observed: null,
     ...change,
   }
 }
