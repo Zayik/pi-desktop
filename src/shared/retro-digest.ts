@@ -110,6 +110,12 @@ export function retroDigest(report: AnalyticsReport, title: string | null = null
       const options = model.policies.map((policy) => `${policy.policy} ${money(policy.cost)}`).join(', ')
       lines.push(`- ${model.model} (${model.calls} calls, now ${model.currentPolicy ?? 'unknown'}${model.currentPolicyMeasured ? '' : ' (assumed)'}, measured ${money(model.measuredCost)}, median gap ${duration(model.medianGapMs)}): ${options}${model.recommended ? `; cheapest ${model.recommended}, saves ${money(model.saving)}` : ''}`)
       if (model.notes.length > 0) lines.push(`  - Notes: ${model.notes.join(', ')}.`)
+      const observed = model.observed
+      if (observed) {
+        const rates = observed.buckets.filter((bucket) => bucket.gaps > 0).map((bucket) => `<=${bucket.upToMinutes ?? 'longer'}m ${bucket.hits}/${bucket.gaps}`).join(', ')
+        if (rates) lines.push(`  - Measured hits after a break: ${rates}; lifetime ${observed.expectedMinutes ?? '?'} min ${observed.verdict}.`)
+        if (observed.pings > 0) lines.push(`  - Warming pings: ${observed.pings}, ${observed.pingHits} warm, ${money(observed.pingCost)}; ${observed.pingedGapHits}/${observed.pingedGaps} calls after pinged breaks hit.`)
+      }
       const best = model.bestPings
       if (best) {
         const sweep = model.pingSweep.map((point) => `${point.pings} ${money(point.cost)}`).join(', ')

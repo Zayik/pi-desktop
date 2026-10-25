@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../../../shared/analytics-report'
 import type { WorkCategory } from '../../../shared/session-analytics'
-import { GAP_BUCKET_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport } from '../../../shared/cache-policy'
+import { CACHE_RULES_CHECKED, GAP_BUCKET_MINUTES, OBSERVED_GAP_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport, type ObservedCache } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
 
@@ -65,7 +65,7 @@ const POLICY_LABEL_KEYS = {
 } as const satisfies Record<CachePolicyId, string>
 
 const CACHE_NOTE_KEYS = {
-  'copilot-lifetime': 'analytics.cache.notes.copilotLifetime',
+  'copilot-vendor': 'analytics.cache.notes.copilotVendor',
   'copilot-automatic': 'analytics.cache.notes.copilotAutomatic',
   'copilot-1h-unlisted': 'analytics.cache.notes.copilot1hUnlisted',
   'implicit-lifetime': 'analytics.cache.notes.implicitLifetime',
@@ -328,6 +328,7 @@ function CachePolicies({ report }: { report: AnalyticsReport }): React.JSX.Eleme
       <div className="space-y-3">
         {report.cache.days.length > 1 && <CacheDays days={report.cache.days} />}
         {models.slice(0, MAX_ROWS).map((model) => <ModelCache key={model.model} model={model} />)}
+        <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
       </div>
     </Section>
   )
@@ -358,6 +359,7 @@ function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
       </div>
       {model.notes.map((note) => <p key={note} className="mt-0.5 text-[11px] text-dim">{t(CACHE_NOTE_KEYS[note])}</p>)}
       <GapHistogram buckets={model.gapBuckets} warmMinutes={model.shortTtlMs / 60_000} />
+      {model.observed && <ObservedHits observed={model.observed} />}
       {model.policies.length === 0 ? (
         <p className="mt-1.5 text-[11px] text-dim">{t('analytics.cache.noOptions')}</p>
       ) : (
@@ -453,6 +455,64 @@ function GapHistogram({ buckets, warmMinutes }: { buckets: number[]; warmMinutes
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** Measured share of calls that found the cache warm after each length of break, against the lifetime they ran with. */
+function ObservedHits({ observed }: { observed: ObservedCache }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const shown = observed.buckets.some((bucket) => bucket.gaps > 0)
+  const label = (index: number): string => (index < OBSERVED_GAP_MINUTES.length ? String(OBSERVED_GAP_MINUTES[index]) : `${OBSERVED_GAP_MINUTES[OBSERVED_GAP_MINUTES.length - 1]}+`)
+  const expected = observed.expectedMinutes
+  const verdict = expected === null
+    ? null
+    : observed.verdict === 'matches'
+      ? t('analytics.cache.observed.matches', { expected, warm: observed.warmUpToMinutes ?? 0, cold: observed.coldFromMinutes ?? expected })
+      : observed.verdict === 'shorter'
+        ? t('analytics.cache.observed.shorter', { expected, cold: observed.coldFromMinutes ?? 0 })
+        : observed.verdict === 'longer'
+          ? t('analytics.cache.observed.longer', { expected, warm: observed.warmUpToMinutes ?? 0 })
+          : t('analytics.cache.observed.unclear', { expected })
+  return (
+    <div className="mt-2">
+      {shown && (
+        <>
+          <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.observed.title')}</div>
+          <div className="flex items-end gap-0.5" role="img" aria-label={t('analytics.cache.observed.title')}>
+            {observed.buckets.map((bucket, index) => {
+              const rate = bucket.gaps > 0 ? bucket.hits / bucket.gaps : 0
+              const boundary = expected !== null && OBSERVED_GAP_MINUTES[index] === expected
+              return (
+                <div
+                  key={index}
+                  className={clsx('flex min-w-0 flex-1 flex-col items-center gap-0.5', boundary && 'border-r border-dashed border-warning pr-0.5')}
+                  title={t('analytics.cache.observed.bar', { range: label(index), hits: bucket.hits, gaps: bucket.gaps })}
+                >
+                  <span className="text-[9px] text-dim tabular-nums">{bucket.gaps > 0 ? `${Math.round(rate * 100)}` : ''}</span>
+                  <div className="h-8 w-full overflow-hidden rounded-sm bg-card">
+                    {bucket.gaps > 0 && (
+                      <div
+                        className={clsx('w-full', rate >= 0.8 ? 'bg-success' : rate < 0.5 ? 'bg-warning' : 'bg-border-strong', bucket.gaps < 3 && 'opacity-50')}
+                        style={{ height: `${rate * 100}%`, marginTop: `${100 - rate * 100}%` }}
+                      />
+                    )}
+                  </div>
+                  <span className="truncate text-[9px] text-faint tabular-nums">{label(index)}</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="text-center text-[9px] text-faint">{t('analytics.cache.observed.axis')}</div>
+        </>
+      )}
+      {verdict && shown && <p className="mt-1 text-[11px] text-secondary">{verdict}</p>}
+      {observed.pings > 0 && (
+        <p className="mt-0.5 text-[11px] text-secondary">
+          {t('analytics.cache.observed.pings', { count: observed.pings, hits: observed.pingHits, cost: formatUsd(observed.pingCost) })}
+          {observed.pingedGaps > 0 && ` ${t('analytics.cache.observed.pingedGaps', { count: observed.pingedGaps, hits: observed.pingedGapHits })}`}
+        </p>
+      )}
     </div>
   )
 }

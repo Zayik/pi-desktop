@@ -40,6 +40,8 @@ function facts(id: string, at: number, overrides: Partial<SessionAnalytics> = {}
     delegateRuns: [],
     cacheModels: [],
     cacheCalls: [],
+    warmPings: 0,
+    warmCost: 0,
     ...overrides,
   }
 }

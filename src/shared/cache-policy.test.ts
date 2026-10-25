@@ -5,12 +5,15 @@ import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from
 
 const MINUTE = 60_000
 const PRICE = 3e-6
+/** Relative times count from here, after every cache option the rules date existed. */
+const T0 = new Date(2026, 9, 1).getTime()
+const time = (at: number): number => (at < 1e11 ? T0 + at : at)
 
 /** A call with a `prompt`-token prompt billed as cache reads after the first, at Anthropic's 5m list prices. */
 function call(at: number, prompt: number, first = false, model = 0): CacheCall {
   const read = first ? 0 : prompt - 1000
   const write = prompt - read
-  return [at, model, 0, read, write, 0, 0, read * PRICE * 0.1, write * PRICE * 1.25]
+  return [time(at), model, 0, read, write, 0, 0, read * PRICE * 0.1, write * PRICE * 1.25]
 }
 
 function session(calls: CacheCall[], models = ['anthropic/claude-sonnet-5-5']): SessionAnalytics {
@@ -18,7 +21,7 @@ function session(calls: CacheCall[], models = ['anthropic/claude-sonnet-5-5']): 
     version: SESSION_ANALYTICS_VERSION, sessionId: 's', sessionFile: '/s.jsonl', cwd: null, parentSession: null, name: null, label: null,
     startedAt: 0, lastActivityAt: 0, activeMs: 0, turns: 0, calls: calls.length, cost: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
     compactions: 0, models: [], tools: [], categories: [], skills: [], testRuns: [], slowCalls: [], failedCommands: [], turnFacts: [],
-    days: {}, delegateRuns: [], cacheModels: models, cacheCalls: calls,
+    days: {}, delegateRuns: [], cacheModels: models, cacheCalls: calls, warmPings: 0, warmCost: 0,
   }
 }
 
@@ -142,7 +145,7 @@ test('back-to-back calls keep the 5 minute default', () => {
 function autoCall(at: number, prompt: number, first = false): CacheCall {
   const read = first ? 0 : prompt - 1000
   const input = prompt - read
-  return [at, 0, input, read, 0, 0, input * PRICE, read * PRICE * 0.1, 0]
+  return [time(at), 0, input, read, 0, 0, input * PRICE, read * PRICE * 0.1, 0]
 }
 
 test('GPT-5.6 and later compare 30 minutes with 12 hours, whose reads do not restart its clock', () => {
@@ -179,7 +182,7 @@ test('earlier OpenAI models cache automatically and can ask for 24h retention', 
   assert.ok(model.notes.includes('implicit-lifetime'))
 })
 
-test('Copilot Claude adds the unlisted 1 hour lifetime; Copilot GPT only pings', () => {
+test("Copilot models get the vendor's lifetimes", () => {
   const calls: CacheCall[] = [call(0, 40_000, true)]
   for (let index = 1; index <= 20; index++) calls.push(call(index * 15 * MINUTE, 40_000 + index * 500))
   const claude = buildCacheReport([session(calls, ['github-copilot/claude-sonnet-5.5'])]).models[0]
@@ -193,13 +196,72 @@ test('Copilot Claude adds the unlisted 1 hour lifetime; Copilot GPT only pings',
 
   const gpt = buildCacheReport([session(calls, ['github-copilot/gpt-5.6-terra'])]).models[0]
   assert.equal(gpt.family, 'openai-ttl')
-  assert.ok(!gpt.policies.some((policy) => policy.policy === '12h'))
-  assert.ok(gpt.notes.includes('copilot-lifetime'))
+  assert.ok(gpt.policies.some((policy) => policy.policy === '12h'))
+  assert.equal(gpt.longPolicy, '12h')
+  assert.ok(gpt.notes.includes('copilot-vendor'))
 
   const gemini = buildCacheReport([session(calls.map((entry) => autoCall(entry[0], 40_000)), ['github-copilot/gemini-4-argon'])]).models[0]
   assert.equal(gemini.family, 'none')
   assert.deepEqual(gemini.policies, [])
   assert.deepEqual(gemini.notes, ['copilot-automatic'])
+})
+
+/** A call after `minutes` of break that found the previous `prompt` warm or cold, as the provider billed it. */
+function measured(at: number, prompt: number, warm: boolean): CacheCall {
+  return call(at, prompt, !warm)
+}
+
+test('measures where the cache actually goes cold', () => {
+  const calls: CacheCall[] = [call(0, 40_000, true)]
+  let at = 0
+  // Breaks of 2 to 4 minutes hit, breaks of 6 to 8 miss: a 5 minute lifetime.
+  for (const [minutes, warm] of [[2, true], [3, true], [4, true], [6, false], [8, false]] as const) {
+    for (let repeat = 0; repeat < 4; repeat++) calls.push(measured((at += minutes * MINUTE), 40_000 + calls.length * 100, warm))
+  }
+  const model = buildCacheReport([session(calls)]).models[0]
+  const observed = model.observed
+  assert.ok(observed)
+  assert.equal(observed.expectedMinutes, 5)
+  assert.equal(observed.warmUpToMinutes, 4)
+  assert.equal(observed.coldFromMinutes, 5)
+  assert.equal(observed.verdict, 'matches')
+  const bucket = (upTo: number) => observed.buckets.find((entry) => entry.upToMinutes === upTo)
+  assert.deepEqual([bucket(2)?.gaps, bucket(2)?.hits, bucket(6)?.gaps, bucket(6)?.hits], [4, 4, 4, 0])
+
+  // The same calls missing from 3 minutes on: the cache is shorter than its 5.
+  const short: CacheCall[] = [call(0, 40_000, true)]
+  at = 0
+  for (const [minutes, warm] of [[2, true], [3, false], [4, false], [6, false]] as const) {
+    for (let repeat = 0; repeat < 4; repeat++) short.push(measured((at += minutes * MINUTE), 40_000 + short.length * 100, warm))
+  }
+  assert.equal(buildCacheReport([session(short)]).models[0].observed?.verdict, 'shorter')
+})
+
+test("counts Pi's warming pings apart from the calls", () => {
+  const ping = (at: number, prompt: number, warm: boolean): CacheCall => [...call(at, prompt, !warm), 1]
+  const calls: CacheCall[] = [
+    call(0, 40_000, true),
+    ping(4.5 * MINUTE, 40_000, true),
+    ping(9 * MINUTE, 40_000, true),
+    measured(12 * MINUTE, 41_000, true),
+    ping(16.5 * MINUTE, 41_000, false),
+    measured(30 * MINUTE, 42_000, false),
+  ]
+  const model = buildCacheReport([session(calls)]).models[0]
+  assert.equal(model.calls, 3)
+  const observed = model.observed
+  assert.deepEqual([observed?.pings, observed?.pingHits, observed?.pingedGaps, observed?.pingedGapHits], [3, 2, 2, 1])
+  assert.ok((observed?.pingCost ?? 0) > 0)
+  // Billed pings count in the measured cost, not in the replay's calls.
+  assert.ok(model.measuredCost > calls.filter((entry) => entry[9] !== 1).reduce((sum, entry) => sum + entry[6] + entry[7] + entry[8], 0))
+})
+
+test('leaves out options that did not exist when the calls ran', () => {
+  const old = new Date(2025, 0, 6).getTime()
+  const calls: CacheCall[] = Array.from({ length: 12 }, (_, index) => call(old + index * 15 * MINUTE, 40_000 + index * 500, index === 0))
+  const model = buildCacheReport([session(calls)]).models[0]
+  assert.ok(!model.policies.some((policy) => policy.policy === '1h'))
+  assert.ok(model.policies.some((policy) => policy.policy === '5m'))
 })
 
 test('a provider without settings to compare reports its cost only', () => {

@@ -39,10 +39,21 @@
       "notes": {
         "copilot1hUnlisted": "Copilot 文档只列出 5 分钟价格，但其后端接受 1 小时时长（VS Code 的扩展缓存设置会使用）。1 小时一行按 Anthropic 的 2 倍写入价估算。",
         "copilotAutomatic": "Copilot 会自动缓存此模型，没有可更改的设置。",
-        "copilotLifetime": "Copilot 文档未列出此模型更长的缓存时长，只有保活请求能改变时机。",
+        "copilotVendor": "Copilot 在厂商自己的服务器上运行此模型，因此按厂商的缓存时长估算。",
         "implicitLifetime": "OpenAI 自动缓存此模型，不收写入费用。时长为典型值：内存约 5 到 10 分钟（按 5 分钟估算），24 小时保留约 30 分钟。",
         "piNo12h": "Pi 的长保留在此模型上请求 30 分钟，因此目前无法在 Pi 中选择 12 小时。",
         "piNoPings": "Pi 的缓存保活只对声明了缓存时长的模型（直连 Anthropic 模型）运行，因此这里的保活只是假设。"
+      },
+      "observed": {
+        "axis": "调用前的间隔（分钟）；虚线：当前使用的时长",
+        "bar": "间隔最多 {{range}} 分钟：{{gaps}} 次中 {{hits}} 次命中缓存",
+        "longer": "{{warm}} 分钟后仍有命中，长于 {{expected}} 分钟时长。",
+        "matches": "实测命中保持到约 {{warm}} 分钟，从 {{cold}} 分钟开始下降，与 {{expected}} 分钟时长相符。",
+        "pingedGaps_other": "保活后的 {{count}} 次调用中 {{hits}} 次命中缓存。",
+        "pings_other": "{{count}} 次保活：{{hits}} 次命中缓存（{{cost}}）。",
+        "shorter": "缓存似乎短于 {{expected}} 分钟：从 {{cold}} 分钟起命中已下降。",
+        "title": "实测：间隔后命中缓存的调用（%）",
+        "unclear": "{{expected}} 分钟附近的间隔还不够，暂无法核对时长。"
       },
       "pings_other": "{{count}} 次保活",
       "policy": {
@@ -64,6 +75,7 @@
         "warmBreakEven": "5 分钟 + 保活（比重写便宜时）"
       },
       "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
+      "rulesAsOf": "缓存规则截至 {{date}}。仅对厂商提供该选项之后的调用进行比较。",
       "sweep": {
         "axis": "每段空闲允许的保活次数（每 {{every}} 分钟一次）",
         "best_other": "最便宜：{{base}} + 每段空闲 {{count}} 次保活（空闲 {{idle}} 内保持缓存），{{cost}}。约可节省 {{saving}}（平均每会话 {{perSession}}）。",
