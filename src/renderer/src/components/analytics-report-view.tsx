@@ -336,7 +336,7 @@ function CachePolicies({ report }: { report: AnalyticsReport }): React.JSX.Eleme
   )
 }
 
-function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
+export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
   const { t } = useTranslation()
   const cheapest = model.policies.reduce<number | null>((min, policy) => (min === null || policy.cost < min ? policy.cost : min), null)
   const name = model.model.split('/').slice(1).join('/') || model.model

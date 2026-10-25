@@ -319,6 +319,15 @@
       "unknownMimeType": "unknown",
       "unsupportedImageType": "Unsupported image type ({{mimeType}}). Use PNG, JPEG, GIF, or WebP."
     },
+    "cacheCheck": {
+      "appliesTo": "Applying sets this model's cache setting for every chat, in the app and in the Pi CLI with pi-analytics installed. A mode you pick for one chat still wins in that chat. Undo puts the previous setting back.",
+      "close": "Close",
+      "failed": "Could not read your sessions.",
+      "intro": "{{model}}, from your last 30 days of sessions",
+      "loading": "Replaying your sessions…",
+      "noHistory": "No calls to this model in the last 30 days yet, so there is nothing to recommend.",
+      "title": "Cache recommendation"
+    },
     "cacheMode": {
       "appliesNext": "Applies from this chat's next request. New chats start in the mode you pick.",
       "autoHour_one": "{{hour}}:00 · {{count}} ping",
@@ -328,6 +337,7 @@
       "autoNow_one": "This hour: {{count}} idle ping, warm about {{minutes}} min past your last turn.",
       "autoNow_other": "This hour: {{count}} idle pings, warm about {{minutes}} min past your last turn.",
       "autoOverride": "Pick another mode to override Auto for this chat.",
+      "checkRecommendation": "Check recommendation",
       "enableIdleWarming": "Turn on idle warming",
       "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
       "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",

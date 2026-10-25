@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronUp, Timer } from 'lucide-react'
+import { Check, ChevronUp, LineChart, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAppStore } from '../store'
 import {
@@ -11,6 +11,7 @@ import {
   type CacheMode,
 } from '../../../../resources/context-snapshot'
 import type { Translate } from '../../../shared/i18n'
+import { CacheCheckDialog } from './cache-check-dialog'
 
 export function cacheModeLabel(mode: CacheMode, t: Translate): string {
   switch (mode) {
@@ -82,6 +83,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   const [warming, setWarming] = useState<{ value: string | null; enabledNow: boolean } | null>(null)
   const [auto, setAuto] = useState<{ schedule: AutoWarmSchedule | null; model: string | null } | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [checking, setChecking] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   // A session keeps the mode picked for it, or the one it started in.
@@ -205,8 +207,22 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
             <p className="mx-3 mb-1 mt-1 text-[11px] text-faint">{t('chat.cacheMode.idleWarmingEnabled')}</p>
           )}
           <p className="border-t border-border px-3 py-1.5 text-[11px] text-dim">{t('chat.cacheMode.appliesNext')}</p>
+          {auto?.model && (
+            <button
+              type="button"
+              onClick={() => {
+                setChecking(auto.model)
+                setIsOpen(false)
+              }}
+              className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5 text-left text-xs text-secondary hover:bg-surface-hover hover:text-primary"
+            >
+              <LineChart size={12} className="shrink-0 text-accent-fg" />
+              {t('chat.cacheMode.checkRecommendation')}
+            </button>
+          )}
         </div>
       )}
+      {checking && <CacheCheckDialog model={checking} onClose={() => setChecking(null)} />}
     </div>
   )
 }
