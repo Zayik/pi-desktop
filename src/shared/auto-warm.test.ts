@@ -51,6 +51,14 @@ test('plans each hour on its cheapest count and other hours on the best fixed co
   assert.equal(schedule.models['google/gemini-4-argon'], undefined, 'no sweep, no plan')
 })
 
+test('leaves out models Pi does not warm with 5-minute pings', () => {
+  const copilot = 'github-copilot/claude-sonnet-5-5'
+  const openai = 'openai/gpt-6.1'
+  const schedule = buildAutoWarmSchedule(buildCacheReport([...workdays().map((facts) => ({ ...facts, cacheModels: [copilot] })), ...workdays().map((facts) => ({ ...facts, cacheModels: [openai] }))]), 1000, 30)
+  assert.deepEqual(schedule.models, {})
+  assert.equal(schedule.fallback, null)
+})
+
 test('looks up the hour the break starts in, falling back to the main plan and then to keep warm', () => {
   const schedule = buildAutoWarmSchedule(buildCacheReport(workdays()), 1000, 30)
   assert.equal(autoWarmLimit(schedule, SONNET, at(9, 15, 20)), 2)
