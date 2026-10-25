@@ -169,7 +169,8 @@ export function reset(options: { dir?: string; settingsPath?: string; now?: numb
 /** The plan as lines for a terminal. */
 export function describePlan(plan: CachePlan): string[] {
   const line = (key: string, entry: ModelCachePlan): string => {
-    const detail = entry.mode === 'keep-warm' ? ` (${entry.idlePings ?? MAX_IDLE_WARMS} idle refreshes)` : entry.mode === 'auto' && entry.hourly ? ' (by hour)' : ''
+    const pings = entry.idlePings ?? MAX_IDLE_WARMS
+    const detail = entry.mode === 'keep-warm' ? ` (${pings} idle ${pings === 1 ? 'refresh' : 'refreshes'})` : entry.mode === 'auto' && entry.hourly ? ' (by hour)' : ''
     const saving = entry.source ? `, applied ${new Date(entry.appliedAt).toLocaleString()} for $${entry.source.weeklySaving.toFixed(2)} a week` : ''
     return `${key}: ${entry.mode}${detail}${saving}`
   }
