@@ -87,6 +87,7 @@ import type {
   ModelsFileInfo,
   ModelInfo,
   PiPromptResultEvent,
+  PiProviderStatus,
 } from '../../shared/ipc-contracts'
 import {
   promptRanWithoutAgent, promptRefusal, promptResultRefusal, reportsNoAgentRun, reportsPromptOutcome,
@@ -329,6 +330,11 @@ interface AppState {
   piSetupOpen: boolean
   /** Why Pi cannot start, from the last setup check; null when it can. */
   piSetupFailure: 'pi-not-found' | 'node-not-found' | null
+  /** Providers Pi can use, from Pi itself; null until first asked. */
+  piProviders: PiProviderStatus[] | null
+  piProvidersLoading: boolean
+  /** The open "sign in with Pi" dialog, for one provider or Pi's full picker. */
+  piLogin: { provider: string | null } | null
   // Scope for the Sessions view: 'current' shows only the active workspace's
   // sessions, 'all' keeps every project's history visible. Entry points set it
   // (sidebar Sessions = current, View all / command palette = all); the panel's
@@ -572,6 +578,9 @@ interface AppActions {
   setCurrentView: (view: AppState['currentView']) => void
   setPiSetupOpen: (open: boolean) => void
   setPiSetupFailure: (failure: AppState['piSetupFailure']) => void
+  refreshPiProviders: () => Promise<void>
+  openPiLogin: (provider: string | null) => void
+  closePiLogin: () => void
   setSessionsScope: (scope: 'all' | 'current') => void
   setWorkflowPanelOpen: (open: boolean) => void
   openWorkflowRunsForSession: (sessionId: string) => void
@@ -1170,6 +1179,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   currentView: 'home',
   piSetupOpen: false,
   piSetupFailure: null,
+  piProviders: null,
+  piProvidersLoading: false,
+  piLogin: null,
   sessionsScope: 'all',
   workflowPanelOpen: false,
   workflowPanelFilter: null,
@@ -2358,6 +2370,23 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   setCurrentView: (view) => set({ currentView: view }),
   setPiSetupOpen: (open) => set({ piSetupOpen: open }),
   setPiSetupFailure: (failure) => set({ piSetupFailure: failure }),
+  refreshPiProviders: async () => {
+    if (get().piProvidersLoading) return
+    set({ piProvidersLoading: true })
+    try {
+      set({ piProviders: await window.piDesktop.pi.listProviders() })
+    } catch {
+      set({ piProviders: [] })
+    } finally {
+      set({ piProvidersLoading: false })
+    }
+  },
+  openPiLogin: (provider) => set({ piLogin: { provider } }),
+  // A sign-in may have added or changed a credential, so ask Pi again.
+  closePiLogin: () => {
+    set({ piLogin: null })
+    void get().refreshPiProviders()
+  },
   // Lifted into the store so the scope survives SessionPanel remounts (it
   // unmounts on every navigation) and so sidebar entry points can set it.
   setSessionsScope: (scope) => set({ sessionsScope: scope }),
