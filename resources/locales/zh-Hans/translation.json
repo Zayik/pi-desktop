@@ -25,6 +25,13 @@
         "title": "调用间隔",
         "under": "<{{minutes}} 分"
       },
+      "hourly": {
+        "cell_other": "{{hour}}:00：{{count}} 次保活，{{gaps}} 段空闲，比全天固定次数节省 {{saving}}",
+        "empty": "{{hour}}:00：无空闲",
+        "flat": "全天使用同一保活次数与按小时调整一样便宜。",
+        "saving": "按一天中的小时调整次数将花费 {{cost}}，比最佳固定次数少 {{saving}}。",
+        "title": "按一天中的小时的最便宜保活次数"
+      },
       "keep": "按这种调用节奏，当前设置已接近最便宜。",
       "measured": "已计费 {{cost}} · {{calls}} 次调用",
       "noOptions": "该提供商没有可比较的缓存设置，仅显示计费金额。",
@@ -42,10 +49,12 @@
       },
       "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
       "sweep": {
-        "best": "空闲时将 5 分钟缓存保活最多 {{minutes}} 分钟约可节省 {{saving}}（平均每会话 {{perSession}}）。",
-        "minutes": "{{minutes}} 分",
-        "point": "空闲最多 {{minutes}} 分钟内保活：{{cost}}，{{pings}} 次",
-        "title": "5 分钟 + 保活，按保活时长（与当前相比）"
+        "axis": "每段空闲允许的保活次数（每 4 分钟一次）",
+        "best_other": "最便宜：5 分钟 + 每段空闲 {{count}} 次保活（空闲 {{minutes}} 分钟内保持缓存），{{cost}}。约可节省 {{saving}}（平均每会话 {{perSession}}）。",
+        "none_other": "最便宜的是每段空闲 {{count}} 次保活，{{cost}}，并不比当前便宜。",
+        "oneHour": "1 小时缓存 {{cost}}",
+        "point_other": "每段空闲 {{count}} 次保活（保持 {{minutes}} 分钟）：{{cost}}，实际发送 {{sent}} 次",
+        "title": "5 分钟缓存按每段空闲保活次数的费用"
       },
       "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 5 分钟",
       "title": "提示缓存设置",

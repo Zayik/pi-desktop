@@ -26,6 +26,14 @@
         "title": "Gaps between calls",
         "under": "<{{minutes}}m"
       },
+      "hourly": {
+        "cell_one": "{{hour}}:00: {{count}} ping, {{gaps}} gaps, saves {{saving}} vs one count all day",
+        "cell_other": "{{hour}}:00: {{count}} pings, {{gaps}} gaps, saves {{saving}} vs one count all day",
+        "empty": "{{hour}}:00: no idle gaps",
+        "flat": "One ping count all day is as cheap as changing it by hour.",
+        "saving": "Changing the count by hour of day would have cost {{cost}}, {{saving}} less than the best single count.",
+        "title": "Cheapest pings per gap by hour of day"
+      },
       "keep": "The current setting is already about the cheapest for this timing.",
       "measured": "{{cost}} billed · {{calls}} calls",
       "noOptions": "This provider has no cache settings to compare; only the billed cost is shown.",
@@ -44,10 +52,15 @@
       },
       "recommend": "Cheapest: {{policy}}, about {{saving}} less on these calls.",
       "sweep": {
-        "best": "Keeping the 5 min cache warm for up to {{minutes}} min of idle would have saved about {{saving}} ({{perSession}} per session on average).",
-        "minutes": "{{minutes}}m",
-        "point": "Pings for up to {{minutes}} min idle: {{cost}}, {{pings}} pings",
-        "title": "5 min + pings, by how long pinging continues (vs now)"
+        "axis": "Pings allowed per idle gap (one every 4 min)",
+        "best_one": "Cheapest: 5 min + {{count}} ping per gap (warm through {{minutes}} min of idle), {{cost}}. That would have saved about {{saving}} ({{perSession}} per session on average).",
+        "best_other": "Cheapest: 5 min + {{count}} pings per gap (warm through {{minutes}} min of idle), {{cost}}. That would have saved about {{saving}} ({{perSession}} per session on average).",
+        "none_one": "Cheapest is {{count}} ping per gap at {{cost}}, which is no cheaper than now.",
+        "none_other": "Cheapest is {{count}} pings per gap at {{cost}}, which is no cheaper than now.",
+        "oneHour": "1 h cache {{cost}}",
+        "point_one": "{{count}} ping per gap (warm through {{minutes}} min): {{cost}}, {{sent}} sent",
+        "point_other": "{{count}} pings per gap (warm through {{minutes}} min): {{cost}}, {{sent}} sent",
+        "title": "Cost by pings per idle gap on the 5 min cache"
       },
       "timing": "Now {{current}} · median gap {{gap}} · {{share}}% of gaps over 5 min",
       "title": "Prompt cache settings",

@@ -105,11 +105,20 @@ export function retroDigest(report: AnalyticsReport, title: string | null = null
 
   if (report.cache.models.some((model) => model.policies.length > 0)) {
     lines.push('## Prompt cache settings (replayed)', '')
-    lines.push('Prompt cost of the same calls at the same times under each setting; measured is what was billed. 5m-warm pings every 4 minutes for up to 1 hour of idle.', '')
+    lines.push('Prompt cost of the same calls at the same times under each setting; measured is what was billed. 5m-warm pings every 4 minutes.', '')
     for (const model of report.cache.models.filter((entry) => entry.policies.length > 0).slice(0, MAX_DIGEST_ROWS)) {
       const options = model.policies.map((policy) => `${policy.policy} ${money(policy.cost)}`).join(', ')
-      if (model.bestWarm) lines.push(`  - Keeping the 5 minute cache warm for up to ${model.bestWarm.idleMinutes} min of idle would have saved ${money(model.bestWarm.saving)} (${money(model.bestWarm.saving / Math.max(1, model.sessions))} per session, ${model.bestWarm.pings} pings).`)
       lines.push(`- ${model.model} (${model.calls} calls, now ${model.currentPolicy ?? 'unknown'}${model.currentPolicyMeasured ? '' : ' (assumed)'}, measured ${money(model.measuredCost)}, median gap ${duration(model.medianGapMs)}): ${options}${model.recommended ? `; cheapest ${model.recommended}, saves ${money(model.saving)}` : ''}`)
+      const best = model.bestPings
+      if (best) {
+        const sweep = model.pingSweep.map((point) => `${point.pings} ${money(point.cost)}`).join(', ')
+        lines.push(`  - Pings per idle gap on 5m (every 4 min): ${sweep}${model.oneHourCost !== null ? `; 1h ${money(model.oneHourCost)}` : ''}.`)
+        lines.push(`  - Cheapest: 5m + ${best.pings} ping(s), warm through ${best.idleMinutes} min of idle, ${money(best.cost)} (${best.saving >= 0 ? `saves ${money(best.saving)}` : `costs ${money(-best.saving)} more`} vs now, ${money(best.saving / Math.max(1, model.sessions))} per session).`)
+      }
+      if (model.autoCost !== null && model.autoSaving > 0) {
+        const plan = model.hourly.map((hour) => `${String(hour.hour).padStart(2, '0')}:00 ${hour.pings}`).join(', ')
+        lines.push(`  - Best count by hour of day: ${plan}; would save a further ${money(model.autoSaving)}.`)
+      }
     }
     lines.push('')
   }

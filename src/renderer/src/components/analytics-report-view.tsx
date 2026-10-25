@@ -354,7 +354,8 @@ function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
               ))}
             </tbody>
           </table>
-          {model.warmSweep.length > 0 && <WarmSweep model={model} />}
+          {model.pingSweep.length > 0 && <PingSweep model={model} />}
+          {model.hourly.length > 0 && <HourlyPings model={model} />}
           <p className="mt-1.5 text-[11px] text-secondary">
             {model.recommended
               ? t('analytics.cache.recommend', { policy: policyLabel(model.recommended, t), saving: formatUsd(model.saving) })
@@ -434,33 +435,94 @@ function GapHistogram({ buckets }: { buckets: number[] }): React.JSX.Element | n
   )
 }
 
-/** 5 minutes plus pings, by how long the pinging keeps going, against the current setting. */
-function WarmSweep({ model }: { model: ModelCacheReport }): React.JSX.Element {
+/** Replayed cost of 5 minutes plus 0, 1, 2… pings per idle gap, against the 1 hour setting. */
+function PingSweep({ model }: { model: ModelCacheReport }): React.JSX.Element {
   const { t } = useTranslation()
+  const best = model.bestPings
+  const max = Math.max(...model.pingSweep.map((point) => point.cost), model.oneHourCost ?? 0)
+  const min = Math.min(...model.pingSweep.map((point) => point.cost), model.oneHourCost ?? Infinity)
+  // Start the scale just under the cheapest option so the differences show.
+  const floor = Math.max(0, min - (max - min) * 0.5)
+  const height = (cost: number): string => `${max > floor ? ((cost - floor) / (max - floor)) * 100 : 100}%`
   return (
     <div className="mt-2">
-      <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.sweep.title')}</div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(52px,1fr))] gap-1">
-        {model.warmSweep.map((point) => (
+      <div className="mb-1 flex items-baseline justify-between gap-2 text-[10px] text-faint">
+        <span>{t('analytics.cache.sweep.title')}</span>
+        {model.oneHourCost !== null && (
+          <span className="flex items-center gap-1">
+            <span className="w-3 border-t border-dashed border-warning" aria-hidden="true" />
+            {t('analytics.cache.sweep.oneHour', { cost: formatUsd(model.oneHourCost) })}
+          </span>
+        )}
+      </div>
+      <div className="relative flex h-20 items-end gap-0.5" role="img" aria-label={t('analytics.cache.sweep.title')}>
+        {model.oneHourCost !== null && (
+          <div className="pointer-events-none absolute inset-x-0 border-t border-dashed border-warning" style={{ bottom: height(model.oneHourCost) }} aria-hidden="true" />
+        )}
+        {model.pingSweep.map((point) => (
           <div
-            key={point.idleMinutes}
-            className={clsx('rounded border px-1 py-0.5 text-center', point === model.bestWarm ? 'border-success text-success' : 'border-border text-muted')}
-            title={t('analytics.cache.sweep.point', { minutes: point.idleMinutes, cost: formatUsd(point.cost), pings: point.pings })}
+            key={point.pings}
+            className="flex h-full min-w-0 flex-1 items-end rounded-t-sm hover:bg-card"
+            title={t('analytics.cache.sweep.point', { count: point.pings, minutes: point.idleMinutes, cost: formatUsd(point.cost), sent: point.sent })}
           >
-            <div className="text-[10px]">{t('analytics.cache.sweep.minutes', { minutes: point.idleMinutes })}</div>
-            <div className="text-[11px] tabular-nums">{point.saving >= 0 ? `−${formatUsd(point.saving)}` : `+${formatUsd(-point.saving)}`}</div>
+            <div className={clsx('w-full rounded-t-sm', point === best ? 'bg-success' : 'bg-border-strong')} style={{ height: height(point.cost) }} />
           </div>
         ))}
       </div>
-      {model.bestWarm && (
+      <div className="mt-0.5 flex gap-0.5 text-[9px] text-faint tabular-nums">
+        {model.pingSweep.map((point) => (
+          <span key={point.pings} className={clsx('min-w-0 flex-1 text-center', point === best && 'text-success')}>{point.pings}</span>
+        ))}
+      </div>
+      <div className="text-center text-[9px] text-faint">{t('analytics.cache.sweep.axis')}</div>
+      {best && (
         <p className="mt-1 text-[11px] text-secondary">
-          {t('analytics.cache.sweep.best', {
-            minutes: model.bestWarm.idleMinutes,
-            saving: formatUsd(model.bestWarm.saving),
-            perSession: formatUsd(model.bestWarm.saving / Math.max(1, model.sessions)),
-          })}
+          {best.saving > 0
+            ? t('analytics.cache.sweep.best', {
+              count: best.pings,
+              minutes: best.idleMinutes,
+              cost: formatUsd(best.cost),
+              saving: formatUsd(best.saving),
+              perSession: formatUsd(best.saving / Math.max(1, model.sessions)),
+            })
+            : t('analytics.cache.sweep.none', { count: best.pings, cost: formatUsd(best.cost) })}
         </p>
       )}
+    </div>
+  )
+}
+
+/** The cheapest ping count for idle gaps starting in each hour of the day. */
+function HourlyPings({ model }: { model: ModelCacheReport }): React.JSX.Element {
+  const { t } = useTranslation()
+  const byHour = new Map(model.hourly.map((hour) => [hour.hour, hour]))
+  const most = Math.max(...model.hourly.map((hour) => hour.pings), 1)
+  return (
+    <div className="mt-2">
+      <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.hourly.title')}</div>
+      <div className="grid grid-cols-12 gap-0.5">
+        {Array.from({ length: 24 }, (_, hour) => {
+          const plan = byHour.get(hour)
+          return (
+            <div
+              key={hour}
+              className={clsx('relative h-7 overflow-hidden rounded-sm border text-center', plan ? 'border-border bg-surface' : 'border-transparent bg-card/50')}
+              title={plan
+                ? t('analytics.cache.hourly.cell', { hour: String(hour).padStart(2, '0'), count: plan.pings, gaps: plan.gaps, saving: formatUsd(plan.fixedCost - plan.cost) })
+                : t('analytics.cache.hourly.empty', { hour: String(hour).padStart(2, '0') })}
+            >
+              {plan && <div className="absolute inset-x-0 bottom-0 bg-success/30" style={{ height: `${(plan.pings / most) * 100}%` }} aria-hidden="true" />}
+              <div className="relative text-[8px] leading-3 text-faint tabular-nums">{String(hour).padStart(2, '0')}</div>
+              <div className="relative text-[10px] leading-3 text-secondary tabular-nums">{plan ? plan.pings : ''}</div>
+            </div>
+          )
+        })}
+      </div>
+      <p className="mt-1 text-[11px] text-secondary">
+        {model.autoSaving > 0 && model.autoCost !== null
+          ? t('analytics.cache.hourly.saving', { cost: formatUsd(model.autoCost), saving: formatUsd(model.autoSaving) })
+          : t('analytics.cache.hourly.flat')}
+      </p>
     </div>
   )
 }

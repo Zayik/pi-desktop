@@ -37,8 +37,12 @@ const MIN_CALLS_FOR_ADVICE = 10
 const MIN_SAVING_SHARE = 0.05
 
 export const KEEP_WARM_EVERY_MS = 4 * MINUTE
-/** Idle limits the keep-warm sweep tries: how long to keep pinging before letting the cache go. */
-export const WARM_SWEEP_MINUTES = [5, 10, 15, 20, 30, 45, 60, 90, 120]
+/** The ping sweep tries 0 to this many pings per idle gap: enough to keep 5 minutes warm through a whole hour. */
+export const MAX_SWEEP_PINGS = Math.ceil((HOUR - 5 * MINUTE) / KEEP_WARM_EVERY_MS)
+/** An hour of the day with fewer gaps than this keeps the best fixed count in the auto schedule. */
+const MIN_GAPS_PER_HOUR = 5
+/** The hourly schedule is worth mentioning from this share of the best fixed count's cost. */
+const MIN_AUTO_SAVING_SHARE = 0.01
 /** Upper bounds of the gap histogram's buckets; the last bucket is everything longer. */
 export const GAP_BUCKET_MINUTES = [1, 5, 10, 15, 30, 60]
 
@@ -111,19 +115,41 @@ export interface ModelCacheReport {
   /** Gaps between calls per `GAP_BUCKET_MINUTES` bucket, plus one for longer gaps. */
   gapBuckets: number[]
   /**
-   * 5 minutes with keep-warm pings for up to each `WARM_SWEEP_MINUTES` of
-   * idle (Anthropic only), and the limit that would have cost least.
+   * 5 minutes plus at most 0 to `MAX_SWEEP_PINGS` pings per idle gap
+   * (Anthropic only), and the count that would have cost least.
    */
-  warmSweep: WarmSweepPoint[]
-  bestWarm: WarmSweepPoint | null
+  pingSweep: PingSweepPoint[]
+  bestPings: PingSweepPoint | null
+  /** The 1 hour setting's replayed cost, to compare the sweep with. */
+  oneHourCost: number | null
+  /** The best ping count per local hour of the day the idle gap starts in. */
+  hourly: HourPlan[]
+  /** Cost with each hour on its own best count; null without a sweep. */
+  autoCost: number | null
+  /** What the hourly schedule saves over the best single count. */
+  autoSaving: number
 }
 
-export interface WarmSweepPoint {
+export interface PingSweepPoint {
+  /** Pings allowed per idle gap. */
+  pings: number
+  /** Idle this many pings keep warm. */
   idleMinutes: number
   cost: number
-  pings: number
+  /** Pings actually sent. */
+  sent: number
   /** Against the current setting; negative when it costs more. */
   saving: number
+}
+
+export interface HourPlan {
+  hour: number
+  gaps: number
+  /** Best count for this hour, or the best fixed count when the hour has too few gaps. */
+  pings: number
+  /** Cost of this hour's gaps at that count and at the best fixed count. */
+  cost: number
+  fixedCost: number
 }
 
 /** Measured cache use of one day: prompt tokens read from the cache, written to it, and sent uncached. */
@@ -252,6 +278,50 @@ export function replay(calls: CacheCall[], spec: PolicySpec, prices: Pick<Prices
   return result
 }
 
+/**
+ * Every idle gap's cost (the pings plus the call after it) at each count of
+ * 0 to `MAX_SWEEP_PINGS` pings on a 5 minute cache, keyed by the local hour
+ * the gap starts in. A gap's cost depends only on its own length and
+ * prompts, so any schedule of counts is a sum over these rows.
+ */
+function gapCostsByPings(runs: CacheCall[][], prices: Pick<Prices, 'inputPrice' | 'readRatio'>): { first: number; gaps: Array<{ hour: number; costs: number[]; sent: number[] }> } {
+  const ttl = 5 * MINUTE
+  const write = 1.25
+  const read = prices.inputPrice * prices.readRatio
+  let first = 0
+  const gaps: Array<{ hour: number; costs: number[]; sent: number[] }> = []
+  for (const run of runs) {
+    if (run.length === 0) continue
+    first += promptTokens(run[0]) * prices.inputPrice * write
+    for (let index = 1; index < run.length; index++) {
+      const cached = promptTokens(run[index - 1])
+      const prompt = promptTokens(run[index])
+      const gap = run[index][0] - run[index - 1][0]
+      const needed = gap <= ttl ? 0 : Math.ceil((gap - ttl) / KEEP_WARM_EVERY_MS)
+      const sameRoot = cached > 0 && prompt >= cached * PREFIX_BREAK
+      const costs: number[] = []
+      const sent: number[] = []
+      for (let limit = 0; limit <= MAX_SWEEP_PINGS; limit++) {
+        const pings = Math.min(needed, limit)
+        const hit = Math.min(cached, prompt)
+        const call = needed <= limit && sameRoot
+          ? hit * read + (prompt - hit) * prices.inputPrice * write
+          : prompt * prices.inputPrice * write
+        costs.push(pings * cached * read + call)
+        sent.push(pings)
+      }
+      gaps.push({ hour: new Date(run[index - 1][0]).getHours(), costs, sent })
+    }
+  }
+  return { first, gaps }
+}
+
+function cheapestIndex(costs: number[]): number {
+  let best = 0
+  for (let index = 1; index < costs.length; index++) if (costs[index] < costs[best] - 1e-12) best = index
+  return best
+}
+
 function gapBuckets(gaps: number[]): number[] {
   const buckets = new Array<number>(GAP_BUCKET_MINUTES.length + 1).fill(0)
   for (const gap of gaps) {
@@ -331,8 +401,12 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       medianGapMs: median(gaps),
       longGapShare: gaps.length > 0 ? gaps.filter((gap) => gap > 5 * MINUTE).length / gaps.length : 0,
       gapBuckets: gapBuckets(gaps),
-      warmSweep: [],
-      bestWarm: null,
+      pingSweep: [],
+      bestPings: null,
+      oneHourCost: null,
+      hourly: [],
+      autoCost: null,
+      autoSaving: 0,
     }
     if (provider !== 'other' && prices) {
       report.policies = POLICIES[provider].map((spec) => {
@@ -358,19 +432,40 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
     }
     if (provider === 'anthropic' && prices) {
       const current = report.policies.find((entry) => entry.policy === report.currentPolicy)?.cost ?? 0
-      report.warmSweep = WARM_SWEEP_MINUTES.map((idleMinutes) => {
-        const spec: PolicySpec = { id: '5m-warm-60m', ttlMs: 5 * MINUTE, write: 1.25, warm: { everyMs: KEEP_WARM_EVERY_MS, forMs: idleMinutes * MINUTE } }
-        let cost = 0
-        let pings = 0
-        for (const run of runs) {
-          const part = replay(run, spec, prices)
-          cost += part.cost
-          pings += part.pings
+      report.oneHourCost = report.policies.find((entry) => entry.policy === '1h')?.cost ?? null
+      const { first, gaps: rows } = gapCostsByPings(runs, prices)
+      const totals = new Array<number>(MAX_SWEEP_PINGS + 1).fill(first)
+      const sent = new Array<number>(MAX_SWEEP_PINGS + 1).fill(0)
+      const hours = new Map<number, { gaps: number; costs: number[] }>()
+      for (const row of rows) {
+        const hour = hours.get(row.hour) ?? { gaps: 0, costs: new Array<number>(MAX_SWEEP_PINGS + 1).fill(0) }
+        hour.gaps++
+        for (let limit = 0; limit <= MAX_SWEEP_PINGS; limit++) {
+          totals[limit] += row.costs[limit]
+          sent[limit] += row.sent[limit]
+          hour.costs[limit] += row.costs[limit]
         }
-        return { idleMinutes, cost, pings, saving: current - cost }
-      })
-      const best = [...report.warmSweep].sort((a, b) => a.cost - b.cost || a.idleMinutes - b.idleMinutes)[0]
-      report.bestWarm = best && best.saving > 0 ? best : null
+        hours.set(row.hour, hour)
+      }
+      report.pingSweep = totals.map((cost, pings) => ({
+        pings,
+        idleMinutes: 5 + (pings * KEEP_WARM_EVERY_MS) / MINUTE,
+        cost,
+        sent: sent[pings],
+        saving: current - cost,
+      }))
+      const fixed = cheapestIndex(totals)
+      report.bestPings = report.pingSweep[fixed]
+      report.hourly = [...hours.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([hour, entry]) => {
+          const pings = entry.gaps >= MIN_GAPS_PER_HOUR ? cheapestIndex(entry.costs) : fixed
+          return { hour, gaps: entry.gaps, pings, cost: entry.costs[pings], fixedCost: entry.costs[fixed] }
+        })
+      report.autoCost = first + report.hourly.reduce((sum, hour) => sum + hour.cost, 0)
+      const autoSaving = totals[fixed] - report.autoCost
+      // Rounding-sized differences are not a reason to change the count by hour.
+      report.autoSaving = autoSaving >= Math.max(0.001, totals[fixed] * MIN_AUTO_SAVING_SHARE) ? autoSaving : 0
     }
     models.push(report)
   }

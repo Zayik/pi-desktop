@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildCacheReport, cacheProvider, replay, KEEP_WARM_EVERY_MS } from './cache-policy'
+import { buildCacheReport, cacheProvider, replay, KEEP_WARM_EVERY_MS, MAX_SWEEP_PINGS } from './cache-policy'
 import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
@@ -79,20 +79,53 @@ test('recommends a longer lifetime for calls with 10 to 40 minute gaps', () => {
   assert.equal(report.saving, model.saving)
 })
 
-test('sweeps keep-warm limits and buckets the gaps', () => {
+test('sweeps pings per gap and buckets the gaps', () => {
   const calls: CacheCall[] = [call(0, 40_000, true)]
-  // Gaps of 14 minutes need 3 pings: pinging for 15 minutes of idle covers them, 10 (2 pings) does not.
+  // Gaps of 14 minutes need 3 pings (5 + 3 x 4 = 17 min); 2 pings (13 min) let the cache go.
   for (let index = 1; index <= 20; index++) calls.push(call(index * 14 * MINUTE, 40_000 + index * 500))
   const report = buildCacheReport([session(calls)])
   const model = report.models[0]
   assert.deepEqual(model.gapBuckets, [0, 0, 0, 20, 0, 0, 0])
-  const at = (minutes: number) => model.warmSweep.find((point) => point.idleMinutes === minutes)
-  assert.ok((at(15)?.saving ?? 0) > 0)
-  assert.ok((at(10)?.saving ?? 0) < (at(15)?.saving ?? 0))
-  assert.equal(model.bestWarm?.idleMinutes, 15)
+  assert.equal(model.pingSweep.length, MAX_SWEEP_PINGS + 1)
+  assert.equal(model.bestPings?.pings, 3)
+  assert.equal(model.bestPings?.idleMinutes, 17)
+  assert.equal(model.bestPings?.sent, 60)
+  assert.ok((model.bestPings?.saving ?? 0) > 0)
+  // More pings than needed send no more and cost the same; fewer waste pings and still miss.
+  assert.equal(model.pingSweep[5].cost, model.pingSweep[3].cost)
+  assert.ok(model.pingSweep[2].cost > model.pingSweep[0].cost)
+  assert.ok(model.oneHourCost !== null)
   assert.equal(report.days.length, 1)
   assert.equal(report.days[0].calls, 21)
   assert.equal(report.days[0].coldCalls, 1)
+})
+
+test('a fixed count matches the replay of the same keep-warm limit', () => {
+  const calls: CacheCall[] = [call(0, 30_000, true)]
+  for (let index = 1; index <= 30; index++) calls.push(call(calls[index - 1][0] + ((index % 4) * 6 + 1) * MINUTE, 30_000 + index * 300))
+  const model = buildCacheReport([session(calls)]).models[0]
+  const warm60 = model.policies.find((policy) => policy.policy === '5m-warm-60m')
+  const none = model.policies.find((policy) => policy.policy === '5m')
+  assert.ok(Math.abs((warm60?.cost ?? 0) - model.pingSweep[MAX_SWEEP_PINGS].cost) < 1e-12)
+  assert.ok(Math.abs((none?.cost ?? 0) - model.pingSweep[0].cost) < 1e-12)
+})
+
+test('plans a ping count per hour of the day', () => {
+  // Five days of: a 70 minute lunch from 13:30 (no ping count saves it), a 20 minute
+  // gap from 14:40 (4 pings) and 12 minute gaps through 15:00-16:00 (2 pings).
+  const sessions = [0, 1, 2, 3, 4].map((day) => {
+    const at = (hour: number, minute: number) => new Date(2026, 9, 20 + day, hour, minute).getTime()
+    const times = [at(13, 30), at(14, 40), at(15, 0), at(15, 12), at(15, 24), at(15, 36), at(15, 48), at(16, 0)]
+    return session(times.map((time, index) => call(time, 40_000 + index * 500, index === 0)))
+  })
+  const model = buildCacheReport(sessions).models[0]
+  const hour = (h: number) => model.hourly.find((entry) => entry.hour === h)?.pings
+  assert.equal(hour(13), 0)
+  assert.equal(hour(14), 4)
+  assert.equal(hour(15), 2)
+  assert.equal(model.bestPings?.pings, 4)
+  assert.ok(model.autoSaving > 0)
+  assert.ok((model.autoCost ?? Infinity) < (model.bestPings?.cost ?? 0))
 })
 
 test('back-to-back calls keep the 5 minute default', () => {
