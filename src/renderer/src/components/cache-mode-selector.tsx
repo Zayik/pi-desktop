@@ -78,6 +78,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   const { t } = useTranslation()
   const sessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
   const defaultMode = useAppStore((state) => state.settings?.cacheMode ?? DEFAULT_CACHE_MODE)
+  const autoEnabled = useAppStore((state) => state.settings?.experimentalAutoCache ?? false)
   const piStatus = useAppStore((state) => state.piStatus)
   const [picked, setPicked] = useState<{ sessionId: string; mode: CacheMode } | null>(null)
   const [warming, setWarming] = useState<{ value: string | null; enabledNow: boolean } | null>(null)
@@ -170,7 +171,8 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
           <div className="border-b border-border px-3 py-2">
             <div className="text-[10px] font-medium uppercase tracking-wide text-faint">{t('chat.cacheMode.title')}</div>
           </div>
-          {CACHE_MODES.map((mode) => (
+          {/* Auto is experimental: offered only with the setting, or while this chat is still in it. */}
+          {CACHE_MODES.filter((mode) => mode !== 'auto' || autoEnabled || current === 'auto').map((mode) => (
             <button
               key={mode}
               type="button"

@@ -1719,6 +1719,10 @@
       "description": "当 Pi 在你未查看的工作区中完成、失败或等待批准时通知你",
       "label": "桌面通知"
     },
+    "experimentalAutoCache": {
+      "description": "",
+      "label": ""
+    },
     "language": {
       "description": "菜单、按钮和消息的语言",
       "label": "语言",

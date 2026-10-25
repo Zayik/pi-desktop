@@ -1775,6 +1775,10 @@
       "description": "Notify when Pi finishes, fails, or waits for approval in a workspace you are not looking at",
       "label": "Desktop Notifications"
     },
+    "experimentalAutoCache": {
+      "description": "Experimental. Adds Auto to the cache menu: Keep warm with a different number of idle pings for each hour of the day, re-tuned every 6 hours from your last 30 days. Untested on real usage; Check recommendation is the steadier way to pick a setting.",
+      "label": "Auto cache mode"
+    },
     "language": {
       "description": "Language of menus, buttons, and messages",
       "label": "Language",
