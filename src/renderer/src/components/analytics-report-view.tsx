@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../../../shared/analytics-report'
 import type { WorkCategory } from '../../../shared/session-analytics'
-import { GAP_BUCKET_MINUTES, type CacheDay, type CachePolicyId, type ModelCacheReport } from '../../../shared/cache-policy'
+import { GAP_BUCKET_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
 
@@ -53,8 +53,24 @@ const POLICY_LABEL_KEYS = {
   '5m-warm-break-even': 'analytics.cache.policy.warmBreakEven',
   '1h': 'analytics.cache.policy.oneHour',
   '30m': 'analytics.cache.policy.thirtyMinutes',
+  '30m-warm-6h': 'analytics.cache.policy.thirtyWarm6h',
+  '30m-warm-12h': 'analytics.cache.policy.thirtyWarm12h',
+  '30m-warm-break-even': 'analytics.cache.policy.thirtyWarmBreakEven',
   '12h': 'analytics.cache.policy.twelveHours',
+  'in-memory': 'analytics.cache.policy.inMemory',
+  'in-memory-warm-30m': 'analytics.cache.policy.inMemoryWarm30',
+  'in-memory-warm-60m': 'analytics.cache.policy.inMemoryWarm60',
+  'in-memory-warm-break-even': 'analytics.cache.policy.inMemoryWarmBreakEven',
+  '24h': 'analytics.cache.policy.twentyFourHours',
 } as const satisfies Record<CachePolicyId, string>
+
+const CACHE_NOTE_KEYS = {
+  'copilot-lifetime': 'analytics.cache.notes.copilotLifetime',
+  'copilot-automatic': 'analytics.cache.notes.copilotAutomatic',
+  'implicit-lifetime': 'analytics.cache.notes.implicitLifetime',
+  'pi-no-12h': 'analytics.cache.notes.piNo12h',
+  'pi-no-pings': 'analytics.cache.notes.piNoPings',
+} as const satisfies Record<CacheNote, string>
 
 function policyLabel(policy: string, t: Translate): string {
   return policy in POLICY_LABEL_KEYS ? t(POLICY_LABEL_KEYS[policy as CachePolicyId]) : policy
@@ -323,7 +339,10 @@ function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2">
       <div className="flex items-baseline justify-between gap-2 text-xs">
-        <span className="truncate font-mono text-secondary" title={model.model}>{name}</span>
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate font-mono text-secondary" title={model.model}>{name}</span>
+          {model.route === 'copilot' && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.viaCopilot')}</span>}
+        </span>
         <span className="shrink-0 text-[11px] text-dim tabular-nums">
           {t('analytics.cache.measured', { cost: formatUsd(model.measuredCost), calls: model.calls })}
         </span>
@@ -333,9 +352,11 @@ function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
           current: !model.currentPolicy ? t('analytics.cache.unknown') : model.currentPolicyMeasured ? policyLabel(model.currentPolicy, t) : t('analytics.cache.assumed', { policy: policyLabel(model.currentPolicy, t) }),
           gap: formatDuration(model.medianGapMs),
           share: Math.round(model.longGapShare * 100),
+          ttl: Math.round(model.shortTtlMs / 60_000),
         })}
       </div>
-      <GapHistogram buckets={model.gapBuckets} />
+      {model.notes.map((note) => <p key={note} className="mt-0.5 text-[11px] text-dim">{t(CACHE_NOTE_KEYS[note])}</p>)}
+      <GapHistogram buckets={model.gapBuckets} warmMinutes={model.shortTtlMs / 60_000} />
       {model.policies.length === 0 ? (
         <p className="mt-1.5 text-[11px] text-dim">{t('analytics.cache.noOptions')}</p>
       ) : (
@@ -407,7 +428,7 @@ function CacheDays({ days }: { days: CacheDay[] }): React.JSX.Element {
 }
 
 /** How long the model sat idle between calls: the gaps that decide which lifetime pays. */
-function GapHistogram({ buckets }: { buckets: number[] }): React.JSX.Element | null {
+function GapHistogram({ buckets, warmMinutes }: { buckets: number[]; warmMinutes: number }): React.JSX.Element | null {
   const { t } = useTranslation()
   const max = Math.max(...buckets, 0)
   if (max === 0) return null
@@ -424,8 +445,8 @@ function GapHistogram({ buckets }: { buckets: number[] }): React.JSX.Element | n
           <div key={index} className="flex min-w-0 flex-1 flex-col items-center gap-0.5" title={t('analytics.cache.gaps.bar', { range: label(index), count })}>
             <span className="text-[9px] text-dim tabular-nums">{count}</span>
             <div className="h-8 w-full overflow-hidden rounded-sm bg-card">
-              {/* Gaps within five minutes keep a 5 minute cache warm; longer ones do not. */}
-              <div className={clsx('w-full', index < 2 ? 'bg-success' : 'bg-warning')} style={{ height: `${(count / max) * 100}%`, marginTop: `${100 - (count / max) * 100}%` }} />
+              {/* Gaps within the short lifetime keep the cache warm; longer ones do not. */}
+              <div className={clsx('w-full', index < GAP_BUCKET_MINUTES.length && GAP_BUCKET_MINUTES[index] <= warmMinutes ? 'bg-success' : 'bg-warning')} style={{ height: `${(count / max) * 100}%`, marginTop: `${100 - (count / max) * 100}%` }} />
             </div>
             <span className="truncate text-[9px] text-faint">{label(index)}</span>
           </div>
@@ -435,35 +456,44 @@ function GapHistogram({ buckets }: { buckets: number[] }): React.JSX.Element | n
   )
 }
 
-/** Replayed cost of 5 minutes plus 0, 1, 2… pings per idle gap, against the 1 hour setting. */
+/** Idle a ping count keeps warm: minutes up to two hours, then hours. */
+function formatIdle(minutes: number, t: Translate): string {
+  return minutes < 120
+    ? t('analytics.cache.sweep.idleMinutes', { minutes: Math.round(minutes) })
+    : t('analytics.cache.sweep.idleHours', { hours: Math.round(minutes / 6) / 10 })
+}
+
+/** Replayed cost of the short lifetime plus 0, 1, 2… pings per idle gap, against the long setting. */
 function PingSweep({ model }: { model: ModelCacheReport }): React.JSX.Element {
   const { t } = useTranslation()
   const best = model.bestPings
-  const max = Math.max(...model.pingSweep.map((point) => point.cost), model.oneHourCost ?? 0)
-  const min = Math.min(...model.pingSweep.map((point) => point.cost), model.oneHourCost ?? Infinity)
+  const base = model.sweepPolicy ? policyLabel(model.sweepPolicy, t) : ''
+  const every = Math.round(model.pingEveryMs / 60_000)
+  const max = Math.max(...model.pingSweep.map((point) => point.cost), model.longCost ?? 0)
+  const min = Math.min(...model.pingSweep.map((point) => point.cost), model.longCost ?? Infinity)
   // Start the scale just under the cheapest option so the differences show.
   const floor = Math.max(0, min - (max - min) * 0.5)
   const height = (cost: number): string => `${max > floor ? ((cost - floor) / (max - floor)) * 100 : 100}%`
   return (
     <div className="mt-2">
       <div className="mb-1 flex items-baseline justify-between gap-2 text-[10px] text-faint">
-        <span>{t('analytics.cache.sweep.title')}</span>
-        {model.oneHourCost !== null && (
+        <span>{t('analytics.cache.sweep.title', { base })}</span>
+        {model.longCost !== null && model.longPolicy && (
           <span className="flex items-center gap-1">
             <span className="w-3 border-t border-dashed border-warning" aria-hidden="true" />
-            {t('analytics.cache.sweep.oneHour', { cost: formatUsd(model.oneHourCost) })}
+            {t('analytics.cache.sweep.long', { policy: policyLabel(model.longPolicy, t), cost: formatUsd(model.longCost) })}
           </span>
         )}
       </div>
-      <div className="relative flex h-20 items-end gap-0.5" role="img" aria-label={t('analytics.cache.sweep.title')}>
-        {model.oneHourCost !== null && (
-          <div className="pointer-events-none absolute inset-x-0 border-t border-dashed border-warning" style={{ bottom: height(model.oneHourCost) }} aria-hidden="true" />
+      <div className="relative flex h-20 items-end gap-0.5" role="img" aria-label={t('analytics.cache.sweep.title', { base })}>
+        {model.longCost !== null && (
+          <div className="pointer-events-none absolute inset-x-0 border-t border-dashed border-warning" style={{ bottom: height(model.longCost) }} aria-hidden="true" />
         )}
         {model.pingSweep.map((point) => (
           <div
             key={point.pings}
             className="flex h-full min-w-0 flex-1 items-end rounded-t-sm hover:bg-card"
-            title={t('analytics.cache.sweep.point', { count: point.pings, minutes: point.idleMinutes, cost: formatUsd(point.cost), sent: point.sent })}
+            title={t('analytics.cache.sweep.point', { count: point.pings, idle: formatIdle(point.idleMinutes, t), cost: formatUsd(point.cost), sent: point.sent })}
           >
             <div className={clsx('w-full rounded-t-sm', point === best ? 'bg-success' : 'bg-border-strong')} style={{ height: height(point.cost) }} />
           </div>
@@ -471,21 +501,24 @@ function PingSweep({ model }: { model: ModelCacheReport }): React.JSX.Element {
       </div>
       <div className="mt-0.5 flex gap-0.5 text-[9px] text-faint tabular-nums">
         {model.pingSweep.map((point) => (
-          <span key={point.pings} className={clsx('min-w-0 flex-1 text-center', point === best && 'text-success')}>{point.pings}</span>
+          <span key={point.pings} className={clsx('min-w-0 flex-1 text-center', point === best && 'text-success')}>
+            {model.pingSweep.length <= 16 || point.pings % 5 === 0 || point === best ? point.pings : ''}
+          </span>
         ))}
       </div>
-      <div className="text-center text-[9px] text-faint">{t('analytics.cache.sweep.axis')}</div>
+      <div className="text-center text-[9px] text-faint">{t('analytics.cache.sweep.axis', { every })}</div>
       {best && (
         <p className="mt-1 text-[11px] text-secondary">
           {best.saving > 0
             ? t('analytics.cache.sweep.best', {
+              base,
               count: best.pings,
-              minutes: best.idleMinutes,
+              idle: formatIdle(best.idleMinutes, t),
               cost: formatUsd(best.cost),
               saving: formatUsd(best.saving),
               perSession: formatUsd(best.saving / Math.max(1, model.sessions)),
             })
-            : t('analytics.cache.sweep.none', { count: best.pings, cost: formatUsd(best.cost) })}
+            : t('analytics.cache.sweep.none', { base, count: best.pings, cost: formatUsd(best.cost) })}
         </p>
       )}
     </div>

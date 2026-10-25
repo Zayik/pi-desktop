@@ -34,31 +34,49 @@
       },
       "keep": "按这种调用节奏，当前设置已接近最便宜。",
       "measured": "已计费 {{cost}} · {{calls}} 次调用",
-      "noOptions": "该提供商没有可比较的缓存设置，仅显示计费金额。",
+      "noOptions": "此模型没有可比较的缓存设置或保活选项，仅显示实际计费。",
       "note": "相同调用、相同时间，仅比较提示费用",
+      "notes": {
+        "copilotAutomatic": "Copilot 会自动缓存此模型，没有可更改的设置。",
+        "copilotLifetime": "Copilot 自行设定缓存时长，只有保活请求能改变它；不提供更长的时长。",
+        "implicitLifetime": "OpenAI 自动缓存此模型，不收写入费用。时长为典型值：内存约 5 到 10 分钟（按 5 分钟估算），24 小时保留约 30 分钟。",
+        "piNo12h": "Pi 的长保留在此模型上请求 30 分钟，因此目前无法在 Pi 中选择 12 小时。",
+        "piNoPings": "Pi 的缓存保活只对声明了缓存时长的模型（直连 Anthropic 模型）运行，因此这里的保活只是假设。"
+      },
       "pings_other": "{{count}} 次保活",
       "policy": {
         "fiveMinutes": "5 分钟",
+        "inMemory": "内存（约 5 分钟）",
+        "inMemoryWarm30": "内存 + 保活（空闲最多 30 分钟）",
+        "inMemoryWarm60": "内存 + 保活（空闲最多 1 小时）",
+        "inMemoryWarmBreakEven": "内存 + 保活（比重发便宜时）",
         "none": "不缓存",
         "oneHour": "1 小时",
         "thirtyMinutes": "30 分钟",
+        "thirtyWarm12h": "30 分钟 + 保活（空闲最多 12 小时）",
+        "thirtyWarm6h": "30 分钟 + 保活（空闲最多 6 小时）",
+        "thirtyWarmBreakEven": "30 分钟 + 保活（比重写便宜时）",
         "twelveHours": "12 小时",
+        "twentyFourHours": "24 小时保留（约 30 分钟）",
         "warm30": "5 分钟 + 保活（空闲最多 30 分钟）",
         "warm60": "5 分钟 + 保活（空闲最多 1 小时）",
         "warmBreakEven": "5 分钟 + 保活（比重写便宜时）"
       },
       "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
       "sweep": {
-        "axis": "每段空闲允许的保活次数（每 4 分钟一次）",
-        "best_other": "最便宜：5 分钟 + 每段空闲 {{count}} 次保活（空闲 {{minutes}} 分钟内保持缓存），{{cost}}。约可节省 {{saving}}（平均每会话 {{perSession}}）。",
-        "none_other": "最便宜的是每段空闲 {{count}} 次保活，{{cost}}，并不比当前便宜。",
-        "oneHour": "1 小时缓存 {{cost}}",
-        "point_other": "每段空闲 {{count}} 次保活（保持 {{minutes}} 分钟）：{{cost}}，实际发送 {{sent}} 次",
-        "title": "5 分钟缓存按每段空闲保活次数的费用"
+        "axis": "每段空闲允许的保活次数（每 {{every}} 分钟一次）",
+        "best_other": "最便宜：{{base}} + 每段空闲 {{count}} 次保活（空闲 {{idle}} 内保持缓存），{{cost}}。约可节省 {{saving}}（平均每会话 {{perSession}}）。",
+        "idleHours": "{{hours}} 小时",
+        "idleMinutes": "{{minutes}} 分钟",
+        "long": "{{policy}} {{cost}}",
+        "none_other": "最便宜的是 {{base}} + 每段空闲 {{count}} 次保活，{{cost}}，并不比当前便宜。",
+        "point_other": "每段空闲 {{count}} 次保活（保持 {{idle}}）：{{cost}}，实际发送 {{sent}} 次",
+        "title": "{{base}} 按每段空闲保活次数的费用"
       },
-      "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 5 分钟",
+      "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 {{ttl}} 分钟",
       "title": "提示缓存设置",
-      "unknown": "未知"
+      "unknown": "未知",
+      "viaCopilot": "经由 Copilot"
     },
     "category": {
       "build": "构建",
