@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Check, ChevronUp, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAppStore } from '../store'
-import { CACHE_MODES, type CacheMode } from '../../../../resources/context-snapshot'
+import { CACHE_MODES, DEFAULT_CACHE_MODE, type CacheMode } from '../../../../resources/context-snapshot'
 import type { Translate } from '../../../shared/i18n'
 
 export function cacheModeLabel(mode: CacheMode, t: Translate): string {
@@ -33,7 +33,7 @@ interface CacheModeSelectorProps {
 export function CacheModeSelector({ className }: CacheModeSelectorProps): React.JSX.Element {
   const { t } = useTranslation()
   const sessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
-  const defaultMode = useAppStore((state) => state.settings?.cacheMode ?? 'focus')
+  const defaultMode = useAppStore((state) => state.settings?.cacheMode ?? DEFAULT_CACHE_MODE)
   const piStatus = useAppStore((state) => state.piStatus)
   const [picked, setPicked] = useState<{ sessionId: string; mode: CacheMode } | null>(null)
   const [warming, setWarming] = useState<{ value: string | null; enabledNow: boolean } | null>(null)

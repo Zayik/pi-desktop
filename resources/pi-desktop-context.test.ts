@@ -97,3 +97,17 @@ test('a mode picked in the app applies from the next request', async () => {
     assert.equal(snapshot.cacheRetention, 'long')
   })
 })
+
+test('keep warm stops refreshing after its idle budget until the next real request', async () => {
+  await withDir(async (dir) => {
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'keep-warm' })
+    emit('session_start')
+    emit('context_with_system', { messages: [] })
+    const idle = { action: 'skip', continuationProbability: 0.15, warmCost: 0, missCost: 0 }
+    const answers = [1, 2, 3, 4].map(() => emit('cache_warming_decision', idle))
+    assert.deepEqual(answers, [{ action: 'warm' }, { action: 'warm' }, { action: 'warm' }, { action: 'stop' }])
+    emit('context_with_system', { messages: [] })
+    assert.deepEqual(emit('cache_warming_decision', idle), { action: 'warm' })
+    emit('session_shutdown')
+  })
+})

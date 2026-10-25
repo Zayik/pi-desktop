@@ -161,13 +161,17 @@ export interface ContextSnapshot {
 /**
  * How a session uses the prompt cache, picked per session in the app:
  * - focus: the 5-minute cache, kept alive only while the agent works;
- * - keep-warm: the 5-minute cache, also kept alive for a while after the
- *   agent stops (needs Pi's global `cacheWarming: "idle"`);
+ * - keep-warm: the 5-minute cache, also refreshed `MAX_IDLE_WARMS` times
+ *   after the agent stops (needs Pi's global `cacheWarming: "idle"`);
  * - long: the 1-hour cache (`PI_CACHE_RETENTION=long`), never refreshed idle.
+ * A few refreshes cost less than the 1-hour tier's dearer write for breaks
+ * of up to about an hour, so keep-warm is the default.
  */
-export const CACHE_MODES = ['focus', 'keep-warm', 'long'] as const
+export const CACHE_MODES = ['keep-warm', 'focus', 'long'] as const
 export type CacheMode = typeof CACHE_MODES[number]
-export const DEFAULT_CACHE_MODE: CacheMode = 'focus'
+export const DEFAULT_CACHE_MODE: CacheMode = 'keep-warm'
+/** Refreshes keep-warm sends after the agent stops, about 4 minutes apart: the cache then lives ~15 minutes past the last turn. */
+export const MAX_IDLE_WARMS = 3
 const CACHE_MODE_SUFFIX = '.mode'
 
 export interface CacheModeChoice {
@@ -202,11 +206,12 @@ export function cacheRetentionFor(mode: CacheMode): 'short' | 'long' {
  * The mode's answer to one of Pi's cache-warming decisions, or null to leave
  * Pi's own. While the agent works Pi expects the next request for sure
  * (continuation probability 1) and decides by price; once it stops, only
- * keep-warm refreshes, and the others stop so they never pay for idle time.
+ * keep-warm refreshes, up to `MAX_IDLE_WARMS` times since the last real
+ * request, and the others stop so they never pay for idle time.
  */
-export function cacheWarmingOverride(mode: CacheMode, continuationProbability: number): 'warm' | 'stop' | null {
+export function cacheWarmingOverride(mode: CacheMode, continuationProbability: number, idleWarms: number): 'warm' | 'stop' | null {
   if (continuationProbability >= 1) return null
-  return mode === 'keep-warm' ? 'warm' : 'stop'
+  return mode === 'keep-warm' && idleWarms < MAX_IDLE_WARMS ? 'warm' : 'stop'
 }
 
 // ─── Estimation ─────────────────────────────────────────────────────────────

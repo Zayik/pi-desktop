@@ -76,8 +76,8 @@ test('normalizeStoredSettings resets an invalid voice device', () => {
   assert.equal(settings.voiceDevice, DEFAULT_SETTINGS.voiceDevice)
 })
 
-test('the cache mode defaults to focus and keeps a known mode', () => {
-  assert.equal(normalizeStoredSettings({}, LANGUAGES).cacheMode, 'focus')
+test('the cache mode defaults to keep warm and keeps a known mode', () => {
+  assert.equal(normalizeStoredSettings({}, LANGUAGES).cacheMode, 'keep-warm')
   assert.equal(normalizeStoredSettings({ cacheMode: 'long' }, LANGUAGES).cacheMode, 'long')
-  assert.equal(normalizeStoredSettings({ cacheMode: 'forever' }, LANGUAGES).cacheMode, 'focus')
+  assert.equal(normalizeStoredSettings({ cacheMode: 'forever' }, LANGUAGES).cacheMode, 'keep-warm')
 })

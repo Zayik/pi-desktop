@@ -52,6 +52,8 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
 
   let snapshot: ContextSnapshot | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
+  // Idle refreshes sent since the last real request.
+  let idleWarms = 0
   let modeFile: { path: string; mtimeMs: number; choice: CacheModeChoice | null } | null = null
 
   /** The mode picked in the app for this session, re-read only when its file changes. */
@@ -210,6 +212,8 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
   pi.on('context_with_system', (event, ctx) => {
     if (!snapshot) return
     applyMode()
+    // A real request (refreshes resend the stored one without this event) restarts the idle budget.
+    idleWarms = 0
     snapshot.breakdown = buildBreakdown({
       systemPrompt: ctx.getSystemPrompt(),
       tools: activeTools(),
@@ -228,8 +232,9 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
 
   pi.on('cache_warming_decision', (event) => {
     if (!snapshot) return
-    const action = cacheWarmingOverride(applyMode(), event.continuationProbability)
+    const action = cacheWarmingOverride(applyMode(), event.continuationProbability, idleWarms)
     if ((action ?? event.action) === 'warm') {
+      if (event.continuationProbability < 1) idleWarms++
       snapshot.lastWarmAt = Date.now()
       scheduleWrite()
     }

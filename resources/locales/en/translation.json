@@ -51,11 +51,11 @@
       "idleWarmingOff": "Keep warm needs Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
       "modes": {
         "focus": {
-          "detail": "5-minute cache, refreshed only while the agent works.",
+          "detail": "5-minute cache, refreshed only while the agent works. Nothing is paid while idle.",
           "label": "Focus"
         },
         "keepWarm": {
-          "detail": "5-minute cache, also refreshed for up to 30 minutes after the agent stops.",
+          "detail": "5-minute cache, refreshed up to 3 times after the agent stops, so it lasts about 15 minutes past your last turn.",
           "label": "Keep warm"
         },
         "long": {
