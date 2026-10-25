@@ -8,6 +8,29 @@
     "workingInAnotherWorkspace": "Pi 正在另一个工作区工作"
   },
   "analytics": {
+    "cache": {
+      "assumed": "{{policy}}（推定）",
+      "current": "当前",
+      "keep": "按这种调用节奏，当前设置已接近最便宜。",
+      "measured": "已计费 {{cost}} · {{calls}} 次调用",
+      "noOptions": "该提供商没有可比较的缓存设置，仅显示计费金额。",
+      "note": "相同调用、相同时间，仅比较提示费用",
+      "pings_other": "{{count}} 次保活",
+      "policy": {
+        "fiveMinutes": "5 分钟",
+        "none": "不缓存",
+        "oneHour": "1 小时",
+        "thirtyMinutes": "30 分钟",
+        "twelveHours": "12 小时",
+        "warm30": "5 分钟 + 保活（空闲最多 30 分钟）",
+        "warm60": "5 分钟 + 保活（空闲最多 1 小时）",
+        "warmBreakEven": "5 分钟 + 保活（比重写便宜时）"
+      },
+      "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
+      "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 5 分钟",
+      "title": "提示缓存设置",
+      "unknown": "未知"
+    },
     "category": {
       "build": "构建",
       "edit": "编辑",
@@ -81,6 +104,7 @@
     "showLess": "收起",
     "signal": {
       "buildTime": "构建占活跃时间的 {{share}}%（{{runs}} 次共 {{minutes}} 分钟）。",
+      "cachePolicy": "在 {{model}} 上用 {{policy}} 代替 {{current}} 约可节省 {{cost}}（占其提示费用的 {{share}}%）。",
       "carriedTool": "{{tool}} 的结果随后续调用重复发送，占费用的 {{share}}%（{{cost}}）。",
       "compactions": "{{sessions}} 个会话压缩了三次或更多（最多 {{most}} 次）。上下文增长很快。",
       "failingCommand": "{{command}} 失败了 {{failures}} 次。",

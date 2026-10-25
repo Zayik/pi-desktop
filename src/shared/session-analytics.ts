@@ -13,7 +13,7 @@ import { callFromMessage, estimateTextTokens, type ModelCall } from '../../resou
 import { ACTIVE_GAP_MS, DELEGATE_RUN_ID, TOOL_WAIT_GAP_MS, addModelUsage, callCost, type DelegateRun, type ModelUsage } from './agent-board'
 
 /** Bump when the facts change shape or meaning, so the index reads every file again. */
-export const SESSION_ANALYTICS_VERSION = 1
+export const SESSION_ANALYTICS_VERSION = 2
 
 /** What a tool call was for. Shell commands are sorted by what they run. */
 export const WORK_CATEGORIES = ['test', 'build', 'lint', 'install', 'git', 'shell', 'read', 'search', 'edit', 'subagent', 'web', 'other'] as const
@@ -27,6 +27,7 @@ const MAX_TEST_RUNS = 200
 const MAX_TURNS = 300
 const MAX_SLOW_CALLS = 10
 const MAX_FAILED_COMMANDS = 20
+const MAX_CACHE_CALLS = 5_000
 
 export interface ToolStat {
   tool: string
@@ -91,6 +92,24 @@ export interface TurnFact {
   label: string | null
 }
 
+/**
+ * One model call as the cache replay needs it: when it finished, which model
+ * (index into `cacheModels`), its prompt tokens by kind, and what each kind
+ * cost. Tuples keep a long session's row small.
+ */
+export type CacheCall = [
+  at: number,
+  model: number,
+  input: number,
+  cacheRead: number,
+  cacheWrite: number,
+  /** The part of `cacheWrite` written with one-hour retention. */
+  cacheWrite1h: number,
+  inputCost: number,
+  cacheReadCost: number,
+  cacheWriteCost: number,
+]
+
 export interface DayFact {
   cost: number
   calls: number
@@ -129,6 +148,10 @@ export interface SessionAnalytics {
   /** Local YYYY-MM-DD -> what that day's calls cost and how long the session worked. */
   days: Record<string, DayFact>
   delegateRuns: DelegateRun[]
+  /** `provider/model` names `cacheCalls` point at. */
+  cacheModels: string[]
+  /** Every model call of the session, oldest first (the newest `MAX_CACHE_CALLS`). */
+  cacheCalls: CacheCall[]
 }
 
 type UnknownRecord = Record<string, unknown>
@@ -287,6 +310,8 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
     turnFacts: [],
     days: {},
     delegateRuns: [],
+    cacheModels: [],
+    cacheCalls: [],
   }
 
   const toolStat = (tool: string, category: WorkCategory): ToolStat => {
@@ -428,6 +453,7 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
         addCall(facts, call, turn, day)
         addModelUsage(facts.models, call, callCost(call))
         priceOf.set(id, promptPrice(call))
+        recordCacheCall(facts, call, isRecord(message.usage) ? message.usage.cacheWrite1h : 0)
       }
       continue
     }
@@ -507,6 +533,16 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
   facts.skills.sort((a, b) => b.uses - a.uses)
   facts.models.sort((a, b) => b.cost - a.cost || b.calls - a.calls)
   return facts
+}
+
+function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown): void {
+  if (call.at <= 0) return
+  const name = `${call.provider}/${call.model}`
+  let model = facts.cacheModels.indexOf(name)
+  if (model < 0) model = facts.cacheModels.push(name) - 1
+  const oneHour = typeof cacheWrite1h === 'number' && Number.isFinite(cacheWrite1h) ? Math.min(cacheWrite1h, call.cacheWrite) : 0
+  facts.cacheCalls.push([call.at, model, call.input, call.cacheRead, call.cacheWrite, oneHour, call.cost.input, call.cost.cacheRead, call.cost.cacheWrite])
+  if (facts.cacheCalls.length > MAX_CACHE_CALLS) facts.cacheCalls.shift()
 }
 
 function addCall(facts: SessionAnalytics, call: ModelCall, turn: TurnFact | null, day: (at: number) => DayFact): void {

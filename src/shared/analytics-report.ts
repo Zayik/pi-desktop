@@ -4,6 +4,7 @@
  * it, and the retro digest reads the same numbers.
  */
 import { addModelUsage, type ModelUsage } from './agent-board'
+import { buildCacheReport, type CacheReport } from './cache-policy'
 import {
   WORK_CATEGORIES,
   localDayKey,
@@ -101,6 +102,7 @@ export type SignalId =
   | 'subagent-share'
   | 'compactions'
   | 'build-time'
+  | 'cache-policy'
 
 /** A finding, kept as data and translated at render. */
 export interface AnalyticsSignal {
@@ -138,6 +140,8 @@ export interface AnalyticsReport {
   subagentCost: number
   days: DayPoint[]
   projects: ProjectRow[]
+  /** What each cache setting would have cost these calls, per model. */
+  cache: CacheReport
   signals: AnalyticsSignal[]
 }
 
@@ -212,6 +216,7 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
     subagentCost: 0,
     days: [],
     projects: [],
+    cache: { models: [], saving: 0 },
     signals: [],
   }
   const days = new Map<string, DayPoint>()
@@ -303,6 +308,9 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
   if (scope === 'overall') report.sessionRows = report.sessionRows.slice(0, MAX_ROWS)
   report.days = fillDays([...days.values()], from, to)
   report.projects = [...projects.values()].sort((a, b) => b.cost - a.cost).slice(0, MAX_ROWS)
+  report.cache = buildCacheReport(sessions.map(({ facts }) => (from === null && to === null
+    ? facts
+    : { ...facts, cacheCalls: (facts.cacheCalls ?? []).filter(([at]) => (from === null || at >= from) && (to === null || at <= to)) })))
   report.signals = findSignals(report, { compactingSessions, maxCompactions })
   return report
 }
@@ -381,6 +389,17 @@ export function findSignals(report: AnalyticsReport, extra: { compactingSessions
     }
     const subagentShare = report.subagentCost / report.cost
     if (subagentShare >= 0.4) signals.push({ id: 'subagent-share', severity: 'low', values: { share: percent(subagentShare) } })
+  }
+  for (const model of report.cache.models) {
+    if (!model.recommended || !model.currentPolicy) continue
+    // Ranked by what it saves of all cost, worded by what it saves of this model's prompts.
+    const ofAll = report.cost > 0 ? model.saving / report.cost : 0
+    if (ofAll < 0.02) continue
+    signals.push({
+      id: 'cache-policy',
+      severity: ofAll >= 0.15 ? 'high' : ofAll >= 0.05 ? 'medium' : 'low',
+      values: { model: model.model, policy: model.recommended, current: model.currentPolicy, cost: Math.round(model.saving * 100) / 100, share: percent(model.savingShare) },
+    })
   }
   if (extra.compactingSessions > 0) {
     signals.push({ id: 'compactions', severity: 'low', values: { sessions: extra.compactingSessions, most: extra.maxCompactions } })

@@ -45,6 +45,7 @@ function signalLine(signal: AnalyticsSignal): string {
     case 'carried-tool': return `Results of \`${v.tool}\` were resent with later calls for ${v.share}% of all cost (${money(Number(v.cost))}).`
     case 'skill-cost': return `Skill \`${v.skill}\` stayed in context for ${v.share}% of all cost (${v.uses} loads).`
     case 'subagent-share': return `Subagents made up ${v.share}% of the cost.`
+    case 'cache-policy': return `Cache setting ${v.policy} instead of ${v.current} would have saved about ${money(Number(v.cost))} (${v.share}% of its simulated prompt cost) on ${v.model}.`
     case 'compactions': return `${v.sessions} session(s) compacted three or more times (most: ${v.most}).`
   }
 }
@@ -98,6 +99,16 @@ export function retroDigest(report: AnalyticsReport, title: string | null = null
     lines.push('## Commands that failed more than once', '')
     for (const failed of report.failedCommands.filter((entry) => entry.failures > 1).slice(0, MAX_DIGEST_ROWS)) {
       lines.push(`- ${failed.failures}x \`${cell(failed.command)}\``)
+    }
+    lines.push('')
+  }
+
+  if (report.cache.models.some((model) => model.policies.length > 0)) {
+    lines.push('## Prompt cache settings (replayed)', '')
+    lines.push('Prompt cost of the same calls at the same times under each setting; measured is what was billed. 5m-warm pings every 4 minutes for up to 1 hour of idle.', '')
+    for (const model of report.cache.models.filter((entry) => entry.policies.length > 0).slice(0, MAX_DIGEST_ROWS)) {
+      const options = model.policies.map((policy) => `${policy.policy} ${money(policy.cost)}`).join(', ')
+      lines.push(`- ${model.model} (${model.calls} calls, now ${model.currentPolicy ?? 'unknown'}${model.currentPolicyMeasured ? '' : ' (assumed)'}, measured ${money(model.measuredCost)}, median gap ${duration(model.medianGapMs)}): ${options}${model.recommended ? `; cheapest ${model.recommended}, saves ${money(model.saving)}` : ''}`)
     }
     lines.push('')
   }

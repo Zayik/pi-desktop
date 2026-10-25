@@ -38,6 +38,8 @@ function facts(id: string, at: number, overrides: Partial<SessionAnalytics> = {}
     turnFacts: [{ startedAt: at, durationMs: 40 * MINUTE, cost: 0.8, calls: 8, toolCalls: 6, label: `work ${id}` }],
     days: { [localDayKey(at)]: { cost: 1, calls: 10, activeMs: 60 * MINUTE } },
     delegateRuns: [],
+    cacheModels: [],
+    cacheCalls: [],
     ...overrides,
   }
 }

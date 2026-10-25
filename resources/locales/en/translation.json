@@ -8,6 +8,30 @@
     "workingInAnotherWorkspace": "Pi is working in another workspace"
   },
   "analytics": {
+    "cache": {
+      "assumed": "{{policy}} (assumed)",
+      "current": "now",
+      "keep": "The current setting is already about the cheapest for this timing.",
+      "measured": "{{cost}} billed · {{calls}} calls",
+      "noOptions": "This provider has no cache settings to compare; only the billed cost is shown.",
+      "note": "Same calls, same timing, prompt cost only",
+      "pings_one": "{{count}} ping",
+      "pings_other": "{{count}} pings",
+      "policy": {
+        "fiveMinutes": "5 min",
+        "none": "No cache",
+        "oneHour": "1 hour",
+        "thirtyMinutes": "30 min",
+        "twelveHours": "12 hours",
+        "warm30": "5 min + pings (up to 30 min idle)",
+        "warm60": "5 min + pings (up to 1 h idle)",
+        "warmBreakEven": "5 min + pings (while cheaper than rewriting)"
+      },
+      "recommend": "Cheapest: {{policy}}, about {{saving}} less on these calls.",
+      "timing": "Now {{current}} · median gap {{gap}} · {{share}}% of gaps over 5 min",
+      "title": "Prompt cache settings",
+      "unknown": "unknown"
+    },
     "category": {
       "build": "Builds",
       "edit": "Editing",
@@ -83,6 +107,7 @@
     "showLess": "Show less",
     "signal": {
       "buildTime": "Builds took {{share}}% of active time ({{minutes}} min over {{runs}} runs).",
+      "cachePolicy": "Cache setting {{policy}} instead of {{current}} would have saved about {{cost}} ({{share}}% of its prompt cost) on {{model}}.",
       "carriedTool": "{{tool}} results were sent again with later calls for {{share}}% of the cost ({{cost}}).",
       "compactions": "{{sessions}} session(s) compacted three or more times (most: {{most}}). Context is filling up fast.",
       "failingCommand": "{{command}} failed {{failures}} times.",

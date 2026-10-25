@@ -73,6 +73,7 @@ src/
 │   ├── untrusted-data.ts         # Wrap file/agent text as a labeled untrusted-data block
 │   ├── session-analytics.ts      # Session JSONL -> cost/time facts: per tool, kind of work, skill, test run, prompt, day; carried cost
 │   ├── analytics-report.ts       # Facts of many sessions -> one report (session or overall scope) and its signals
+│   ├── cache-policy.ts           # Replay a model's calls under each prompt-cache setting (5m, 1h, 5m + keep-warm, 30m, 12h); the cheapest
 │   ├── retro-digest.ts           # A report as the Markdown digest the pi-retro skill reads; the composer prompt
 │   ├── agent-engine-label.ts     # Display names for the Pi/OMP engines (every surface reads this one map)
 │   ├── product-name.ts           # "Pi Desktop" display name (a named constant, never a translation key)

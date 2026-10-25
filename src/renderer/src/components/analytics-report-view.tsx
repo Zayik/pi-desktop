@@ -4,6 +4,7 @@ import { clsx } from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../../../shared/analytics-report'
 import type { WorkCategory } from '../../../shared/session-analytics'
+import type { CachePolicyId, ModelCacheReport } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
 
@@ -43,6 +44,21 @@ const KIND_LABEL_KEYS = {
   delegate: 'analytics.kind.delegate',
   child: 'analytics.kind.child',
 } as const satisfies Record<AnalyticsSessionKind, string>
+
+const POLICY_LABEL_KEYS = {
+  none: 'analytics.cache.policy.none',
+  '5m': 'analytics.cache.policy.fiveMinutes',
+  '5m-warm-30m': 'analytics.cache.policy.warm30',
+  '5m-warm-60m': 'analytics.cache.policy.warm60',
+  '5m-warm-break-even': 'analytics.cache.policy.warmBreakEven',
+  '1h': 'analytics.cache.policy.oneHour',
+  '30m': 'analytics.cache.policy.thirtyMinutes',
+  '12h': 'analytics.cache.policy.twelveHours',
+} as const satisfies Record<CachePolicyId, string>
+
+function policyLabel(policy: string, t: Translate): string {
+  return policy in POLICY_LABEL_KEYS ? t(POLICY_LABEL_KEYS[policy as CachePolicyId]) : policy
+}
 
 const SEVERITY_CLASSES: Record<AnalyticsSignal['severity'], string> = {
   high: 'border-l-error',
@@ -87,6 +103,7 @@ function signalText(signal: AnalyticsSignal, t: Translate): string {
     case 'carried-tool': return t('analytics.signal.carriedTool', { tool: v.tool, share: v.share, cost: formatUsd(Number(v.cost)) })
     case 'skill-cost': return t('analytics.signal.skillCost', { skill: v.skill, share: v.share, uses: v.uses })
     case 'subagent-share': return t('analytics.signal.subagentShare', { share: v.share })
+    case 'cache-policy': return t('analytics.signal.cachePolicy', { model: v.model, policy: policyLabel(String(v.policy), t), current: policyLabel(String(v.current), t), cost: formatUsd(Number(v.cost)), share: v.share })
     case 'compactions': return t('analytics.signal.compactions', { sessions: v.sessions, most: v.most })
   }
 }
@@ -101,6 +118,7 @@ export function AnalyticsReportView({ report, wide = false }: { report: Analytic
       {report.scope === 'overall' && report.days.length > 1 && <DailyCost report={report} />}
       <div className={clsx('space-y-4', wide && 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0')}>
         <WorkByKind report={report} />
+        <CachePolicies report={report} />
         <Section title={t('analytics.tools.title')} note={t('analytics.tools.note')}>
           <Table
             headers={[t('analytics.tools.tool'), t('analytics.tools.calls'), t('analytics.tools.time'), t('analytics.tools.carried')]}
@@ -281,6 +299,67 @@ function WorkByKind({ report }: { report: AnalyticsReport }): React.JSX.Element 
         empty={t('analytics.tools.empty')}
       />
     </Section>
+  )
+}
+
+function CachePolicies({ report }: { report: AnalyticsReport }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const models = report.cache.models.filter((model) => model.policies.length > 0 || model.measuredCost > 0)
+  if (models.length === 0) return null
+  return (
+    <Section title={t('analytics.cache.title')} note={t('analytics.cache.note')}>
+      <div className="space-y-3">
+        {models.slice(0, MAX_ROWS).map((model) => <ModelCache key={model.model} model={model} />)}
+      </div>
+    </Section>
+  )
+}
+
+function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
+  const { t } = useTranslation()
+  const cheapest = model.policies.reduce<number | null>((min, policy) => (min === null || policy.cost < min ? policy.cost : min), null)
+  const name = model.model.split('/').slice(1).join('/') || model.model
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="truncate font-mono text-secondary" title={model.model}>{name}</span>
+        <span className="shrink-0 text-[11px] text-dim tabular-nums">
+          {t('analytics.cache.measured', { cost: formatUsd(model.measuredCost), calls: model.calls })}
+        </span>
+      </div>
+      <div className="mt-0.5 text-[11px] text-dim">
+        {t('analytics.cache.timing', {
+          current: !model.currentPolicy ? t('analytics.cache.unknown') : model.currentPolicyMeasured ? policyLabel(model.currentPolicy, t) : t('analytics.cache.assumed', { policy: policyLabel(model.currentPolicy, t) }),
+          gap: formatDuration(model.medianGapMs),
+          share: Math.round(model.longGapShare * 100),
+        })}
+      </div>
+      {model.policies.length === 0 ? (
+        <p className="mt-1.5 text-[11px] text-dim">{t('analytics.cache.noOptions')}</p>
+      ) : (
+        <>
+          <table className="mt-1.5 w-full table-fixed text-xs">
+            <tbody>
+              {model.policies.map((policy) => (
+                <tr key={policy.policy} className="border-t border-border/60">
+                  <td className={clsx('py-1 pr-2', policy.policy === model.recommended ? 'font-medium text-success' : 'text-secondary')}>
+                    {policyLabel(policy.policy, t)}
+                    {policy.policy === model.currentPolicy && <span className="ml-1.5 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.current')}</span>}
+                  </td>
+                  <td className="w-20 py-1 text-right text-[11px] text-dim tabular-nums">{policy.pings > 0 ? t('analytics.cache.pings', { count: policy.pings }) : ''}</td>
+                  <td className={clsx('w-16 py-1 text-right tabular-nums', policy.cost === cheapest ? 'text-success' : 'text-muted')}>{formatUsd(policy.cost)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-1.5 text-[11px] text-secondary">
+            {model.recommended
+              ? t('analytics.cache.recommend', { policy: policyLabel(model.recommended, t), saving: formatUsd(model.saving) })
+              : t('analytics.cache.keep')}
+          </p>
+        </>
+      )}
+    </div>
   )
 }
 
