@@ -14,7 +14,7 @@ let loadedCopies = 0
 type Handler = (event: Record<string, unknown>, ctx: unknown) => unknown
 
 /** Load a fresh copy of the extension (it reads its environment at load) against a fake Pi. */
-async function loadExtension(env: Record<string, string>): Promise<{ emit: (name: string, event?: Record<string, unknown>) => unknown }> {
+async function loadExtension(env: Record<string, string>, model: Record<string, unknown> | null = null): Promise<{ emit: (name: string, event?: Record<string, unknown>) => unknown }> {
   for (const [name, value] of Object.entries(env)) process.env[name] = value
   const extension = await import(`${EXTENSION_URL}?copy=${++loadedCopies}`) as { default: (pi: ExtensionAPI) => void }
   const handlers = new Map<string, Handler>()
@@ -28,7 +28,7 @@ async function loadExtension(env: Record<string, string>): Promise<{ emit: (name
     sessionManager: { getSessionId: () => SESSION_ID, getSessionFile: () => null, getBranch: () => [] },
     getSystemPrompt: () => 'system',
     modelRegistry: { getAvailable: () => [] },
-    model: null,
+    model,
     getContextUsage: () => null,
   }
   extension.default(pi as unknown as ExtensionAPI)
@@ -145,5 +145,16 @@ test('a manual pick overrides auto', async () => {
     const snapshot = await readSnapshot(dir, emit)
     assert.equal(snapshot.cacheMode, 'focus')
     assert.equal(snapshot.autoWarmLimit, null)
+  })
+})
+
+test('gives the session\'s model the advertised cache lifetime so Pi warms it', async () => {
+  await withDir(async (dir) => {
+    const model: Record<string, unknown> = { provider: 'github-copilot', id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'auto' }, model)
+    emit('session_start')
+    assert.deepEqual(model.promptCache, { short: 300, long: 3600 })
+    const snapshot = await readSnapshot(dir, emit)
+    assert.deepEqual(snapshot.model?.promptCache, { short: 300, long: 3600 })
   })
 })

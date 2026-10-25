@@ -29,14 +29,11 @@ function hourPlan(model: ModelCacheReport): number[] | null {
  */
 export function buildAutoWarmSchedule(report: CacheReport, builtAt: number, days: number): AutoWarmSchedule {
   const schedule = emptyAutoWarmSchedule(builtAt, days)
-  const lifetimes: Record<string, number> = {}
   for (const model of report.models) {
     const plan = hourPlan(model)
     if (!plan) continue
     schedule.models[model.model] = plan
-    lifetimes[model.model] = Math.round(model.shortTtlMs / 1000)
     if (model.pingEveryMs === KEEP_WARM_EVERY_MS && model.shortTtlMs === FIVE_MINUTES_MS) schedule.fallback ??= plan
   }
-  schedule.lifetimes = lifetimes
   return schedule
 }

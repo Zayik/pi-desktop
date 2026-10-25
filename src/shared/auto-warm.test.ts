@@ -61,7 +61,6 @@ test('plans Copilot and OpenAI models on their own cache lifetimes', () => {
   assert.ok(isAutoWarmSchedule(schedule))
   assert.equal(schedule.models[copilot]?.[15], 2)
   assert.ok(schedule.models[openai])
-  assert.deepEqual(schedule.lifetimes, { [copilot]: 300, [openai]: 1800 })
   assert.deepEqual(schedule.fallback, schedule.models[copilot], 'only a 5-minute plan stands in for other models')
 })
 

@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  advertisedCacheLifetime,
+  fillCacheLifetime,
   CONTEXT_SNAPSHOT_VERSION,
   MAX_CATEGORY_ITEMS,
   MAX_RECORDED_CALLS,
@@ -201,4 +203,27 @@ test('accepts only snapshots of the current version', () => {
   assert.equal(isContextSnapshot({ ...snapshot, calls: 'no' }), false)
   assert.equal(isContextSnapshot({ ...snapshot, breakdown: { categories: 1 } }), false)
   assert.equal(isContextSnapshot(null), false)
+})
+
+test('copilot models get the vendor\'s advertised cache lifetimes', () => {
+  assert.deepEqual(advertisedCacheLifetime('anthropic', 'claude-sonnet-5-5'), { short: 300, long: 3600 })
+  assert.deepEqual(advertisedCacheLifetime('github-copilot', 'claude-opus-5-5'), { short: 300, long: 3600 })
+  assert.deepEqual(advertisedCacheLifetime('github-copilot', 'gpt-6.1'), { short: 1800, long: 1800 })
+  assert.deepEqual(advertisedCacheLifetime('openai', 'gpt-5.6'), { short: 1800, long: 1800 })
+  assert.deepEqual(advertisedCacheLifetime('openai', 'gpt-5.5'), { short: 300, long: 1800 })
+  assert.deepEqual(advertisedCacheLifetime('github-copilot', 'o4-mini'), { short: 300, long: 1800 })
+  assert.equal(advertisedCacheLifetime('google', 'gemini-4-argon'), null)
+})
+
+test('fills only the cache lifetimes a model leaves out', () => {
+  const copilot: Record<string, unknown> = { provider: 'github-copilot', id: 'claude-sonnet-5-5' }
+  assert.equal(fillCacheLifetime(copilot), true)
+  assert.deepEqual(copilot.promptCache, { short: 300, long: 3600 })
+  assert.equal(fillCacheLifetime(copilot), false, 'nothing left to fill')
+  const configured: Record<string, unknown> = { provider: 'github-copilot', id: 'gpt-6.1', promptCache: { short: 600 } }
+  fillCacheLifetime(configured)
+  assert.deepEqual(configured.promptCache, { short: 600, long: 1800 })
+  const unknown: Record<string, unknown> = { provider: 'google', id: 'gemini-4-argon' }
+  assert.equal(fillCacheLifetime(unknown), false)
+  assert.equal(unknown.promptCache, undefined)
 })

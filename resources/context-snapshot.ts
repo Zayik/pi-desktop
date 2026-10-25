@@ -218,6 +218,45 @@ export function cacheWarmingOverride(mode: CacheMode, continuationProbability: n
   return (mode === 'keep-warm' || mode === 'auto') && idleWarms < maxIdleWarms ? 'warm' : 'stop'
 }
 
+/**
+ * Prompt cache lifetimes (seconds) the vendors advertise for their current
+ * models, per retention tier as Pi asks for it, or null for models we know
+ * nothing about. GitHub Copilot runs the vendor's models, so its models get
+ * the vendor's numbers.
+ * - Anthropic: 5 minutes, or 1 hour on the long tier.
+ * - OpenAI GPT-5.6 and later: 30 minutes; Pi's long tier also asks for 30.
+ * - Older OpenAI: in-memory caching lasts 5 to 10 minutes (the low end is
+ *   taken); the 24-hour retention Pi's long tier asks for typically holds
+ *   about 30 minutes.
+ */
+export function advertisedCacheLifetime(provider: string, modelId: string): { short: number; long: number } | null {
+  const id = modelId.toLowerCase()
+  const name = provider.toLowerCase()
+  if (name.includes('anthropic') || id.includes('claude')) return { short: 5 * 60, long: 60 * 60 }
+  if (name.includes('openai') || /(^|[./])(gpt|o\d|chatgpt|codex)/.test(id)) {
+    return /gpt-(5\.([6-9]|\d{2,})|[6-9]|\d{2,})/.test(id) ? { short: 30 * 60, long: 30 * 60 } : { short: 5 * 60, long: 30 * 60 }
+  }
+  return null
+}
+
+/**
+ * Give a model the advertised lifetimes for the tiers its definition leaves
+ * out, so Pi's cache warmer (which warms only models with a lifetime) keeps
+ * it warm. A lifetime the catalog or the user's models.json sets is kept.
+ * Returns true when it filled one in.
+ */
+export function fillCacheLifetime(model: unknown): boolean {
+  if (!isRecord(model) || typeof model.provider !== 'string' || typeof model.id !== 'string') return false
+  const advertised = advertisedCacheLifetime(model.provider, model.id)
+  if (!advertised) return false
+  const current = isRecord(model.promptCache) ? model.promptCache : {}
+  const short = typeof current.short === 'number' && current.short > 0 ? current.short : advertised.short
+  const long = typeof current.long === 'number' && current.long > 0 ? current.long : advertised.long
+  if (short === current.short && long === current.long) return false
+  model.promptCache = { ...current, short, long }
+  return true
+}
+
 /** Auto mode's schedule, written by the app beside the snapshots. */
 export const AUTO_WARM_FILE = 'auto-warm.json'
 const AUTO_WARM_VERSION = 1
@@ -238,8 +277,6 @@ export interface AutoWarmSchedule {
   days: number
   models: Record<string, number[]>
   fallback: number[] | null
-  /** The cache lifetime (seconds) each planned model's pings assume, which Pi needs to warm it at all. */
-  lifetimes?: Record<string, number>
 }
 
 function isHourPlan(value: unknown): value is number[] {
@@ -250,12 +287,11 @@ function isHourPlan(value: unknown): value is number[] {
 export function isAutoWarmSchedule(value: unknown): value is AutoWarmSchedule {
   if (!isRecord(value) || value.version !== AUTO_WARM_VERSION || typeof value.builtAt !== 'number' || typeof value.days !== 'number') return false
   if (value.fallback !== null && !isHourPlan(value.fallback)) return false
-  if (value.lifetimes !== undefined && !(isRecord(value.lifetimes) && Object.values(value.lifetimes).every((seconds) => typeof seconds === 'number' && seconds > 0))) return false
   return isRecord(value.models) && Object.values(value.models).every(isHourPlan)
 }
 
 export function emptyAutoWarmSchedule(builtAt: number, days: number): AutoWarmSchedule {
-  return { version: AUTO_WARM_VERSION, builtAt, days, models: {}, fallback: null, lifetimes: {} }
+  return { version: AUTO_WARM_VERSION, builtAt, days, models: {}, fallback: null }
 }
 
 /**

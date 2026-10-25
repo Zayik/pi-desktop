@@ -75,33 +75,3 @@ export async function enableIdleCacheWarming(path = piGlobalSettingsPath()): Pro
   await rename(temp, path)
 }
 
-/** Pi's models file, where a model's `promptCache` lifetime can be set for a built-in model. */
-export function piModelsPath(): string {
-  return join(piGlobalSettingsPath(), '..', 'models.json')
-}
-
-/**
- * Give a model a short-tier prompt cache lifetime through a `modelOverrides`
- * entry, so Pi's cache warmer will keep it warm (Pi warms only models with a
- * known lifetime; GitHub Copilot and OpenAI models ship without one). Only
- * on the user's request; a lifetime already set is kept, and a file that
- * does not parse is left alone. Agents pick it up when restarted.
- */
-export async function enableModelCacheLifetime(provider: string, modelId: string, seconds: number, path = piModelsPath()): Promise<void> {
-  const config = (await readSettingsObject(path)) ?? {}
-  const providers = isPlainObject(config.providers) ? config.providers : (config.providers = {})
-  const entry = isPlainObject(providers[provider]) ? providers[provider] : (providers[provider] = {})
-  const overrides = isPlainObject(entry.modelOverrides) ? entry.modelOverrides : (entry.modelOverrides = {})
-  const model = isPlainObject(overrides[modelId]) ? overrides[modelId] : (overrides[modelId] = {})
-  const promptCache = isPlainObject(model.promptCache) ? model.promptCache : (model.promptCache = {})
-  if (typeof promptCache.short === 'number' && promptCache.short > 0) return
-  promptCache.short = seconds
-  const temp = `${path}.${process.pid}.tmp`
-  await mkdir(join(path, '..'), { recursive: true })
-  await writeFile(temp, `${JSON.stringify(config, null, 2)}\n`)
-  await rename(temp, path)
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}

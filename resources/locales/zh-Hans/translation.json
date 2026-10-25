@@ -289,7 +289,6 @@
       "enableIdleWarming": "",
       "idleWarmingEnabled": "",
       "idleWarmingOff": "",
-      "lifetimeSet": "",
       "modes": {
         "auto": {
           "detail": "",
@@ -308,8 +307,6 @@
           "label": ""
         }
       },
-      "noLifetime": "",
-      "setLifetime": "",
       "title": "",
       "withMode": ""
     },

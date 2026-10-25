@@ -19,6 +19,7 @@ import {
   isCacheMode,
   isCacheModeChoice,
   emptyTotals,
+  fillCacheLifetime,
   recordCall,
   snapshotFileName,
   snapshotModel,
@@ -174,7 +175,22 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     }
   }
 
+  /**
+   * Pi warms only models with a known cache lifetime, and its catalog has
+   * them for direct Anthropic models only. The request Pi warms carries the
+   * session's model object, so the advertised lifetime is filled in there
+   * before each request; the user's models.json still wins.
+   */
+  const fillLifetime = (ctx: ExtensionContext): void => {
+    try {
+      fillCacheLifetime(ctx.model)
+    } catch {
+      // A frozen model object: Pi keeps its own catalog lifetimes.
+    }
+  }
+
   const refreshModel = (ctx: ExtensionContext): void => {
+    fillLifetime(ctx)
     if (!snapshot) return
     snapshot.model = snapshotModel(ctx.model)
     snapshot.reportedTokens = ctx.getContextUsage()?.tokens ?? null
@@ -248,7 +264,8 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     scheduleWrite()
   })
 
-  pi.on('before_agent_start', (event) => {
+  pi.on('before_agent_start', (event, ctx) => {
+    fillLifetime(ctx)
     if (!snapshot) return
     applyMode()
     if (event.messageType !== 'user') return
@@ -257,6 +274,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
   })
 
   pi.on('context_with_system', (event, ctx) => {
+    fillLifetime(ctx)
     if (!snapshot) return
     // A real request (refreshes resend the stored one without this event) restarts the idle budget.
     idleWarms = 0
