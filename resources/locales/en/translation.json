@@ -290,6 +290,39 @@
       "unknownMimeType": "unknown",
       "unsupportedImageType": "Unsupported image type ({{mimeType}}). Use PNG, JPEG, GIF, or WebP."
     },
+    "cacheMode": {
+      "appliesNext": "Applies from this chat's next request. New chats start in the mode you pick.",
+      "autoHour_one": "{{hour}}:00 · {{count}} ping",
+      "autoHour_other": "{{hour}}:00 · {{count}} pings",
+      "autoHours": "Idle pings by hour of day",
+      "autoNoData": "No Anthropic sessions in the last 30 days to learn from yet, so Auto pings 3 times like Keep warm.",
+      "autoNow_one": "This hour: {{count}} idle ping, warm about {{minutes}} min past your last turn.",
+      "autoNow_other": "This hour: {{count}} idle pings, warm about {{minutes}} min past your last turn.",
+      "autoOverride": "Pick another mode to override Auto for this chat.",
+      "enableIdleWarming": "Turn on idle warming",
+      "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
+      "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
+      "modes": {
+        "auto": {
+          "detail": "Keep warm with the number of idle pings that cost least at this hour of day, learned from your last 30 days.",
+          "label": "Auto"
+        },
+        "focus": {
+          "detail": "5-minute cache, refreshed only while the agent works. Nothing is paid while idle.",
+          "label": "Focus"
+        },
+        "keepWarm": {
+          "detail": "5-minute cache, refreshed up to 3 times after the agent stops, so it lasts about 15 minutes past your last turn.",
+          "label": "Keep warm"
+        },
+        "long": {
+          "detail": "1-hour cache. Writing it costs 2× input instead of 1.25×, with nothing paid while idle.",
+          "label": "Long"
+        }
+      },
+      "title": "Prompt cache",
+      "withMode": "Prompt cache: {{mode}}"
+    },
     "closeFileTree": "Close file tree",
     "commandPopup": {
       "selectHint": "↑↓ navigate · Enter/Tab select · Esc close"
@@ -384,14 +417,20 @@
         "unattributedDetail": "What the last call sent beyond the saved conversation: the system prompt, instruction files, skills and tool definitions."
       },
       "cache": {
+        "autoLimit_one": "Auto: {{count}} idle ping this break",
+        "autoLimit_other": "Auto: {{count}} idle pings this break",
         "cold": "Cold",
         "hitRate": "Last call {{percent}}% from cache",
+        "mode": "Mode: {{mode}}",
         "modelChanged": "Cold · model changed",
         "nextCold": "Next if expired",
         "nextColdDetail": "rewrites context",
         "nextWarm": "Next if warm",
         "nextWarmDetail": "reads context",
         "none": "No calls yet",
+        "switchFirstCall": "First request in {{mode}}:",
+        "switchPending": "Switched to {{mode}}. The next request shows whether it read the old cache or wrote a new one.",
+        "switchReadWrite": "read {{read}} ({{readCost}}) · wrote {{write}} ({{writeCost}})",
         "thisTurn": "This turn",
         "title": "Prompt cache",
         "titleWithLifetime": "Prompt cache · {{lifetime}}",

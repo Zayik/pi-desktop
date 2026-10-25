@@ -19,6 +19,8 @@ export const CONTEXT_EXTENSION_FILE = 'pi-desktop-context.ts'
 export const CONTEXT_DIR_ENV = 'PI_DESKTOP_CONTEXT_DIR'
 /** Set by the recorder to its session id, so a Pi process it spawns (a subagent) can name its parent. */
 export const PARENT_SESSION_ENV = 'PI_DESKTOP_PARENT_SESSION_ID'
+/** The cache mode a new session starts in (the app's last choice); a session's mode file wins. */
+export const CACHE_MODE_ENV = 'PI_DESKTOP_CACHE_MODE'
 export const CONTEXT_SNAPSHOT_VERSION = 1
 /** Newest model calls kept in a snapshot; older ones only count in the session totals. */
 export const MAX_RECORDED_CALLS = 200
@@ -131,10 +133,14 @@ export interface ContextSnapshot {
   catalog?: SnapshotModel[]
   updatedAt: number
   model: SnapshotModel | null
-  /** Which prompt cache tier requests ask for (`PI_CACHE_RETENTION=long` picks long). */
+  /** The prompt cache tier the latest request asked for (`PI_CACHE_RETENTION=long` picks long). */
   cacheRetention: 'short' | 'long'
   /** Pi's `cacheWarming` setting (`off`, `streaming`, `idle`), when it has one. */
   cacheWarming: string | null
+  /** The session's cache mode, when the recorder applies one. */
+  cacheMode?: CacheMode
+  /** When the mode was last switched; null while the session keeps the mode it started with. */
+  cacheModeChangedAt?: number | null
   breakdown: ContextBreakdown | null
   /** Pi's own estimate of the context the next request sends, from the last reported usage. */
   reportedTokens: number | null
@@ -148,6 +154,155 @@ export interface ContextSnapshot {
   lastRequestAt: number | null
   /** When Pi last sent a cache-warming refresh. */
   lastWarmAt: number | null
+  /** In auto mode, the idle refreshes allowed for the current break (or the next one, while working). */
+  autoWarmLimit?: number | null
+}
+
+// ─── Cache modes ────────────────────────────────────────────────────────────
+
+/**
+ * How a session uses the prompt cache, picked per session in the app:
+ * - focus: the 5-minute cache, kept alive only while the agent works;
+ * - keep-warm: the 5-minute cache, also refreshed `MAX_IDLE_WARMS` times
+ *   after the agent stops (needs Pi's global `cacheWarming: "idle"`);
+ * - long: the 1-hour cache (`PI_CACHE_RETENTION=long`), never refreshed idle;
+ * - auto: keep-warm with the number of idle refreshes the app picked for
+ *   the hour of day the break starts in, from past sessions (`auto-warm.json`).
+ * A few refreshes cost less than the 1-hour tier's dearer write for breaks
+ * of up to about an hour, so keep-warm is the default.
+ */
+export const CACHE_MODES = ['auto', 'keep-warm', 'focus', 'long'] as const
+export type CacheMode = typeof CACHE_MODES[number]
+export const DEFAULT_CACHE_MODE: CacheMode = 'keep-warm'
+/** Refreshes keep-warm sends after the agent stops, about 4 minutes apart: the cache then lives ~15 minutes past the last turn. */
+export const MAX_IDLE_WARMS = 3
+const CACHE_MODE_SUFFIX = '.mode'
+
+export interface CacheModeChoice {
+  mode: CacheMode
+  /** When it was picked (ms since epoch). */
+  changedAt: number
+}
+
+export function isCacheMode(value: unknown): value is CacheMode {
+  return typeof value === 'string' && (CACHE_MODES as readonly string[]).includes(value)
+}
+
+export function isCacheModeChoice(value: unknown): value is CacheModeChoice {
+  return isRecord(value) && isCacheMode(value.mode) && typeof value.changedAt === 'number' && Number.isFinite(value.changedAt)
+}
+
+/** The file beside a session's snapshot that holds the mode picked for it. */
+export function cacheModeFileName(sessionId: string): string {
+  return snapshotFileName(sessionId).replace(/\.json$/, CACHE_MODE_SUFFIX)
+}
+
+export function isCacheModeFileName(name: string): boolean {
+  return name.endsWith(CACHE_MODE_SUFFIX)
+}
+
+/** The cache tier requests ask for in a mode. */
+export function cacheRetentionFor(mode: CacheMode): 'short' | 'long' {
+  return mode === 'long' ? 'long' : 'short'
+}
+
+/**
+ * The mode's answer to one of Pi's cache-warming decisions, or null to leave
+ * Pi's own. While the agent works Pi expects the next request for sure
+ * (continuation probability 1) and decides by price; once it stops, only
+ * keep-warm and auto refresh, up to `maxIdleWarms` times since the last real
+ * request, and the others stop so they never pay for idle time.
+ */
+export function cacheWarmingOverride(mode: CacheMode, continuationProbability: number, idleWarms: number, maxIdleWarms = MAX_IDLE_WARMS): 'warm' | 'stop' | null {
+  if (continuationProbability >= 1) return null
+  return (mode === 'keep-warm' || mode === 'auto') && idleWarms < maxIdleWarms ? 'warm' : 'stop'
+}
+
+/**
+ * Prompt cache lifetimes (seconds) the vendors advertise for their current
+ * models, per retention tier as Pi asks for it, or null for models we know
+ * nothing about. GitHub Copilot runs the vendor's models, so its models get
+ * the vendor's numbers.
+ * - Anthropic: 5 minutes, or 1 hour on the long tier.
+ * - OpenAI GPT-5.6 and later: 30 minutes; Pi's long tier also asks for 30.
+ * - Older OpenAI: in-memory caching lasts 5 to 10 minutes (the low end is
+ *   taken); the 24-hour retention Pi's long tier asks for typically holds
+ *   about 30 minutes.
+ */
+export function advertisedCacheLifetime(provider: string, modelId: string): { short: number; long: number } | null {
+  const id = modelId.toLowerCase()
+  const name = provider.toLowerCase()
+  if (name.includes('anthropic') || id.includes('claude')) return { short: 5 * 60, long: 60 * 60 }
+  if (name.includes('openai') || /(^|[./])(gpt|o\d|chatgpt|codex)/.test(id)) {
+    return /gpt-(5\.([6-9]|\d{2,})|[6-9]|\d{2,})/.test(id) ? { short: 30 * 60, long: 30 * 60 } : { short: 5 * 60, long: 30 * 60 }
+  }
+  return null
+}
+
+/**
+ * Give a model the advertised lifetimes for the tiers its definition leaves
+ * out, so Pi's cache warmer (which warms only models with a lifetime) keeps
+ * it warm. A lifetime the catalog or the user's models.json sets is kept.
+ * Returns true when it filled one in.
+ */
+export function fillCacheLifetime(model: unknown): boolean {
+  if (!isRecord(model) || typeof model.provider !== 'string' || typeof model.id !== 'string') return false
+  const advertised = advertisedCacheLifetime(model.provider, model.id)
+  if (!advertised) return false
+  const current = isRecord(model.promptCache) ? model.promptCache : {}
+  const short = typeof current.short === 'number' && current.short > 0 ? current.short : advertised.short
+  const long = typeof current.long === 'number' && current.long > 0 ? current.long : advertised.long
+  if (short === current.short && long === current.long) return false
+  model.promptCache = { ...current, short, long }
+  return true
+}
+
+/** Auto mode's schedule, written by the app beside the snapshots. */
+export const AUTO_WARM_FILE = 'auto-warm.json'
+const AUTO_WARM_VERSION = 1
+const HOURS_PER_DAY = 24
+/** Most idle refreshes a plan holds: a 30-minute cache refreshed every 24 minutes through 12 hours. Pi itself stops idle warming 30 minutes after a run. */
+export const MAX_AUTO_WARMS = 29
+
+/**
+ * Idle refreshes per local hour of the day (index 0 to 23), per
+ * `provider/model`, plus the plan of the model used most for models without
+ * one of their own.
+ */
+export interface AutoWarmSchedule {
+  version: typeof AUTO_WARM_VERSION
+  /** When the app built it (ms since epoch). */
+  builtAt: number
+  /** Days of sessions it was built from. */
+  days: number
+  models: Record<string, number[]>
+  fallback: number[] | null
+}
+
+function isHourPlan(value: unknown): value is number[] {
+  return Array.isArray(value) && value.length === HOURS_PER_DAY &&
+    value.every((pings) => Number.isInteger(pings) && pings >= 0 && pings <= MAX_AUTO_WARMS)
+}
+
+export function isAutoWarmSchedule(value: unknown): value is AutoWarmSchedule {
+  if (!isRecord(value) || value.version !== AUTO_WARM_VERSION || typeof value.builtAt !== 'number' || typeof value.days !== 'number') return false
+  if (value.fallback !== null && !isHourPlan(value.fallback)) return false
+  return isRecord(value.models) && Object.values(value.models).every(isHourPlan)
+}
+
+export function emptyAutoWarmSchedule(builtAt: number, days: number): AutoWarmSchedule {
+  return { version: AUTO_WARM_VERSION, builtAt, days, models: {}, fallback: null }
+}
+
+/**
+ * Idle refreshes auto mode allows for a break that starts at `at` (local
+ * time) on a model: its own plan, the fallback plan, or keep-warm's count
+ * when there is no schedule yet.
+ */
+export function autoWarmLimit(schedule: AutoWarmSchedule | null, model: string | null, at: number): number {
+  const hour = new Date(at).getHours()
+  const plan = (model ? schedule?.models[model] : undefined) ?? schedule?.fallback ?? null
+  return plan ? plan[hour] : MAX_IDLE_WARMS
 }
 
 // ─── Estimation ─────────────────────────────────────────────────────────────

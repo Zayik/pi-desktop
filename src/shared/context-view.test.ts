@@ -4,6 +4,7 @@ import { CONTEXT_SNAPSHOT_VERSION, emptyTotals, type ContextSnapshot, type Model
 import {
   billingTable,
   cacheHitRate,
+  cacheModeSwitch,
   cacheState,
   contextIsHigh,
   contextTokens,
@@ -137,4 +138,12 @@ test('flags a context at 70% of the window or 300k tokens', () => {
   assert.equal(contextIsHigh(140_000, 200_000), true)
   assert.equal(contextIsHigh(300_000, 1_000_000), true)
   assert.equal(contextIsHigh(null, 200_000), false)
+})
+
+test('finds the first reply after a cache mode switch', () => {
+  assert.equal(cacheModeSwitch(snapshot()), null)
+  const pending = cacheModeSwitch(snapshot({ cacheMode: 'long', cacheModeChangedAt: 10_000 }))
+  assert.deepEqual(pending && { mode: pending.mode, firstCall: pending.firstCall }, { mode: 'long', firstCall: null })
+  const switched = snapshot({ cacheMode: 'long', cacheModeChangedAt: 500, calls: [call(100), call(900, { cacheWrite: 4000 })] })
+  assert.equal(cacheModeSwitch(switched)?.firstCall?.cacheWrite, 4000)
 })

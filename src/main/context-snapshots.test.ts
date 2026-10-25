@@ -58,3 +58,14 @@ test('prunes snapshots and temp files older than the retention window', async ()
     assert.deepEqual((await readdir(dir)).sort(), ['fresh.json', 'notes.txt'])
   })
 })
+
+test('prunes old cache mode files with the snapshots', async () => {
+  await withDir(async (dir) => {
+    const now = Date.now()
+    const old = new Date(now - 31 * 24 * 60 * 60 * 1000)
+    for (const name of ['old.mode', 'fresh.mode']) await writeFile(join(dir, name), '{}')
+    await utimes(join(dir, 'old.mode'), old, old)
+    await pruneContextSnapshots(dir, now)
+    assert.deepEqual(await readdir(dir), ['fresh.mode'])
+  })
+})
