@@ -327,6 +327,8 @@ interface AppState {
   currentView: 'home' | 'chat' | 'mission-control' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills' | 'diagnostics'
   /** The full-page "Pi not found" setup screen, shown over every view. */
   piSetupOpen: boolean
+  /** Why Pi cannot start, from the last setup check; null when it can. */
+  piSetupFailure: 'pi-not-found' | 'node-not-found' | null
   // Scope for the Sessions view: 'current' shows only the active workspace's
   // sessions, 'all' keeps every project's history visible. Entry points set it
   // (sidebar Sessions = current, View all / command palette = all); the panel's
@@ -569,6 +571,7 @@ interface AppActions {
   // UI
   setCurrentView: (view: AppState['currentView']) => void
   setPiSetupOpen: (open: boolean) => void
+  setPiSetupFailure: (failure: AppState['piSetupFailure']) => void
   setSessionsScope: (scope: 'all' | 'current') => void
   setWorkflowPanelOpen: (open: boolean) => void
   openWorkflowRunsForSession: (sessionId: string) => void
@@ -1166,6 +1169,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
   currentView: 'home',
   piSetupOpen: false,
+  piSetupFailure: null,
   sessionsScope: 'all',
   workflowPanelOpen: false,
   workflowPanelFilter: null,
@@ -2353,6 +2357,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
 
   setCurrentView: (view) => set({ currentView: view }),
   setPiSetupOpen: (open) => set({ piSetupOpen: open }),
+  setPiSetupFailure: (failure) => set({ piSetupFailure: failure }),
   // Lifted into the store so the scope survives SessionPanel remounts (it
   // unmounts on every navigation) and so sidebar entry points can set it.
   setSessionsScope: (scope) => set({ sessionsScope: scope }),

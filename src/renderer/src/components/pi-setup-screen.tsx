@@ -177,12 +177,50 @@ function InstallRow({
 }
 
 /**
+ * The warning that stays visible while Pi cannot start: a strip across the
+ * top of the window, or a box inside Settings. Either one reopens the setup
+ * page.
+ */
+export function PiMissingNotice({
+  failure,
+  variant,
+}: {
+  failure: 'pi-not-found' | 'node-not-found'
+  variant: 'banner' | 'inline'
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const setPiSetupOpen = useAppStore((s) => s.setPiSetupOpen)
+  return (
+    <div
+      role="alert"
+      className={clsx(
+        'flex items-center gap-2 bg-warning/15 text-xs text-warning',
+        variant === 'banner' ? 'shrink-0 justify-center px-4 py-1.5' : 'rounded-md px-3 py-2'
+      )}
+    >
+      <AlertTriangle size={14} className="shrink-0" />
+      <span className={variant === 'inline' ? 'flex-1' : undefined}>
+        {failure === 'node-not-found' ? t('piSetup.notice.noNode') : t('piSetup.notice.notFound')}
+      </span>
+      <button
+        type="button"
+        onClick={() => setPiSetupOpen(true)}
+        className="shrink-0 rounded bg-warning/25 px-2 py-0.5 font-medium transition-colors hover:bg-warning/40"
+      >
+        {t('piSetup.notice.fix')}
+      </button>
+    </div>
+  )
+}
+
+/**
  * The page shown at launch when Pi cannot be started: why, a way to install
  * it, a way to point at an existing install, and every place that was searched.
  */
 export function PiSetupScreen(): React.JSX.Element {
   const { t } = useTranslation()
   const setPiSetupOpen = useAppStore((s) => s.setPiSetupOpen)
+  const setPiSetupFailure = useAppStore((s) => s.setPiSetupFailure)
   const setCurrentView = useAppStore((s) => s.setCurrentView)
   const startPi = useAppStore((s) => s.startPi)
   const loadSettings = useAppStore((s) => s.loadSettings)
@@ -221,6 +259,11 @@ export function PiSetupScreen(): React.JSX.Element {
   useEffect(() => {
     void check()
   }, [check])
+
+  // Keep the app-wide warning in step with what this screen last found.
+  useEffect(() => {
+    if (report) setPiSetupFailure(report.failure)
+  }, [report, setPiSetupFailure])
 
   useEffect(() => window.piDesktop.pi.onInstallOutput((chunk) => {
     setOutput((prev) => (prev + chunk).slice(-OUTPUT_MAX_CHARS))

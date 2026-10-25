@@ -1222,6 +1222,11 @@
       "settingsUnset": "No path is set in Settings, so Pi Desktop searches on its own.",
       "versionManager": "Node versions installed by nvm, fnm, Volta and similar tools."
     },
+    "notice": {
+      "fix": "Click here to resolve",
+      "noNode": "Pi was found, but Node.js is missing, so Pi cannot start.",
+      "notFound": "Pi is not installed, or it is not in a folder Pi Desktop knows about."
+    },
     "notSet": "Not set",
     "platform": {
       "linux": "Linux",
