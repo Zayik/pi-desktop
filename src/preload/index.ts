@@ -13,6 +13,7 @@ import type {
   PiInstallMethod,
   PiInstallResult,
   PiSetupReport,
+  PiProviderStatus,
   Workspace,
   WorkspaceTabOptions,
   WorkspaceRemoveResult,
@@ -113,6 +114,15 @@ interface PiDesktopAPI {
     getSetupReport(): Promise<PiSetupReport>
     install(method: PiInstallMethod): Promise<PiInstallResult>
     onInstallOutput(callback: (chunk: string) => void): () => void
+    /** Providers Pi can use and whether each one's credential works. */
+    listProviders(): Promise<PiProviderStatus[]>
+    /** Run Pi's own `/login` (for one provider, or its full picker) in a PTY. */
+    loginStart(provider: string | null, size: { cols: number; rows: number }): Promise<void>
+    loginInput(data: string): Promise<void>
+    loginResize(size: { cols: number; rows: number }): Promise<void>
+    loginStop(): Promise<void>
+    onLoginData(callback: (data: string) => void): () => void
+    onLoginExit(callback: (event: { exitCode: number }) => void): () => void
   }
 
   // Pi commands
@@ -471,6 +481,21 @@ const api: PiDesktopAPI = {
       const handler = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk)
       ipcRenderer.on(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, handler)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, handler)
+    },
+    listProviders: () => ipcRenderer.invoke(IPC_CHANNELS.PI_PROVIDERS_LIST),
+    loginStart: (provider, size) => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_START, provider, size),
+    loginInput: (data) => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_INPUT, data),
+    loginResize: (size) => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_RESIZE, size),
+    loginStop: () => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_STOP),
+    onLoginData: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_PI_LOGIN_DATA, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_LOGIN_DATA, handler)
+    },
+    onLoginExit: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { exitCode: number }) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_PI_LOGIN_EXIT, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_LOGIN_EXIT, handler)
     },
   },
 

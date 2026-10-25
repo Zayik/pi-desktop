@@ -1265,6 +1265,36 @@
     "titleFound": "Pi is ready",
     "titleNoNode": "Node.js is missing"
   },
+  "providers": {
+    "authType": {
+      "apiKey": "API key",
+      "oauth": "Account sign-in"
+    },
+    "change": "Change",
+    "connect": "Connect a provider",
+    "description": "The AI services Pi can use. This list, each status and the sign-in screen all come from Pi itself, so new providers and sign-in methods show up when Pi updates.",
+    "loading": "Asking Pi…",
+    "login": {
+      "done": "Done",
+      "hint": "This is Pi's own sign-in. Follow its steps; links open in your browser. Click Done when you are finished.",
+      "title": "Sign in with Pi",
+      "titleProvider": "Sign in to {{provider}} with Pi"
+    },
+    "none": "Pi has no provider it can use yet.",
+    "notice": {
+      "connect": "Connect a provider",
+      "none": "No AI provider is connected yet, so Pi cannot answer."
+    },
+    "piMissing": "Install Pi first, then connect a provider here.",
+    "refresh": "Check again",
+    "signIn": "Sign in",
+    "status": {
+      "invalid": "Sign-in failed",
+      "notReady": "Not signed in",
+      "ready": "Connected",
+      "unknown": "Unknown"
+    }
+  },
   "repoSets": {
     "bar": {
       "addRepository": "Add repo",
@@ -1579,6 +1609,7 @@
       "behavior": "Behavior",
       "customModels": "Custom Models",
       "multiAgentCouncilPlanning": "Multi-Agent Council Planning",
+      "providers": "Providers",
       "typesafe": "TypeSafe Jev",
       "voiceDictation": "Voice dictation"
     },

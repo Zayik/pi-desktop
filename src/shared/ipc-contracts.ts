@@ -19,6 +19,11 @@ export const IPC_CHANNELS = {
   PI_DETECT_INSTALLATIONS: 'pi:detect-installations',
   PI_SETUP_REPORT: 'pi:setup-report',
   PI_INSTALL: 'pi:install',
+  PI_PROVIDERS_LIST: 'pi:providers-list',
+  PI_LOGIN_START: 'pi:login-start',
+  PI_LOGIN_INPUT: 'pi:login-input',
+  PI_LOGIN_RESIZE: 'pi:login-resize',
+  PI_LOGIN_STOP: 'pi:login-stop',
 
   // Pi commands
   PI_PROMPT: 'pi:prompt',
@@ -230,6 +235,8 @@ export const IPC_CHANNELS = {
   EVENT_COUNCIL_PROGRESS: 'event:council-progress',
   EVENT_VOICE_PROGRESS: 'event:voice-progress',
   EVENT_PI_INSTALL_OUTPUT: 'event:pi-install-output',
+  EVENT_PI_LOGIN_DATA: 'event:pi-login-data',
+  EVENT_PI_LOGIN_EXIT: 'event:pi-login-exit',
   EVENT_VOICE_SHORTCUT: 'event:voice-shortcut',
 
   // Voice dictation
@@ -1881,6 +1888,16 @@ export interface PiInstallResult {
   output: string
   /** The setup state after the install, so the screen can close on success. */
   report: PiSetupReport
+}
+
+/** A provider Pi can use, and whether its credential works (`pi auth check`). */
+export interface PiProviderStatus {
+  provider: string
+  /** `unknown` when this Pi cannot answer `auth check`. */
+  status: 'ready' | 'not_ready' | 'invalid' | 'unknown'
+  /** `api_key`, `oauth`, … as Pi reports it. */
+  authType?: string
+  reason?: string
 }
 
 /** Everything the Diagnostics view shows, assembled in one main-side pass. */

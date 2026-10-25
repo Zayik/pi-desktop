@@ -221,6 +221,7 @@ export function PiSetupScreen(): React.JSX.Element {
   const { t } = useTranslation()
   const setPiSetupOpen = useAppStore((s) => s.setPiSetupOpen)
   const setPiSetupFailure = useAppStore((s) => s.setPiSetupFailure)
+  const refreshPiProviders = useAppStore((s) => s.refreshPiProviders)
   const setCurrentView = useAppStore((s) => s.setCurrentView)
   const startPi = useAppStore((s) => s.startPi)
   const loadSettings = useAppStore((s) => s.loadSettings)
@@ -239,9 +240,10 @@ export function PiSetupScreen(): React.JSX.Element {
       if (next.failure === null) {
         setPiSetupOpen(false)
         void startPi()
+        void refreshPiProviders()
       }
     },
-    [setPiSetupOpen, startPi]
+    [setPiSetupOpen, startPi, refreshPiProviders]
   )
 
   const check = useCallback(async (): Promise<void> => {

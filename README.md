@@ -223,6 +223,12 @@ If Pi Desktop cannot find Pi when it starts, it opens a setup page instead of th
 
 ![Setup page when Pi is not installed](docs/screenshots/pi-setup.png)
 
+### Connecting a provider
+
+Settings > Providers lists the AI services Pi can use and whether each one is signed in. All of it comes from Pi: the list from `pi --list-models`, each status from `pi auth check --json`. **Connect a provider** (or **Sign in** on a row) opens Pi's own `/login` screen in a terminal inside the app, so every sign-in method Pi supports (account sign-in, device codes, API keys) works, and new ones arrive when Pi updates. Credentials go where Pi keeps them (`~/.pi/agent/auth.json`). While Pi runs with no provider signed in, a strip at the top of the window links to the same screen.
+
+![Pi's sign-in inside Pi Desktop](docs/screenshots/pi-login.png)
+
 On Linux, grab the AppImage from [Releases](https://github.com/FaqFirebase/pi-desktop/releases):
 
 ```bash

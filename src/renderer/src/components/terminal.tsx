@@ -23,7 +23,7 @@ import {
 // Build the xterm color theme from the active app theme's CSS variables so the
 // terminal matches whichever theme (dark/light/nord/gruvbox/breeze) is applied.
 // Falls back to the dark palette if a variable is missing.
-function buildTerminalTheme(): ITheme {
+export function buildTerminalTheme(): ITheme {
   const css = getComputedStyle(document.documentElement)
   const v = (name: string, fallback: string): string => {
     const value = css.getPropertyValue(name).trim()

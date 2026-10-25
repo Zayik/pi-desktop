@@ -1,5 +1,6 @@
 import { useAppStore } from '../store'
 import { PiMissingNotice } from './pi-setup-screen'
+import { ProvidersSection } from './providers-panel'
 import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../../shared/agent-engine-label'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { clsx } from 'clsx'
@@ -800,6 +801,11 @@ export function SettingsPanel(): React.JSX.Element {
               )}
             </div>
           </SettingsRow>
+        </SettingsSection>
+
+        {/* Providers: read from and signed in through Pi itself */}
+        <SettingsSection title={t('settings.sections.providers')}>
+          <ProvidersSection />
         </SettingsSection>
 
         {/* Appearance */}
