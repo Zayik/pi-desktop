@@ -105,15 +105,16 @@ export function retroDigest(report: AnalyticsReport, title: string | null = null
 
   if (report.cache.models.some((model) => model.policies.length > 0)) {
     lines.push('## Prompt cache settings (replayed)', '')
-    lines.push('Prompt cost of the same calls at the same times under each setting; measured is what was billed. 5m-warm pings every 4 minutes.', '')
+    lines.push('Prompt cost of the same calls at the same times under each setting; measured is what was billed.', '')
     for (const model of report.cache.models.filter((entry) => entry.policies.length > 0).slice(0, MAX_DIGEST_ROWS)) {
       const options = model.policies.map((policy) => `${policy.policy} ${money(policy.cost)}`).join(', ')
       lines.push(`- ${model.model} (${model.calls} calls, now ${model.currentPolicy ?? 'unknown'}${model.currentPolicyMeasured ? '' : ' (assumed)'}, measured ${money(model.measuredCost)}, median gap ${duration(model.medianGapMs)}): ${options}${model.recommended ? `; cheapest ${model.recommended}, saves ${money(model.saving)}` : ''}`)
+      if (model.notes.length > 0) lines.push(`  - Notes: ${model.notes.join(', ')}.`)
       const best = model.bestPings
       if (best) {
         const sweep = model.pingSweep.map((point) => `${point.pings} ${money(point.cost)}`).join(', ')
-        lines.push(`  - Pings per idle gap on 5m (every 4 min): ${sweep}${model.oneHourCost !== null ? `; 1h ${money(model.oneHourCost)}` : ''}.`)
-        lines.push(`  - Cheapest: 5m + ${best.pings} ping(s), warm through ${best.idleMinutes} min of idle, ${money(best.cost)} (${best.saving >= 0 ? `saves ${money(best.saving)}` : `costs ${money(-best.saving)} more`} vs now, ${money(best.saving / Math.max(1, model.sessions))} per session).`)
+        lines.push(`  - Pings per idle gap on ${model.sweepPolicy} (every ${Math.round(model.pingEveryMs / 60_000)} min): ${sweep}${model.longCost !== null ? `; ${model.longPolicy} ${money(model.longCost)}` : ''}.`)
+        lines.push(`  - Cheapest: ${model.sweepPolicy} + ${best.pings} ping(s), warm through ${duration(best.idleMinutes * 60_000)} of idle, ${money(best.cost)} (${best.saving >= 0 ? `saves ${money(best.saving)}` : `costs ${money(-best.saving)} more`} vs now, ${money(best.saving / Math.max(1, model.sessions))} per session).`)
       }
       if (model.autoCost !== null && model.autoSaving > 0) {
         const plan = model.hourly.map((hour) => `${String(hour.hour).padStart(2, '0')}:00 ${hour.pings}`).join(', ')

@@ -26,6 +26,9 @@ test('names the provider from the provider or the model id', () => {
   assert.equal(cacheProvider('anthropic/claude-opus-5-5'), 'anthropic')
   assert.equal(cacheProvider('amazon-bedrock/us.anthropic.claude-sonnet-5-5'), 'anthropic')
   assert.equal(cacheProvider('openai/gpt-6.1'), 'openai')
+  assert.equal(cacheProvider('github-copilot/claude-opus-5.5'), 'anthropic')
+  assert.equal(cacheProvider('github-copilot/gpt-5.3-codex'), 'openai')
+  assert.equal(cacheProvider('openai-codex/gpt-5.5'), 'openai')
   assert.equal(cacheProvider('google/gemini-4-argon'), 'other')
 })
 
@@ -94,7 +97,8 @@ test('sweeps pings per gap and buckets the gaps', () => {
   // More pings than needed send no more and cost the same; fewer waste pings and still miss.
   assert.equal(model.pingSweep[5].cost, model.pingSweep[3].cost)
   assert.ok(model.pingSweep[2].cost > model.pingSweep[0].cost)
-  assert.ok(model.oneHourCost !== null)
+  assert.equal(model.longPolicy, '1h')
+  assert.ok(model.longCost !== null)
   assert.equal(report.days.length, 1)
   assert.equal(report.days[0].calls, 21)
   assert.equal(report.days[0].coldCalls, 1)
@@ -132,6 +136,70 @@ test('back-to-back calls keep the 5 minute default', () => {
   const calls: CacheCall[] = [call(0, 20_000, true)]
   for (let index = 1; index <= 20; index++) calls.push(call(index * 30_000, 20_000 + index * 800))
   assert.equal(buildCacheReport([session(calls)]).models[0].recommended, null)
+})
+
+/** A call on OpenAI's automatic cache: no writes, the uncached part billed as input. */
+function autoCall(at: number, prompt: number, first = false): CacheCall {
+  const read = first ? 0 : prompt - 1000
+  const input = prompt - read
+  return [at, 0, input, read, 0, 0, input * PRICE, read * PRICE * 0.1, 0]
+}
+
+test('GPT-5.6 and later compare 30 minutes with 12 hours, whose reads do not restart its clock', () => {
+  const calls: CacheCall[] = [call(0, 40_000, true)]
+  // 35 minute gaps for under 12 hours: one 12 hour write beats a ping in each of 20 gaps.
+  for (let index = 1; index <= 20; index++) calls.push(call(index * 35 * MINUTE, 40_000 + index * 500))
+  const model = buildCacheReport([session(calls, ['openai/gpt-5.6-sol'])]).models[0]
+  assert.equal(model.family, 'openai-ttl')
+  assert.equal(model.currentPolicy, '30m')
+  assert.ok(model.currentPolicyMeasured)
+  assert.ok(model.policies.some((policy) => policy.policy === '12h'))
+  assert.equal(model.recommended, '12h')
+  assert.ok(model.notes.includes('pi-no-12h'))
+  assert.equal(model.pingEveryMs, 24 * MINUTE)
+  assert.equal(model.pingSweep.length, 30)
+  assert.equal(model.shortTtlMs, 30 * MINUTE)
+
+  const spec = { id: '12h' as const, ttlMs: 12 * 60 * MINUTE, write: 2.5, hitKeepsMs: 30 * MINUTE }
+  const prices = { inputPrice: PRICE, readRatio: 0.1 }
+  // A read at 11:50 keeps the entry until 12:20 only; a call at 12:40 finds it gone.
+  const timed = replay([call(0, 10_000, true), call(710 * MINUTE, 10_500), call(760 * MINUTE, 11_000)], spec, prices)
+  assert.equal(timed.coldCalls, 2)
+})
+
+test('earlier OpenAI models cache automatically and can ask for 24h retention', () => {
+  const calls: CacheCall[] = [autoCall(0, 40_000, true)]
+  for (let index = 1; index <= 20; index++) calls.push(autoCall(index * 15 * MINUTE, 40_000 + index * 500))
+  const model = buildCacheReport([session(calls, ['openai/gpt-5.4'])]).models[0]
+  assert.equal(model.family, 'openai-implicit')
+  assert.equal(model.currentPolicy, 'in-memory')
+  assert.equal(model.currentPolicyMeasured, false)
+  assert.equal(model.recommended, '24h')
+  assert.ok(Math.abs(model.readRatio - 0.1) < 1e-9)
+  assert.ok(model.notes.includes('implicit-lifetime'))
+})
+
+test('Copilot offers no longer lifetime, only pings', () => {
+  const calls: CacheCall[] = [call(0, 40_000, true)]
+  for (let index = 1; index <= 20; index++) calls.push(call(index * 15 * MINUTE, 40_000 + index * 500))
+  const claude = buildCacheReport([session(calls, ['github-copilot/claude-sonnet-5.5'])]).models[0]
+  assert.equal(claude.route, 'copilot')
+  assert.equal(claude.family, 'anthropic')
+  assert.equal(claude.currentPolicy, '5m')
+  assert.ok(!claude.policies.some((policy) => policy.policy === '1h'))
+  assert.equal(claude.longPolicy, null)
+  assert.ok(claude.recommended?.startsWith('5m-warm'))
+  assert.ok(claude.notes.includes('copilot-lifetime'))
+  assert.equal(claude.pingSweep.length, MAX_SWEEP_PINGS + 1)
+
+  const gpt = buildCacheReport([session(calls, ['github-copilot/gpt-5.6-terra'])]).models[0]
+  assert.equal(gpt.family, 'openai-ttl')
+  assert.ok(!gpt.policies.some((policy) => policy.policy === '12h'))
+
+  const gemini = buildCacheReport([session(calls.map((entry) => autoCall(entry[0], 40_000)), ['github-copilot/gemini-4-argon'])]).models[0]
+  assert.equal(gemini.family, 'none')
+  assert.deepEqual(gemini.policies, [])
+  assert.deepEqual(gemini.notes, ['copilot-automatic'])
 })
 
 test('a provider without settings to compare reports its cost only', () => {
