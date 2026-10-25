@@ -486,6 +486,7 @@
       "loading": "Loading…",
       "noSession": "Open a session to see its context.",
       "noSnapshot": "Nothing recorded for this session yet. Recording starts when its agent starts, so send a message or restart the agent.",
+      "openInBrowser": "Open in browser, with every Pi session on this computer",
       "tiles": {
         "calls_one": "{{count}} request",
         "calls_other": "{{count}} requests",
@@ -1617,6 +1618,28 @@
     },
     "sessionStatusHeading": "Session Status",
     "subtitle": "Control what {{agent}} can do before changes move forward."
+  },
+  "sessionPage": {
+    "followDesktop": "Follow Pi Desktop",
+    "historyNote": "From Pi's session log: this session ran without pi-analytics, so the prompt, tools and cache details are estimates.",
+    "live": "Live",
+    "loading": "Loading…",
+    "noData": "Nothing recorded for this session yet.",
+    "none": "No Pi sessions in the last 7 days.",
+    "pick": "Pick a session",
+    "recent": "Recent",
+    "reconnecting": "Reconnecting…",
+    "running": "Running",
+    "state": {
+      "ended": "Ended",
+      "history": "From log",
+      "idle": "Idle",
+      "stopped": "Stopped",
+      "working": "Working"
+    },
+    "stoppedNote": "Pi stopped without closing this session, so the figures end where it stopped.",
+    "title": "Pi sessions",
+    "untitled": "Untitled session"
   },
   "sessions": {
     "activeBadge": "active",

@@ -408,6 +408,10 @@ interface PiDesktopAPI {
     getCacheWarming(): Promise<string | null>
     /** Sets Pi's global `cacheWarming` to "idle", which keep-warm needs. */
     enableIdleCacheWarming(): Promise<void>
+    /** Opens pi-analytics' live session page in the browser, following the chat open here. */
+    openSessionPage(sessionId: string | null): Promise<void>
+    /** The chat open now, for the session page to follow once it has been opened. */
+    setDesktopFocus(sessionId: string | null): Promise<void>
     /** Auto mode's idle pings per hour of day, built from the last 30 days; null when there is none. */
     getAutoWarmSchedule(): Promise<AutoWarmSchedule | null>
   }
@@ -741,6 +745,8 @@ const api: PiDesktopAPI = {
     getCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING),
     enableIdleCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING),
     getAutoWarmSchedule: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AUTO_WARM_SCHEDULE),
+    openSessionPage: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_OPEN_SESSION_PAGE, sessionId),
+    setDesktopFocus: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_DESKTOP_FOCUS, sessionId),
   },
 
   analytics: {

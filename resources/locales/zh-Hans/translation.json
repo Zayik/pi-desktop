@@ -460,6 +460,7 @@
       "loading": "",
       "noSession": "",
       "noSnapshot": "",
+      "openInBrowser": "",
       "tiles": {
         "calls_other": "",
         "context": "",
@@ -1569,6 +1570,28 @@
     },
     "sessionStatusHeading": "会话状态",
     "subtitle": "在更改推进前，控制 {{agent}} 可以执行的操作。"
+  },
+  "sessionPage": {
+    "followDesktop": "",
+    "historyNote": "",
+    "live": "",
+    "loading": "",
+    "noData": "",
+    "none": "",
+    "pick": "",
+    "recent": "",
+    "reconnecting": "",
+    "running": "",
+    "state": {
+      "ended": "",
+      "history": "",
+      "idle": "",
+      "stopped": "",
+      "working": ""
+    },
+    "stoppedNote": "",
+    "title": "",
+    "untitled": ""
   },
   "sessions": {
     "activeBadge": "进行中",

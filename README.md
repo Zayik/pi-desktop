@@ -72,7 +72,11 @@ The panel finds a chat's other agents in the files they already write, so no sub
 
 Those sessions are read from their JSONL: every call counts toward cost, and the context breakdown covers the conversation, with the rest of the last call's prompt (system prompt and tools) shown as one share. Cache countdowns for a subagent use the main agent's model details when it ran the same model.
 
-The bundled `pi-desktop-context.ts` extension records the main agent's snapshot. It only observes: it adds nothing to the context and changes no request. It writes one JSON snapshot per session to `<GUI data dir>/context-snapshots/`, rebuilt from the saved session when one is resumed. The category breakdown follows [pi-context-view](https://github.com/dimk90/pi-context-view).
+The main agent's snapshot is recorded by the bundled [pi-analytics](packages/pi-analytics) package (and, for OMP, by `pi-desktop-context.ts`, the same recorder on its own). It only observes: it adds nothing to the context and changes no request. It writes one JSON snapshot per session to `~/.pi/agent/pi-analytics/context/`, rebuilt from the saved session when one is resumed; Pi sessions in a terminal with the package installed write there too, so a chat started in either place shows the same figures in both. The category breakdown follows [pi-context-view](https://github.com/dimk90/pi-context-view).
+
+**Open in browser** (the arrow button in the panel's header) opens the same board as a web page, with every Pi session on the computer in a sidebar: the chats here, and Pi sessions in a terminal. It follows the chat open in the app until you pick another session, and it only reads. In a terminal, `/start-session-analyzer` opens the same page; the [pi-analytics README](packages/pi-analytics/README.md#live-session-page) has the details.
+
+![The live session page: every Pi session in the sidebar, the same board as the Context panel for the one picked](docs/screenshots/session-page.png)
 
 ## Analytics
 

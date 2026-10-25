@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { mkdirSync, renameSync, writeFileSync } from 'fs'
 import { dirname } from 'path'
-import { analyticsDir, sessionStatusPath } from './paths'
+import { recordContext } from '../../../resources/pi-desktop-context'
+import { analyticsDir, contextDir, sessionStatusPath } from './paths'
 import { CacheWarming, type WarmingModel } from './warming'
 import { quietSqliteWarning } from './quiet'
 import type { SessionCacheStatus } from './cache-plan'
@@ -13,12 +14,14 @@ const FOOTER_KEY = 'pi-analytics'
 
 /**
  * pi-analytics in Pi: the `/analytics` command (report, recommend, apply,
- * undo, reset, plan) and the cache plan applied to every request. It owns
- * `cache_warming_decision`; other extensions only observe it.
+ * undo, reset, plan), the cache plan applied to every request, and the
+ * context recorder the session page reads. It owns `cache_warming_decision`;
+ * other extensions only observe it.
  */
 export default function piAnalytics(pi: ExtensionAPI): void {
   quietSqliteWarning()
   const dir = analyticsDir()
+  recordContext(pi, contextDir(dir))
   let timer: ReturnType<typeof setTimeout> | null = null
   let pending: SessionCacheStatus | null = null
   let ui: ExtensionContext['ui'] | null = null
@@ -82,6 +85,21 @@ export default function piAnalytics(pi: ExtensionAPI): void {
   pi.on('session_shutdown', () => {
     if (timer) clearTimeout(timer)
     write()
+  })
+
+  pi.registerCommand('start-session-analyzer', {
+    description: 'Open the live page of this session and every other Pi session on this machine',
+    handler: async (_args: string, ctx: ExtensionCommandContext) => {
+      try {
+        const { sessionPageUrl } = await import('./live/launch')
+        const { openFile } = await import('./open')
+        const url = await sessionPageUrl(ctx.sessionManager.getSessionId(), { dir })
+        openFile(url)
+        ctx.ui.notify(`Session page: ${url}`, 'info')
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), 'error')
+      }
+    },
   })
 
   pi.registerCommand('analytics', {

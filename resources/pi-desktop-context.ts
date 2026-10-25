@@ -23,24 +23,32 @@ import {
 
 // Writes are coalesced: a turn fires several events within a few milliseconds.
 const WRITE_DELAY_MS = 200
+const MAX_WRITE_RETRIES = 3
+
+/**
+ * Loaded on its own (with `-e`) where pi-analytics is not: OMP. It records
+ * only when Pi Desktop names the folder in `PI_DESKTOP_CONTEXT_DIR`.
+ */
+export default function piDesktopContext(pi: ExtensionAPI): void {
+  const dir = process.env[CONTEXT_DIR_ENV]
+  if (dir) recordContext(pi, dir)
+}
 
 /**
  * Records what fills the model context on each request and what each model
- * call cost, for Pi Desktop's Context panel. Adds nothing to the context and
- * changes nothing about the requests. The snapshot is written to
- * `<PI_DESKTOP_CONTEXT_DIR>/<session id>.json`; without that folder the
- * extension does nothing.
+ * call cost, for Pi Desktop's Context panel and pi-analytics' session page.
+ * Adds nothing to the context and changes nothing about the requests. The
+ * snapshot is written to `<dir>/<session id>.json`.
  *
  * The cache mode is applied by the pi-analytics package's extension, which
  * owns Pi's cache-warming decisions; this one only copies the status it
  * sends on `pi.events` into the snapshot.
  */
-export default function piDesktopContext(pi: ExtensionAPI): void {
-  const dir = process.env[CONTEXT_DIR_ENV]
-  if (!dir) return
+export function recordContext(pi: ExtensionAPI, dir: string): void {
   // Read once at load: start() then overwrites it for the processes this one spawns.
   const parentSessionId = process.env[PARENT_SESSION_ENV] || null
   const startMode = process.env[CACHE_MODE_ENV] ?? null
+  const processStartedAt = Math.round(Date.now() - process.uptime() * 1000)
 
   let snapshot: ContextSnapshot | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -76,6 +84,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     return pi.getAllTools().filter((tool) => active.has(tool.name))
   }
 
+  let failedWrites = 0
   const write = (): void => {
     timer = null
     if (!snapshot) return
@@ -86,8 +95,11 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
       mkdirSync(dir, { recursive: true })
       writeFileSync(temp, JSON.stringify(snapshot))
       renameSync(temp, target)
+      failedWrites = 0
     } catch {
       // A snapshot is a view aid: a failed write must never disturb the session.
+      // Windows can hold the file for a moment (a reader, antivirus), so try again soon.
+      if (++failedWrites <= MAX_WRITE_RETRIES && !timer) timer = setTimeout(write, WRITE_DELAY_MS * failedWrites)
     }
   }
 
@@ -109,6 +121,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
   const refreshModel = (ctx: ExtensionContext): void => {
     if (!snapshot) return
     snapshot.model = snapshotModel(ctx.model)
+    snapshot.thinkingLevel = ctx.thinkingLevel ?? snapshot.thinkingLevel ?? null
     snapshot.reportedTokens = ctx.getContextUsage()?.tokens ?? null
   }
 
@@ -137,6 +150,13 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
       lastRequestAt: null,
       lastWarmAt: null,
       autoWarmLimit: null,
+      process: { pid: process.pid, startedAt: processStartedAt, cwd: ctx.cwd ?? process.cwd() },
+      // Older Pi releases have neither; the session file still names the session.
+      sessionName: ctx.sessionManager.getSessionName?.() ?? null,
+      thinkingLevel: ctx.thinkingLevel ?? null,
+      agentRunning: ctx.isIdle?.() === false,
+      activeTool: null,
+      endedAt: null,
     }
     const messages: unknown[] = []
     let compacted = false
@@ -214,8 +234,49 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
     scheduleWrite()
   })
 
+  pi.on('agent_start', () => {
+    if (!snapshot) return
+    snapshot.agentRunning = true
+    scheduleWrite()
+  })
+
+  pi.on('agent_end', () => {
+    if (!snapshot) return
+    snapshot.agentRunning = false
+    snapshot.activeTool = null
+    scheduleWrite()
+  })
+
+  pi.on('tool_execution_start', (event) => {
+    if (!snapshot) return
+    snapshot.activeTool = event.toolName
+    scheduleWrite()
+  })
+
+  pi.on('tool_execution_end', () => {
+    if (!snapshot) return
+    snapshot.activeTool = null
+    scheduleWrite()
+  })
+
+  pi.on('thinking_level_select', (_event, ctx) => {
+    refreshModel(ctx)
+    scheduleWrite()
+  })
+
+  pi.on('session_info_changed', (event) => {
+    if (!snapshot) return
+    snapshot.sessionName = event.name ?? null
+    scheduleWrite()
+  })
+
   pi.on('session_shutdown', () => {
     if (timer) clearTimeout(timer)
+    if (snapshot) {
+      snapshot.agentRunning = false
+      snapshot.activeTool = null
+      snapshot.endedAt = Date.now()
+    }
     write()
     snapshot = null
   })
