@@ -6,6 +6,7 @@ import { createIpcContext } from './ipc/context'
 import { assertTrustedSender } from './ipc/validation'
 import { registerPiHandlers } from './ipc/pi-handlers'
 import { registerTerminalHandlers } from './ipc/terminal-handlers'
+import { registerProviderHandlers } from './ipc/provider-handlers'
 import { registerSessionHandlers } from './ipc/session-handlers'
 import { registerModelHandlers } from './ipc/model-handlers'
 import { registerSettingsHandlers } from './ipc/settings'
@@ -57,6 +58,7 @@ export function registerIpcHandlers(
 
   registerPiHandlers(ctx)
   registerTerminalHandlers(ctx)
+  registerProviderHandlers(ctx)
   registerSessionHandlers(ctx)
   registerModelHandlers(ctx)
   registerSettingsHandlers(ctx)

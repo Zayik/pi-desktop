@@ -7,7 +7,6 @@
 import type { PermissionRule } from '../../resources/permission-rules'
 import type { LinkedTaskMode, RepoRole } from '../../resources/repo-set-map'
 import type { TokenUsage } from './token-usage'
-import type { CacheMode } from '../../resources/context-snapshot'
 
 // ─── IPC Channel Names ──────────────────────────────────────────────────────
 
@@ -18,6 +17,13 @@ export const IPC_CHANNELS = {
   PI_RESTART: 'pi:restart',
   PI_STATUS: 'pi:status',
   PI_DETECT_INSTALLATIONS: 'pi:detect-installations',
+  PI_SETUP_REPORT: 'pi:setup-report',
+  PI_INSTALL: 'pi:install',
+  PI_PROVIDERS_LIST: 'pi:providers-list',
+  PI_LOGIN_START: 'pi:login-start',
+  PI_LOGIN_INPUT: 'pi:login-input',
+  PI_LOGIN_RESIZE: 'pi:login-resize',
+  PI_LOGIN_STOP: 'pi:login-stop',
 
   // Pi commands
   PI_PROMPT: 'pi:prompt',
@@ -107,22 +113,13 @@ export const IPC_CHANNELS = {
   // Context panel
   CONTEXT_GET_SNAPSHOT: 'context:get-snapshot',
   CONTEXT_GET_AGENT_BOARD: 'context:get-agent-board',
-  CONTEXT_GET_CACHE_MODE: 'context:get-cache-mode',
-  CONTEXT_SET_CACHE_MODE: 'context:set-cache-mode',
-  CONTEXT_GET_CACHE_WARMING: 'context:get-cache-warming',
-  CONTEXT_GET_AUTO_WARM_SCHEDULE: 'context:get-auto-warm-schedule',
-  CONTEXT_ENABLE_IDLE_CACHE_WARMING: 'context:enable-idle-cache-warming',
+  CONTEXT_OPEN_SESSION_PAGE: 'context:open-session-page',
+  CONTEXT_SET_DESKTOP_FOCUS: 'context:set-desktop-focus',
 
   // Analytics: cost and time per session and across sessions
   ANALYTICS_GET_SESSION_REPORT: 'analytics:get-session-report',
   ANALYTICS_GET_OVERVIEW: 'analytics:get-overview',
   ANALYTICS_REBUILD: 'analytics:rebuild',
-  ANALYTICS_GET_CACHE_PLAN: 'analytics:get-cache-plan',
-  ANALYTICS_APPLY_CACHE_RECOMMENDATION: 'analytics:apply-cache-recommendation',
-  ANALYTICS_UNDO_CACHE_PLAN: 'analytics:undo-cache-plan',
-  ANALYTICS_SET_MODEL_CACHE: 'analytics:set-model-cache',
-  ANALYTICS_SET_CACHE_CONTROL: 'analytics:set-cache-control',
-  ANALYTICS_RESET_CACHE_PLAN: 'analytics:reset-cache-plan',
 
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',
@@ -244,6 +241,9 @@ export const IPC_CHANNELS = {
   EVENT_TERMINAL_EXIT: 'event:terminal-exit',
   EVENT_COUNCIL_PROGRESS: 'event:council-progress',
   EVENT_VOICE_PROGRESS: 'event:voice-progress',
+  EVENT_PI_INSTALL_OUTPUT: 'event:pi-install-output',
+  EVENT_PI_LOGIN_DATA: 'event:pi-login-data',
+  EVENT_PI_LOGIN_EXIT: 'event:pi-login-exit',
   EVENT_VOICE_SHORTCUT: 'event:voice-shortcut',
 
   // Voice dictation
@@ -1339,8 +1339,6 @@ export interface AppSettings {
   defaultModel: string | null
   defaultProvider: string | null
   defaultThinkingLevel: string | null
-  // Prompt cache mode new chats start in; the composer's cache picker sets it.
-  cacheMode: CacheMode
   defaultCwd: string | null
   // UI font size in px (chat, panels, sidebar). Applied to the document root.
   fontSize: number
@@ -1389,10 +1387,6 @@ export interface AppSettings {
   // missing tests, unverified work), shown as buttons under the reply.
   // Applies to agents started after the change.
   suggestNextSteps: boolean
-  // Offer the experimental Auto cache mode, which changes the idle pings by
-  // hour of day from the last 30 days. Off: the picker hides it and chats
-  // left in Auto start in Keep warm.
-  experimentalAutoCache: boolean
   // Interface language: 'system' (follow the OS language list) or a bundled
   // language code. Unknown values reset to 'system' on load.
   language: string
@@ -1834,12 +1828,84 @@ export interface DiagnosticsProviderInfo {
 /** Where a resolved Pi path came from, for logging and error messaging. */
 export type PiResolutionSource =
   | 'override'
+  | 'env'
   | 'npm-prefix'
   | 'path'
+  | 'managed-install'
   | 'version-manager'
   | 'common-location'
   | 'omp'
   | 'fallback'
+
+/** One stage of the search, in the order resolvePiBinary runs them. */
+export type PiSearchStepId =
+  | 'settings'
+  | 'env'
+  | 'npm-prefix'
+  | 'path'
+  | 'managed-install'
+  | 'version-manager'
+  | 'common-location'
+  | 'omp'
+
+export interface PiSearchCheck {
+  path: string
+  found: boolean
+}
+
+export interface PiSearchStep {
+  id: PiSearchStepId
+  checked: PiSearchCheck[]
+  /** npm-prefix: the prefix npm reported, or null when npm did not answer. */
+  npmPrefix?: string | null
+  /** True on the step where the search succeeded. */
+  matched?: boolean
+}
+
+/** A way to install Pi that the setup screen can offer. */
+export type PiInstallMethod = 'installer' | 'npm' | 'winget'
+
+export interface PiInstallOption {
+  method: PiInstallMethod
+  /** Exactly what runs, shown to the user before they click. */
+  command: string
+  /** False when the tool it needs (npm, winget) is not on this machine. */
+  available: boolean
+}
+
+/** What the setup screen shows when Pi cannot be started. */
+export interface PiSetupReport {
+  found: boolean
+  /** Why Pi cannot start, or null when it can. */
+  failure: 'pi-not-found' | 'node-not-found' | null
+  platform: string
+  script: string
+  source: PiResolutionSource
+  rejectedOverride: string | null
+  /** The Node binary a cli.js install needs; empty when not needed. */
+  node: string
+  steps: PiSearchStep[]
+  installOptions: PiInstallOption[]
+}
+
+export interface PiInstallResult {
+  ok: boolean
+  exitCode: number | null
+  /** The last part of the command's combined output. */
+  output: string
+  /** The setup state after the install, so the screen can close on success. */
+  report: PiSetupReport
+}
+
+/** A provider Pi can use, and whether its credential works (`pi auth check`). */
+export interface PiProviderStatus {
+  provider: string
+  /** `unknown` when this Pi cannot answer `auth check`. */
+  status: 'ready' | 'not_ready' | 'invalid' | 'unknown'
+  /** `api_key`, `oauth`, … as Pi reports it. */
+  authType?: string
+  reason?: string
+}
 
 /** Everything the Diagnostics view shows, assembled in one main-side pass. */
 export interface DiagnosticsReport {

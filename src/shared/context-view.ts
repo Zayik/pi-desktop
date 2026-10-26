@@ -4,7 +4,7 @@
  * table for the last call and the current turn. Pure, so the renderer only
  * formats it.
  */
-import type { CacheMode, CallCost, ContextSnapshot, ModelCall, TokenRates } from '../../resources/context-snapshot'
+import type { CallCost, ContextSnapshot, ModelCall, TokenRates } from '../../resources/context-snapshot'
 
 /** The countdown turns amber in its last minute. */
 export const CACHE_EXPIRING_MS = 60_000
@@ -36,20 +36,6 @@ export interface CacheState {
 
 export function lastCall(snapshot: ContextSnapshot): ModelCall | null {
   return snapshot.calls.at(-1) ?? null
-}
-
-export interface CacheModeSwitch {
-  mode: CacheMode
-  changedAt: number
-  /** The first reply that finished after the switch; null until there is one. */
-  firstCall: ModelCall | null
-}
-
-/** The session's latest cache mode switch, so its first request's cache read and write can be checked. */
-export function cacheModeSwitch(snapshot: ContextSnapshot): CacheModeSwitch | null {
-  const changedAt = snapshot.cacheModeChangedAt
-  if (!snapshot.cacheMode || typeof changedAt !== 'number') return null
-  return { mode: snapshot.cacheMode, changedAt, firstCall: snapshot.calls.find((call) => call.at >= changedAt) ?? null }
 }
 
 export function cacheLifetimeSeconds(snapshot: ContextSnapshot): number | null {

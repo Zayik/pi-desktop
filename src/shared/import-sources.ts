@@ -1,8 +1,7 @@
 /**
  * Sessions read from other tools' logs. Their calls are named
  * `<provider>/<model>` with the tool's own provider, so they stay apart from
- * the same model under Pi and get no settings: Pi cannot change another
- * tool's cache.
+ * the same model under Pi. The analysis shows them for reference.
  */
 import type { AnalyticsSource } from './session-analytics'
 
@@ -15,6 +14,13 @@ export const IMPORT_PROVIDERS: Record<ImportSource, string> = {
   copilot: 'copilot-cli',
 }
 
+/** Each tool's name, for text outside the app. */
+export const IMPORT_SOURCE_NAMES: Record<ImportSource, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  copilot: 'Copilot app and CLI',
+}
+
 /** The tool a model name was imported from, or null for Pi's own. */
 export function importSourceOf(model: string): ImportSource | null {
   const provider = model.split('/')[0]
@@ -22,7 +28,7 @@ export function importSourceOf(model: string): ImportSource | null {
   return found ? found[0] : null
 }
 
-/** A model from another tool's sessions: its replay is shown, but Pi has no setting to apply to it. */
+/** A model from another tool's sessions. */
 export function isImportedModel(model: string): boolean {
   return importSourceOf(model) !== null
 }

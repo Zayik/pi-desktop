@@ -10,6 +10,10 @@ import type {
   AppSettings,
   AgentDetectionOptions,
   AgentInstallationsResult,
+  PiInstallMethod,
+  PiInstallResult,
+  PiSetupReport,
+  PiProviderStatus,
   Workspace,
   WorkspaceTabOptions,
   WorkspaceRemoveResult,
@@ -92,9 +96,9 @@ import type {
 } from '../shared/ipc-contracts'
 import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
-import type { AutoWarmSchedule, CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
+import type { ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
-import type { AnalyticsReport, ApplyCacheRecommendationRequest, CachePlanState, OverviewRequest, SetModelCacheRequest } from '../shared/analytics-report'
+import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -107,6 +111,19 @@ interface PiDesktopAPI {
     restart(options?: PiStartOptions): Promise<PiStatus>
     getStatus(): Promise<PiStatus>
     detectInstallations(options?: AgentDetectionOptions): Promise<AgentInstallationsResult>
+    /** Search for Pi again and list every place looked, for the setup screen. */
+    getSetupReport(): Promise<PiSetupReport>
+    install(method: PiInstallMethod): Promise<PiInstallResult>
+    onInstallOutput(callback: (chunk: string) => void): () => void
+    /** Providers Pi can use and whether each one's credential works. */
+    listProviders(): Promise<PiProviderStatus[]>
+    /** Run Pi's own `/login` (for one provider, or its full picker) in a PTY. */
+    loginStart(provider: string | null, size: { cols: number; rows: number }): Promise<void>
+    loginInput(data: string): Promise<void>
+    loginResize(size: { cols: number; rows: number }): Promise<void>
+    loginStop(): Promise<void>
+    onLoginData(callback: (data: string) => void): () => void
+    onLoginExit(callback: (event: { exitCode: number }) => void): () => void
   }
 
   // Pi commands
@@ -400,16 +417,11 @@ interface PiDesktopAPI {
     getSnapshot(sessionId: string): Promise<ContextSnapshot | null>
     /** The chat and the subagent and worktree sessions that belong to it. */
     getAgentBoard(request: AgentBoardRequest): Promise<AgentBoard>
-    /** Null while the session runs in the mode it started with. */
-    getCacheMode(sessionId: string): Promise<CacheModeChoice | null>
-    /** Applies from the session's next request. */
-    setCacheMode(sessionId: string, mode: CacheMode): Promise<CacheModeChoice>
-    /** Pi's global `cacheWarming` setting, null when unset. */
-    getCacheWarming(): Promise<string | null>
-    /** Sets Pi's global `cacheWarming` to "idle", which keep-warm needs. */
-    enableIdleCacheWarming(): Promise<void>
+    /** Opens pi-analytics' live session page in the browser, following the chat open here. */
+    openSessionPage(sessionId: string | null): Promise<void>
+    /** The chat open now, for the session page to follow once it has been opened. */
+    setDesktopFocus(sessionId: string | null): Promise<void>
     /** Auto mode's idle pings per hour of day, built from the last 30 days; null when there is none. */
-    getAutoWarmSchedule(): Promise<AutoWarmSchedule | null>
   }
 
   // Analytics: where cost and time went, per session and across sessions
@@ -419,22 +431,6 @@ interface PiDesktopAPI {
     getOverview(request: OverviewRequest): Promise<AnalyticsReport>
     /** Read every session file again. */
     rebuild(): Promise<void>
-    /** The pi-analytics cache plan, which Pi runs with when the package's extension is loaded. */
-    getCachePlan(): Promise<CachePlanState>
-    /**
-     * Apply the overview's recommendation for one model; main works it out
-     * again from the same range. `allowIdleWarming` lets it set Pi's
-     * `cacheWarming` to "idle" when the setting refreshes after the agent stops.
-     */
-    applyCacheRecommendation(request: ApplyCacheRecommendationRequest): Promise<CachePlanState>
-    /** Step the plan back one change. */
-    undoCachePlan(): Promise<CachePlanState>
-    /** Set one model's cache setting by hand (keep warm's count is capped by its cache lifetime). */
-    setModelCache(request: SetModelCacheRequest): Promise<CachePlanState>
-    /** Off: the pi-analytics extension leaves Pi's cache alone; the plan is kept. */
-    setCacheControl(on: boolean): Promise<CachePlanState>
-    /** Clear the plan, turn cache control back on and put Pi's `cacheWarming` back. */
-    resetCachePlan(): Promise<CachePlanState>
   }
 
   // Diagnostics report
@@ -494,6 +490,28 @@ const api: PiDesktopAPI = {
     restart: (options?: PiStartOptions) => ipcRenderer.invoke(IPC_CHANNELS.PI_RESTART, options),
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.PI_STATUS),
     detectInstallations: (options) => ipcRenderer.invoke(IPC_CHANNELS.PI_DETECT_INSTALLATIONS, options),
+    getSetupReport: () => ipcRenderer.invoke(IPC_CHANNELS.PI_SETUP_REPORT),
+    install: (method) => ipcRenderer.invoke(IPC_CHANNELS.PI_INSTALL, method),
+    onInstallOutput: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_INSTALL_OUTPUT, handler)
+    },
+    listProviders: () => ipcRenderer.invoke(IPC_CHANNELS.PI_PROVIDERS_LIST),
+    loginStart: (provider, size) => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_START, provider, size),
+    loginInput: (data) => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_INPUT, data),
+    loginResize: (size) => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_RESIZE, size),
+    loginStop: () => ipcRenderer.invoke(IPC_CHANNELS.PI_LOGIN_STOP),
+    onLoginData: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: string) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_PI_LOGIN_DATA, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_LOGIN_DATA, handler)
+    },
+    onLoginExit: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { exitCode: number }) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.EVENT_PI_LOGIN_EXIT, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EVENT_PI_LOGIN_EXIT, handler)
+    },
   },
 
   commands: {
@@ -742,23 +760,14 @@ const api: PiDesktopAPI = {
   context: {
     getSnapshot: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, sessionId),
     getAgentBoard: (request) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AGENT_BOARD, request),
-    getCacheMode: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_MODE, sessionId),
-    setCacheMode: (sessionId, mode) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, sessionId, mode),
-    getCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING),
-    enableIdleCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING),
-    getAutoWarmSchedule: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AUTO_WARM_SCHEDULE),
+    openSessionPage: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_OPEN_SESSION_PAGE, sessionId),
+    setDesktopFocus: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_DESKTOP_FOCUS, sessionId),
   },
 
   analytics: {
     getSessionReport: (sessionFile) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_SESSION_REPORT, sessionFile),
     getOverview: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_OVERVIEW, request),
     rebuild: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_REBUILD),
-    getCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_CACHE_PLAN),
-    applyCacheRecommendation: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_APPLY_CACHE_RECOMMENDATION, request),
-    undoCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_UNDO_CACHE_PLAN),
-    setModelCache: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_MODEL_CACHE, request),
-    setCacheControl: (on) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_CACHE_CONTROL, on),
-    resetCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_RESET_CACHE_PLAN),
   },
 
   diagnostics: {

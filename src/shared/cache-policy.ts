@@ -99,12 +99,6 @@ export const KEEP_WARM_EVERY_MS = 4 * MINUTE
 const KEEP_WARM_30M_EVERY_MS = 24 * MINUTE
 /** The Anthropic ping sweep tries 0 to this many pings per idle gap: enough to keep 5 minutes warm through a whole hour. */
 export const MAX_SWEEP_PINGS = Math.ceil((HOUR - 5 * MINUTE) / KEEP_WARM_EVERY_MS)
-/** An hour of the day with fewer gaps than this keeps the best fixed count in the auto schedule. */
-const MIN_GAPS_PER_HOUR = 5
-/** The hourly schedule is worth mentioning from this share of the best fixed count's cost. */
-const MIN_AUTO_SAVING_SHARE = 0.01
-/** Days with calls a model needs before Auto is compared with the best fixed count. */
-export const MIN_AUTO_COMPARE_DAYS = 7
 /** Pi stops idle warming this long after a run ends (`MAX_IDLE_WARMING_AGE_MS` in its cache warmer). */
 export const PI_IDLE_WARMING_MS = 30 * MINUTE
 /** Pi refreshes an entry at this share of its lifetime. */
@@ -124,7 +118,7 @@ const HIT_SHARE = 0.5
 export const GAP_BUCKET_MINUTES = [1, 5, 10, 15, 30, 60]
 
 /** The short lifetime a ping sweep keeps warm, how far apart its pings are, and how much idle it sweeps. */
-interface SweepSpec {
+export interface SweepSpec {
   base: CachePolicyId
   ttlMs: number
   write: number
@@ -132,7 +126,7 @@ interface SweepSpec {
   horizonMs: number
 }
 
-interface CacheProfile {
+export interface CacheProfile {
   family: CacheFamily
   route: CacheRoute
   policies: PolicySpec[]
@@ -219,7 +213,7 @@ function vendorProfile(kind: CacheProvider, id: string, calls: CacheCall[]): Omi
   return { family: 'none', policies: [], defaultPolicy: null, longPolicy: null, sweep: null, notes: [] }
 }
 
-function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
+export function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
   const [provider, ...rest] = model.split('/')
   const id = rest.join('/').toLowerCase()
   const kind = cacheProvider(model)
@@ -308,14 +302,6 @@ export interface ModelCacheReport {
   /** The long lifetime's replayed cost, to compare the sweep with (null where there is no long setting). */
   longPolicy: CachePolicyId | null
   longCost: number | null
-  /** The best ping count per local hour of the day the idle gap starts in. */
-  hourly: HourPlan[]
-  /** Cost with each hour on its own best count; null without a sweep. */
-  autoCost: number | null
-  /** What the hourly schedule saves over the best single count. */
-  autoSaving: number
-  /** Auto priced walk-forward against the billed cost and the best fixed count; null before `MIN_AUTO_COMPARE_DAYS` days. */
-  autoComparison: AutoComparison | null
   /** What the calls themselves show about the cache, or null when it never served a read. */
   observed: ObservedCache | null
 }
@@ -358,44 +344,6 @@ export interface PingSweepPoint {
   saving: number
 }
 
-/** One day of the Auto comparison. */
-export interface AutoCompareDay {
-  day: string
-  billed: number
-  fixed: number
-  auto: number
-}
-
-/**
- * What Auto would have cost, priced walk-forward: each day runs on an hourly
- * plan built only from the days before it, so the plan is never scored on
- * the calls it was fitted to. The first day has no history and is left out.
- * Counts stay within what Pi sends before it stops warming.
- */
-export interface AutoComparison {
-  /** Days priced, and the first and last of them. */
-  days: number
-  fromDay: string
-  toDay: string
-  /** What those days' prompts were billed, warming pings included. */
-  billed: number
-  /** The best fixed count over all days (the Check recommendation's pick) and its cost. */
-  fixedPings: number
-  fixed: number
-  auto: number
-  daily: AutoCompareDay[]
-}
-
-export interface HourPlan {
-  hour: number
-  gaps: number
-  /** Best count for this hour, or the best fixed count when the hour has too few gaps. */
-  pings: number
-  /** Cost of this hour's gaps at that count and at the best fixed count. */
-  cost: number
-  fixedCost: number
-}
-
 /** Measured cache use of one day: prompt tokens read from the cache, written to it, and sent uncached. */
 export interface CacheDay {
   day: string
@@ -412,28 +360,15 @@ export interface CacheReport {
   days: CacheDay[]
   /** Sum of the recommended savings. */
   saving: number
-  /** The models' Auto comparisons added up; null when none has enough days. */
-  autoComparison: AutoComparisonTotal | null
 }
 
-export interface AutoComparisonTotal {
-  models: number
-  /** The most days any model's comparison rests on, and the span they cover. */
-  days: number
-  fromDay: string
-  toDay: string
-  billed: number
-  fixed: number
-  auto: number
-}
-
-interface Prices {
+export interface Prices {
   inputPrice: number
   readRatio: number
   readRatioMeasured: boolean
 }
 
-interface CallTotals {
+export interface CallTotals {
   input: number
   inputCost: number
   read: number
@@ -443,7 +378,7 @@ interface CallTotals {
   write1h: number
 }
 
-function callTotals(calls: CacheCall[]): CallTotals {
+export function callTotals(calls: CacheCall[]): CallTotals {
   const totals: CallTotals = { input: 0, inputCost: 0, read: 0, readCost: 0, write: 0, writeCost: 0, write1h: 0 }
   for (const call of calls) {
     totals.input += call[2]
@@ -458,7 +393,7 @@ function callTotals(calls: CacheCall[]): CallTotals {
 }
 
 /** Input price and read multiple measured from the calls, falling back to the list multiple. */
-function measurePrices(totals: CallTotals, profile: CacheProfile, model: string): Prices | null {
+export function measurePrices(totals: CallTotals, profile: CacheProfile, model: string): Prices | null {
   let inputPrice = totals.input > 0 && totals.inputCost > 0 ? totals.inputCost / totals.input : 0
   // A session that sent everything through the cache shows no input price; derive it from the writes.
   if (inputPrice === 0 && totals.write > 0 && totals.writeCost > 0) {
@@ -488,7 +423,7 @@ function currentPolicy(profile: CacheProfile, totals: CallTotals, prices: Prices
   return null
 }
 
-function promptTokens(call: CacheCall): number {
+export function promptTokens(call: CacheCall): number {
   return call[2] + call[3] + call[4]
 }
 
@@ -541,7 +476,8 @@ export function replay(calls: CacheCall[], spec: PolicySpec, prices: Pick<Prices
 }
 
 function sweepMaxPings(sweep: SweepSpec): number {
-  return Math.ceil((sweep.horizonMs - sweep.ttlMs) / sweep.everyMs)
+  // The epsilon keeps a horizon of exactly N pings from rounding up to N + 1.
+  return Math.ceil((sweep.horizonMs - sweep.ttlMs) / sweep.everyMs - 1e-9)
 }
 
 /**
@@ -550,23 +486,28 @@ function sweepMaxPings(sweep: SweepSpec): number {
  * hour the gap starts in. A gap's cost depends only on its own length and
  * prompts, so any schedule of counts is a sum over these rows.
  */
-interface GapRow {
+export interface GapRow {
   hour: number
   day: string
+  /** When the call after the gap ran, and how long the gap was. */
+  at: number
+  gapMs: number
   costs: number[]
   sent: number[]
 }
 
-function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Prices, 'inputPrice' | 'readRatio'>): { first: number; firstByDay: Map<string, number>; gaps: GapRow[] } {
+export function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Prices, 'inputPrice' | 'readRatio'>): { first: number; firstByDay: Map<string, number>; openings: Array<[at: number, cost: number]>; gaps: GapRow[] } {
   const maxPings = sweepMaxPings(sweep)
   const read = prices.inputPrice * prices.readRatio
   let first = 0
   const firstByDay = new Map<string, number>()
   const gaps: GapRow[] = []
+  const openings: Array<[number, number]> = []
   for (const run of runs) {
     if (run.length === 0) continue
     const opening = promptTokens(run[0]) * prices.inputPrice * sweep.write
     first += opening
+    openings.push([run[0][0], opening])
     const day = localDayKey(run[0][0])
     firstByDay.set(day, (firstByDay.get(day) ?? 0) + opening)
     for (let index = 1; index < run.length; index++) {
@@ -586,55 +527,10 @@ function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Pri
         costs.push(pings * cached * read + call)
         sent.push(pings)
       }
-      gaps.push({ hour: new Date(run[index - 1][0]).getHours(), day: localDayKey(run[index - 1][0]), costs, sent })
+      gaps.push({ hour: new Date(run[index - 1][0]).getHours(), day: localDayKey(run[index - 1][0]), at: run[index][0], gapMs: gap, costs, sent })
     }
   }
-  return { first, firstByDay, gaps }
-}
-
-function cheapestUpTo(costs: number[], cap: number): number {
-  return cheapestIndex(costs.slice(0, cap + 1))
-}
-
-/** Auto walk-forward against the best fixed count; see `AutoComparison`. */
-function compareAuto(rows: GapRow[], firstByDay: Map<string, number>, billedByDay: Map<string, number>, maxPings: number, cap: number): AutoComparison | null {
-  const days = [...new Set([...firstByDay.keys(), ...rows.map((row) => row.day)])].sort()
-  if (days.length < MIN_AUTO_COMPARE_DAYS) return null
-  const totals = new Array<number>(maxPings + 1).fill(0)
-  for (const row of rows) for (let limit = 0; limit <= maxPings; limit++) totals[limit] += row.costs[limit]
-  const fixedPings = cheapestUpTo(totals, cap)
-  const byDay = new Map<string, GapRow[]>()
-  for (const row of rows) byDay.set(row.day, [...(byDay.get(row.day) ?? []), row])
-  // What the days so far show, per hour and overall; a day is added after it is priced.
-  const seenTotals = new Array<number>(maxPings + 1).fill(0)
-  const seenHours = new Map<number, { gaps: number; costs: number[] }>()
-  const daily: AutoCompareDay[] = []
-  days.forEach((day, index) => {
-    const today = byDay.get(day) ?? []
-    if (index > 0) {
-      const seenFixed = cheapestUpTo(seenTotals, cap)
-      const first = firstByDay.get(day) ?? 0
-      let auto = first
-      let fixed = first
-      for (const row of today) {
-        const hour = seenHours.get(row.hour)
-        auto += row.costs[hour && hour.gaps >= MIN_GAPS_PER_HOUR ? cheapestUpTo(hour.costs, cap) : seenFixed]
-        fixed += row.costs[fixedPings]
-      }
-      daily.push({ day, billed: billedByDay.get(day) ?? 0, fixed, auto })
-    }
-    for (const row of today) {
-      const hour = seenHours.get(row.hour) ?? { gaps: 0, costs: new Array<number>(maxPings + 1).fill(0) }
-      hour.gaps++
-      for (let limit = 0; limit <= maxPings; limit++) {
-        hour.costs[limit] += row.costs[limit]
-        seenTotals[limit] += row.costs[limit]
-      }
-      seenHours.set(row.hour, hour)
-    }
-  })
-  const sum = (key: 'billed' | 'fixed' | 'auto'): number => daily.reduce((total, day) => total + day[key], 0)
-  return { days: daily.length, fromDay: daily[0].day, toDay: daily[daily.length - 1].day, billed: sum('billed'), fixedPings, fixed: sum('fixed'), auto: sum('auto'), daily }
+  return { first, firstByDay, openings, gaps }
 }
 
 function cheapestIndex(costs: number[]): number {
@@ -820,10 +716,6 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       bestPings: null,
       longPolicy: profile.longPolicy,
       longCost: null,
-      hourly: [],
-      autoCost: null,
-      autoSaving: 0,
-      autoComparison: null,
       observed: observeCache(events, profile, measuredPolicy ?? profile.defaultPolicy),
     }
     // Pings on record show something gave the model a lifetime to warm (a models.json entry, or the app's own table).
@@ -856,19 +748,14 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       const maxPings = sweepMaxPings(sweep)
       const current = report.policies.find((entry) => entry.policy === report.currentPolicy)?.cost ?? 0
       report.longCost = report.policies.find((entry) => entry.policy === profile.longPolicy)?.cost ?? null
-      const { first, firstByDay, gaps: rows } = gapCostsByPings(runs, sweep, prices)
+      const { first, gaps: rows } = gapCostsByPings(runs, sweep, prices)
       const sweepTotals = new Array<number>(maxPings + 1).fill(first)
       const sent = new Array<number>(maxPings + 1).fill(0)
-      const hours = new Map<number, { gaps: number; costs: number[] }>()
       for (const row of rows) {
-        const hour = hours.get(row.hour) ?? { gaps: 0, costs: new Array<number>(maxPings + 1).fill(0) }
-        hour.gaps++
         for (let limit = 0; limit <= maxPings; limit++) {
           sweepTotals[limit] += row.costs[limit]
           sent[limit] += row.sent[limit]
-          hour.costs[limit] += row.costs[limit]
         }
-        hours.set(row.hour, hour)
       }
       report.pingSweep = sweepTotals.map((cost, pings) => ({
         pings,
@@ -879,39 +766,10 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       }))
       const fixed = cheapestIndex(sweepTotals)
       report.bestPings = report.pingSweep[fixed]
-      report.hourly = [...hours.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([hour, entry]) => {
-          const pings = entry.gaps >= MIN_GAPS_PER_HOUR ? cheapestIndex(entry.costs) : fixed
-          return { hour, gaps: entry.gaps, pings, cost: entry.costs[pings], fixedCost: entry.costs[fixed] }
-        })
-      report.autoCost = first + report.hourly.reduce((sum, hour) => sum + hour.cost, 0)
-      const autoSaving = sweepTotals[fixed] - report.autoCost
-      // Rounding-sized differences are not a reason to change the count by hour.
-      report.autoSaving = autoSaving >= Math.max(0.001, sweepTotals[fixed] * MIN_AUTO_SAVING_SHARE) ? autoSaving : 0
-      const billedByDay = new Map<string, number>()
-      for (const call of events.flat()) {
-        const day = localDayKey(call[0])
-        billedByDay.set(day, (billedByDay.get(day) ?? 0) + call[6] + call[7] + call[8])
-      }
-      report.autoComparison = compareAuto(rows, firstByDay, billedByDay, maxPings, Math.min(maxPings, piMaxIdlePings(sweep.ttlMs)))
     }
     models.push(report)
   }
   models.sort((a, b) => b.measuredCost - a.measuredCost)
-  return { models, days: cacheDays(sessions), saving: models.reduce((sum, model) => sum + model.saving, 0), autoComparison: totalComparison(models) }
+  return { models, days: cacheDays(sessions), saving: models.reduce((sum, model) => sum + model.saving, 0) }
 }
 
-function totalComparison(models: ModelCacheReport[]): AutoComparisonTotal | null {
-  const compared = models.map((model) => model.autoComparison).filter((entry): entry is AutoComparison => entry !== null)
-  if (compared.length === 0) return null
-  return {
-    models: compared.length,
-    days: Math.max(...compared.map((entry) => entry.days)),
-    fromDay: compared.map((entry) => entry.fromDay).sort()[0],
-    toDay: compared.map((entry) => entry.toDay).sort().at(-1) ?? compared[0].toDay,
-    billed: compared.reduce((sum, entry) => sum + entry.billed, 0),
-    fixed: compared.reduce((sum, entry) => sum + entry.fixed, 0),
-    auto: compared.reduce((sum, entry) => sum + entry.auto, 0),
-  }
-}

@@ -4,16 +4,9 @@ import { clsx } from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../../../shared/analytics-report'
 import type { WorkCategory } from '../../../shared/session-analytics'
-import { CACHE_RULES_CHECKED, GAP_BUCKET_MINUTES, OBSERVED_GAP_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport, type ObservedCache } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
-import { importSourceOf, type ImportSource } from '../../../shared/import-sources'
-
-const IMPORT_LABEL_KEYS: Record<ImportSource, 'analytics.cache.fromClaudeCode' | 'analytics.cache.fromCodex' | 'analytics.cache.fromCopilot'> = {
-  'claude-code': 'analytics.cache.fromClaudeCode',
-  codex: 'analytics.cache.fromCodex',
-  copilot: 'analytics.cache.fromCopilot',
-}
+import { PromptCacheAnalysis, money } from './prompt-cache-analysis'
 
 const CATEGORY_LABEL_KEYS = {
   test: 'analytics.category.test',
@@ -51,38 +44,6 @@ const KIND_LABEL_KEYS = {
   delegate: 'analytics.kind.delegate',
   child: 'analytics.kind.child',
 } as const satisfies Record<AnalyticsSessionKind, string>
-
-const POLICY_LABEL_KEYS = {
-  none: 'analytics.cache.policy.none',
-  '5m': 'analytics.cache.policy.fiveMinutes',
-  '5m-warm-30m': 'analytics.cache.policy.warm30',
-  '5m-warm-60m': 'analytics.cache.policy.warm60',
-  '5m-warm-break-even': 'analytics.cache.policy.warmBreakEven',
-  '1h': 'analytics.cache.policy.oneHour',
-  '30m': 'analytics.cache.policy.thirtyMinutes',
-  '30m-warm-6h': 'analytics.cache.policy.thirtyWarm6h',
-  '30m-warm-12h': 'analytics.cache.policy.thirtyWarm12h',
-  '30m-warm-break-even': 'analytics.cache.policy.thirtyWarmBreakEven',
-  '12h': 'analytics.cache.policy.twelveHours',
-  'in-memory': 'analytics.cache.policy.inMemory',
-  'in-memory-warm-30m': 'analytics.cache.policy.inMemoryWarm30',
-  'in-memory-warm-60m': 'analytics.cache.policy.inMemoryWarm60',
-  'in-memory-warm-break-even': 'analytics.cache.policy.inMemoryWarmBreakEven',
-  '24h': 'analytics.cache.policy.twentyFourHours',
-} as const satisfies Record<CachePolicyId, string>
-
-const CACHE_NOTE_KEYS = {
-  'copilot-vendor': 'analytics.cache.notes.copilotVendor',
-  'copilot-automatic': 'analytics.cache.notes.copilotAutomatic',
-  'copilot-1h-unlisted': 'analytics.cache.notes.copilot1hUnlisted',
-  'implicit-lifetime': 'analytics.cache.notes.implicitLifetime',
-  'pi-no-12h': 'analytics.cache.notes.piNo12h',
-  'pi-no-pings': 'analytics.cache.notes.piNoPings',
-} as const satisfies Record<CacheNote, string>
-
-function policyLabel(policy: string, t: Translate): string {
-  return policy in POLICY_LABEL_KEYS ? t(POLICY_LABEL_KEYS[policy as CachePolicyId]) : policy
-}
 
 const SEVERITY_CLASSES: Record<AnalyticsSignal['severity'], string> = {
   high: 'border-l-error',
@@ -127,25 +88,24 @@ function signalText(signal: AnalyticsSignal, t: Translate): string {
     case 'carried-tool': return t('analytics.signal.carriedTool', { tool: v.tool, share: v.share, cost: formatUsd(Number(v.cost)) })
     case 'skill-cost': return t('analytics.signal.skillCost', { skill: v.skill, share: v.share, uses: v.uses })
     case 'subagent-share': return t('analytics.signal.subagentShare', { share: v.share })
-    case 'cache-policy': return t('analytics.signal.cachePolicy', { model: v.model, policy: policyLabel(String(v.policy), t), current: policyLabel(String(v.current), t), cost: formatUsd(Number(v.cost)), share: v.share })
+    case 'cache-pings': return t('analytics.signal.cachePings', { minutes: v.minutes, count: Number(v.pings), cost: money(Number(v.cost)) })
     case 'compactions': return t('analytics.signal.compactions', { sessions: v.sessions, most: v.most })
   }
 }
 
 /** One report, for the session panel (narrow) or the Analytics view (wide). */
-/** `actions` sits under the signals: the cache settings to apply, in the app and in the CLI's report. */
-/** `autoCompare` shows the experimental Auto comparison; Pi Desktop shows it only with its Experimental setting on. */
-export function AnalyticsReportView({ report, wide = false, actions, autoCompare = true }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode; autoCompare?: boolean }): React.JSX.Element {
+/** `actions` sits under the signals. The prompt cache analysis follows them in the overall report. */
+export function AnalyticsReportView({ report, wide = false, actions }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <Tiles report={report} />
       <Signals signals={report.signals} />
       {actions}
+      {report.scope === 'overall' && <PromptCacheAnalysis analysis={report.cacheAnalysis} />}
       {report.scope === 'overall' && report.days.length > 1 && <DailyCost report={report} />}
       <div className={clsx('space-y-4', wide && 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0')}>
         <WorkByKind report={report} />
-        <CachePolicies report={report} autoCompare={autoCompare} />
         <Section title={t('analytics.tools.title')} note={t('analytics.tools.note')}>
           <Table
             headers={[t('analytics.tools.tool'), t('analytics.tools.calls'), t('analytics.tools.time'), t('analytics.tools.carried')]}
@@ -326,368 +286,6 @@ function WorkByKind({ report }: { report: AnalyticsReport }): React.JSX.Element 
         empty={t('analytics.tools.empty')}
       />
     </Section>
-  )
-}
-
-function CachePolicies({ report, autoCompare }: { report: AnalyticsReport; autoCompare: boolean }): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const models = report.cache.models.filter((model) => model.policies.length > 0 || model.measuredCost > 0)
-  if (models.length === 0) return null
-  return (
-    <Section title={t('analytics.cache.title')} note={t('analytics.cache.note')}>
-      <div className="space-y-3">
-        {report.cache.days.length > 1 && <CacheDays days={report.cache.days} />}
-        {autoCompare && report.scope === 'overall' && <AutoCompare report={report} />}
-        {models.slice(0, MAX_ROWS).map((model) => <ModelCache key={model.model} model={model} />)}
-        <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
-      </div>
-    </Section>
-  )
-}
-
-/** Auto (experimental) priced walk-forward against the billed cost and the best fixed count, across all sessions. */
-function AutoCompare({ report }: { report: AnalyticsReport }): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const total = report.cache.autoComparison
-  if (!total) return null
-  const compared = report.cache.models.filter((model) => model.autoComparison)
-  const rows = [
-    { key: 'billed', label: t('analytics.cache.auto.billed'), cost: total.billed, tone: 'bg-faint' },
-    { key: 'fixed', label: t('analytics.cache.auto.fixed'), cost: total.fixed, tone: 'bg-accent' },
-    { key: 'auto', label: t('analytics.cache.auto.auto'), cost: total.auto, tone: 'bg-success' },
-  ]
-  const max = Math.max(...rows.map((row) => row.cost), 1e-9)
-  const diff = total.fixed - total.auto
-  return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-secondary">{t('analytics.cache.auto.title')}</span>
-        <span className="text-[10px] text-dim">{t('analytics.cache.auto.span', { count: total.days, from: total.fromDay, to: total.toDay })}</span>
-      </div>
-      <div className="mt-2 space-y-1">
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-center gap-2">
-            <span className="w-32 shrink-0 truncate text-[11px] text-muted">{row.label}</span>
-            <span className="h-2.5 min-w-0 flex-1 rounded-sm bg-card">
-              <span className={clsx('block h-full rounded-sm', row.tone)} style={{ width: `${(row.cost / max) * 100}%` }} />
-            </span>
-            <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-secondary">{formatUsd(row.cost)}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[11px] text-secondary">
-        {Math.abs(diff) < Math.max(0.001, total.fixed * 0.01)
-          ? t('analytics.cache.auto.same')
-          : diff > 0
-            ? t('analytics.cache.auto.better', { amount: formatUsd(diff) })
-            : t('analytics.cache.auto.worse', { amount: formatUsd(-diff) })}
-      </p>
-      {compared.length > 1 && (
-        <div className="mt-1.5 space-y-0.5">
-          {compared.map((model) => {
-            const entry = model.autoComparison!
-            return (
-              <div key={model.model} className="flex items-baseline gap-2 text-[10px] text-dim tabular-nums">
-                <span className="min-w-0 flex-1 truncate font-mono">{model.model}</span>
-                <span>{t('analytics.cache.auto.row', { billed: formatUsd(entry.billed), fixed: formatUsd(entry.fixed), pings: entry.fixedPings, auto: formatUsd(entry.auto), count: entry.days })}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <p className="mt-1.5 text-[10px] text-faint">{t('analytics.cache.auto.disclaimer', { count: total.days })}</p>
-    </div>
-  )
-}
-
-export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
-  const { t } = useTranslation()
-  const cheapest = model.policies.reduce<number | null>((min, policy) => (min === null || policy.cost < min ? policy.cost : min), null)
-  const name = model.model.split('/').slice(1).join('/') || model.model
-  const source = importSourceOf(model.model)
-  return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-      <div className="flex items-baseline justify-between gap-2 text-xs">
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate font-mono text-secondary" title={model.model}>{name}</span>
-          {model.route === 'copilot' && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.viaCopilot')}</span>}
-          {source && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t(IMPORT_LABEL_KEYS[source])}</span>}
-        </span>
-        <span className="shrink-0 text-[11px] text-dim tabular-nums">
-          {t('analytics.cache.measured', { cost: formatUsd(model.measuredCost), calls: model.calls })}
-        </span>
-      </div>
-      <div className="mt-0.5 text-[11px] text-dim">
-        {t('analytics.cache.timing', {
-          current: !model.currentPolicy ? t('analytics.cache.unknown') : model.currentPolicyMeasured ? policyLabel(model.currentPolicy, t) : t('analytics.cache.assumed', { policy: policyLabel(model.currentPolicy, t) }),
-          gap: formatDuration(model.medianGapMs),
-          share: Math.round(model.longGapShare * 100),
-          ttl: Math.round(model.shortTtlMs / 60_000),
-        })}
-      </div>
-      {model.notes.map((note) => <p key={note} className="mt-0.5 text-[11px] text-dim">{t(CACHE_NOTE_KEYS[note])}</p>)}
-      {source && <p className="mt-0.5 text-[11px] text-dim">{t('analytics.cache.importedNote')}</p>}
-      {model.estimatedCalls > 0 && <p className="mt-0.5 text-[11px] text-dim">{t('analytics.cache.estimatedNote', { count: model.estimatedCalls })}</p>}
-      <GapHistogram buckets={model.gapBuckets} warmMinutes={model.shortTtlMs / 60_000} />
-      {model.observed && <ObservedHits observed={model.observed} />}
-      {model.policies.length === 0 ? (
-        <p className="mt-1.5 text-[11px] text-dim">{t('analytics.cache.noOptions')}</p>
-      ) : (
-        <>
-          <table className="mt-1.5 w-full table-fixed text-xs">
-            <tbody>
-              {model.policies.map((policy) => (
-                <tr key={policy.policy} className="border-t border-border/60">
-                  <td className={clsx('py-1 pr-2', policy.policy === model.recommended ? 'font-medium text-success' : 'text-secondary')}>
-                    {policyLabel(policy.policy, t)}
-                    {policy.policy === model.currentPolicy && <span className="ml-1.5 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.current')}</span>}
-                  </td>
-                  <td className="w-20 py-1 text-right text-[11px] text-dim tabular-nums">{policy.pings > 0 ? t('analytics.cache.pings', { count: policy.pings }) : ''}</td>
-                  <td className={clsx('w-16 py-1 text-right tabular-nums', policy.cost === cheapest ? 'text-success' : 'text-muted')}>{formatUsd(policy.cost)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {model.pingSweep.length > 0 && <PingSweep model={model} />}
-          {model.hourly.length > 0 && <HourlyPings model={model} />}
-          <p className="mt-1.5 text-[11px] text-secondary">
-            {model.recommended
-              ? t('analytics.cache.recommend', { policy: policyLabel(model.recommended, t), saving: formatUsd(model.saving) })
-              : t('analytics.cache.keep')}
-          </p>
-        </>
-      )}
-    </div>
-  )
-}
-
-/** Measured prompt tokens per day: read from the cache, written to it, sent uncached. */
-function CacheDays({ days }: { days: CacheDay[] }): React.JSX.Element {
-  const { t, i18n } = useTranslation()
-  const format = (key: string): string => new Date(`${key}T00:00:00`).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
-  return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-xs text-secondary">{t('analytics.cache.days.title')}</span>
-        <span className="flex items-center gap-2 text-[10px] text-dim">
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-success" aria-hidden="true" />{t('analytics.cache.days.read')}</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-warning" aria-hidden="true" />{t('analytics.cache.days.write')}</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-border-strong" aria-hidden="true" />{t('analytics.cache.days.input')}</span>
-        </span>
-      </div>
-      <div className="flex h-16 items-end gap-px" role="img" aria-label={t('analytics.cache.days.title')}>
-        {days.map((day) => {
-          const total = day.readTokens + day.writeTokens + day.inputTokens
-          const share = (part: number): string => `${total > 0 ? (part / total) * 100 : 0}%`
-          return (
-            <div
-              key={day.day}
-              className="flex h-full min-w-0 flex-1 flex-col-reverse overflow-hidden rounded-t-sm"
-              title={t('analytics.cache.days.bar', { day: format(day.day), hit: Math.round(total > 0 ? (day.readTokens / total) * 100 : 0), cold: day.coldCalls, calls: day.calls })}
-            >
-              <div className="bg-success" style={{ height: share(day.readTokens) }} />
-              <div className="bg-warning" style={{ height: share(day.writeTokens) }} />
-              <div className="bg-border-strong" style={{ height: share(day.inputTokens) }} />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-1 flex justify-between text-[10px] text-faint tabular-nums">
-        <span>{format(days[0].day)}</span>
-        <span>{format(days[days.length - 1].day)}</span>
-      </div>
-    </div>
-  )
-}
-
-/** How long the model sat idle between calls: the gaps that decide which lifetime pays. */
-function GapHistogram({ buckets, warmMinutes }: { buckets: number[]; warmMinutes: number }): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const max = Math.max(...buckets, 0)
-  if (max === 0) return null
-  const label = (index: number): string => index === 0
-    ? t('analytics.cache.gaps.under', { minutes: GAP_BUCKET_MINUTES[0] })
-    : index < GAP_BUCKET_MINUTES.length
-      ? t('analytics.cache.gaps.range', { from: GAP_BUCKET_MINUTES[index - 1], to: GAP_BUCKET_MINUTES[index] })
-      : t('analytics.cache.gaps.over', { minutes: GAP_BUCKET_MINUTES[GAP_BUCKET_MINUTES.length - 1] })
-  return (
-    <div className="mt-2">
-      <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.gaps.title')}</div>
-      <div className="flex items-end gap-1">
-        {buckets.map((count, index) => (
-          <div key={index} className="flex min-w-0 flex-1 flex-col items-center gap-0.5" title={t('analytics.cache.gaps.bar', { range: label(index), count })}>
-            <span className="text-[9px] text-dim tabular-nums">{count}</span>
-            <div className="h-8 w-full overflow-hidden rounded-sm bg-card">
-              {/* Gaps within the short lifetime keep the cache warm; longer ones do not. */}
-              <div className={clsx('w-full', index < GAP_BUCKET_MINUTES.length && GAP_BUCKET_MINUTES[index] <= warmMinutes ? 'bg-success' : 'bg-warning')} style={{ height: `${(count / max) * 100}%`, marginTop: `${100 - (count / max) * 100}%` }} />
-            </div>
-            <span className="truncate text-[9px] text-faint">{label(index)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/** Measured share of calls that found the cache warm after each length of break, against the lifetime they ran with. */
-function ObservedHits({ observed }: { observed: ObservedCache }): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const shown = observed.buckets.some((bucket) => bucket.gaps > 0)
-  const label = (index: number): string => (index < OBSERVED_GAP_MINUTES.length ? String(OBSERVED_GAP_MINUTES[index]) : `${OBSERVED_GAP_MINUTES[OBSERVED_GAP_MINUTES.length - 1]}+`)
-  const expected = observed.expectedMinutes
-  const verdict = expected === null
-    ? null
-    : observed.verdict === 'matches'
-      ? t('analytics.cache.observed.matches', { expected, warm: observed.warmUpToMinutes ?? 0, cold: observed.coldFromMinutes ?? expected })
-      : observed.verdict === 'shorter'
-        ? t('analytics.cache.observed.shorter', { expected, cold: observed.coldFromMinutes ?? 0 })
-        : observed.verdict === 'longer'
-          ? t('analytics.cache.observed.longer', { expected, warm: observed.warmUpToMinutes ?? 0 })
-          : t('analytics.cache.observed.unclear', { expected })
-  return (
-    <div className="mt-2">
-      {shown && (
-        <>
-          <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.observed.title')}</div>
-          <div className="flex items-end gap-0.5" role="img" aria-label={t('analytics.cache.observed.title')}>
-            {observed.buckets.map((bucket, index) => {
-              const rate = bucket.gaps > 0 ? bucket.hits / bucket.gaps : 0
-              const boundary = expected !== null && OBSERVED_GAP_MINUTES[index] === expected
-              return (
-                <div
-                  key={index}
-                  className={clsx('flex min-w-0 flex-1 flex-col items-center gap-0.5', boundary && 'border-r border-dashed border-warning pr-0.5')}
-                  title={t('analytics.cache.observed.bar', { range: label(index), hits: bucket.hits, gaps: bucket.gaps })}
-                >
-                  <span className="text-[9px] text-dim tabular-nums">{bucket.gaps > 0 ? `${Math.round(rate * 100)}` : ''}</span>
-                  <div className="h-8 w-full overflow-hidden rounded-sm bg-card">
-                    {bucket.gaps > 0 && (
-                      <div
-                        className={clsx('w-full', rate >= 0.8 ? 'bg-success' : rate < 0.5 ? 'bg-warning' : 'bg-border-strong', bucket.gaps < 3 && 'opacity-50')}
-                        style={{ height: `${rate * 100}%`, marginTop: `${100 - rate * 100}%` }}
-                      />
-                    )}
-                  </div>
-                  <span className="truncate text-[9px] text-faint tabular-nums">{label(index)}</span>
-                </div>
-              )
-            })}
-          </div>
-          <div className="text-center text-[9px] text-faint">{t('analytics.cache.observed.axis')}</div>
-        </>
-      )}
-      {verdict && shown && <p className="mt-1 text-[11px] text-secondary">{verdict}</p>}
-      {observed.pings > 0 && (
-        <p className="mt-0.5 text-[11px] text-secondary">
-          {t('analytics.cache.observed.pings', { count: observed.pings, hits: observed.pingHits, cost: formatUsd(observed.pingCost) })}
-          {observed.pingedGaps > 0 && ` ${t('analytics.cache.observed.pingedGaps', { count: observed.pingedGaps, hits: observed.pingedGapHits })}`}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** Idle a ping count keeps warm: minutes up to two hours, then hours. */
-function formatIdle(minutes: number, t: Translate): string {
-  return minutes < 120
-    ? t('analytics.cache.sweep.idleMinutes', { minutes: Math.round(minutes) })
-    : t('analytics.cache.sweep.idleHours', { hours: Math.round(minutes / 6) / 10 })
-}
-
-/** Replayed cost of the short lifetime plus 0, 1, 2… pings per idle gap, against the long setting. */
-function PingSweep({ model }: { model: ModelCacheReport }): React.JSX.Element {
-  const { t } = useTranslation()
-  const best = model.bestPings
-  const base = model.sweepPolicy ? policyLabel(model.sweepPolicy, t) : ''
-  const every = Math.round(model.pingEveryMs / 60_000)
-  const max = Math.max(...model.pingSweep.map((point) => point.cost), model.longCost ?? 0)
-  const min = Math.min(...model.pingSweep.map((point) => point.cost), model.longCost ?? Infinity)
-  // Start the scale just under the cheapest option so the differences show.
-  const floor = Math.max(0, min - (max - min) * 0.5)
-  const height = (cost: number): string => `${max > floor ? ((cost - floor) / (max - floor)) * 100 : 100}%`
-  return (
-    <div className="mt-2">
-      <div className="mb-1 flex items-baseline justify-between gap-2 text-[10px] text-faint">
-        <span>{t('analytics.cache.sweep.title', { base })}</span>
-        {model.longCost !== null && model.longPolicy && (
-          <span className="flex items-center gap-1">
-            <span className="w-3 border-t border-dashed border-warning" aria-hidden="true" />
-            {t('analytics.cache.sweep.long', { policy: policyLabel(model.longPolicy, t), cost: formatUsd(model.longCost) })}
-          </span>
-        )}
-      </div>
-      <div className="relative flex h-20 items-end gap-0.5" role="img" aria-label={t('analytics.cache.sweep.title', { base })}>
-        {model.longCost !== null && (
-          <div className="pointer-events-none absolute inset-x-0 border-t border-dashed border-warning" style={{ bottom: height(model.longCost) }} aria-hidden="true" />
-        )}
-        {model.pingSweep.map((point) => (
-          <div
-            key={point.pings}
-            className="flex h-full min-w-0 flex-1 items-end rounded-t-sm hover:bg-card"
-            title={t('analytics.cache.sweep.point', { count: point.pings, idle: formatIdle(point.idleMinutes, t), cost: formatUsd(point.cost), sent: point.sent })}
-          >
-            <div className={clsx('w-full rounded-t-sm', point === best ? 'bg-success' : 'bg-border-strong')} style={{ height: height(point.cost) }} />
-          </div>
-        ))}
-      </div>
-      <div className="mt-0.5 flex gap-0.5 text-[9px] text-faint tabular-nums">
-        {model.pingSweep.map((point) => (
-          <span key={point.pings} className={clsx('min-w-0 flex-1 text-center', point === best && 'text-success')}>
-            {model.pingSweep.length <= 16 || point.pings % 5 === 0 || point === best ? point.pings : ''}
-          </span>
-        ))}
-      </div>
-      <div className="text-center text-[9px] text-faint">{t('analytics.cache.sweep.axis', { every })}</div>
-      {best && (
-        <p className="mt-1 text-[11px] text-secondary">
-          {best.saving > 0
-            ? t('analytics.cache.sweep.best', {
-              base,
-              count: best.pings,
-              idle: formatIdle(best.idleMinutes, t),
-              cost: formatUsd(best.cost),
-              saving: formatUsd(best.saving),
-              perSession: formatUsd(best.saving / Math.max(1, model.sessions)),
-            })
-            : t('analytics.cache.sweep.none', { base, count: best.pings, cost: formatUsd(best.cost) })}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** The cheapest ping count for idle gaps starting in each hour of the day. */
-function HourlyPings({ model }: { model: ModelCacheReport }): React.JSX.Element {
-  const { t } = useTranslation()
-  const byHour = new Map(model.hourly.map((hour) => [hour.hour, hour]))
-  const most = Math.max(...model.hourly.map((hour) => hour.pings), 1)
-  return (
-    <div className="mt-2">
-      <div className="mb-1 text-[10px] text-faint">{t('analytics.cache.hourly.title')}</div>
-      <div className="grid grid-cols-12 gap-0.5">
-        {Array.from({ length: 24 }, (_, hour) => {
-          const plan = byHour.get(hour)
-          return (
-            <div
-              key={hour}
-              className={clsx('relative h-7 overflow-hidden rounded-sm border text-center', plan ? 'border-border bg-surface' : 'border-transparent bg-card/50')}
-              title={plan
-                ? t('analytics.cache.hourly.cell', { hour: String(hour).padStart(2, '0'), count: plan.pings, gaps: plan.gaps, saving: formatUsd(plan.fixedCost - plan.cost) })
-                : t('analytics.cache.hourly.empty', { hour: String(hour).padStart(2, '0') })}
-            >
-              {plan && <div className="absolute inset-x-0 bottom-0 bg-success/30" style={{ height: `${(plan.pings / most) * 100}%` }} aria-hidden="true" />}
-              <div className="relative text-[8px] leading-3 text-faint tabular-nums">{String(hour).padStart(2, '0')}</div>
-              <div className="relative text-[10px] leading-3 text-secondary tabular-nums">{plan ? plan.pings : ''}</div>
-            </div>
-          )
-        })}
-      </div>
-      <p className="mt-1 text-[11px] text-secondary">
-        {model.autoSaving > 0 && model.autoCost !== null
-          ? t('analytics.cache.hourly.saving', { cost: formatUsd(model.autoCost), saving: formatUsd(model.autoSaving) })
-          : t('analytics.cache.hourly.flat')}
-      </p>
-    </div>
   )
 }
 

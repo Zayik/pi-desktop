@@ -1,11 +1,9 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
-import { isCacheMode, type AutoWarmSchedule, type CacheModeChoice, type ContextSnapshot } from '../../../resources/context-snapshot'
-import { enableIdleCacheWarming, readCacheMode, readPiCacheWarming, writeCacheMode } from '../cache-modes'
-import { freshAutoWarmSchedule, readAutoWarmSchedule } from '../auto-warm'
-import { overviewForAutoWarm } from './analytics-handlers'
-import { pruneContextSnapshots, readContextSnapshot } from '../context-snapshots'
+import type { ContextSnapshot } from '../../../resources/context-snapshot'
+import { getContextSnapshotDir, legacyContextSnapshotDir, pruneContextSnapshots, readContextSnapshot } from '../context-snapshots'
 import { readAgentBoard } from '../agent-board'
+import { clearDesktopFocus, openSessionPage, setDesktopFocus } from '../session-page'
 import type { AgentBoard, AgentBoardRequest } from '../../shared/agent-board'
 import { appLog } from '../app-log'
 import { assertTrustedSender, isObject, isString } from './validation'
@@ -14,9 +12,11 @@ import { assertTrustedSender, isObject, isString } from './validation'
 const MAX_SUBAGENT_FILES = 100
 
 export function registerContextHandlers(): void {
-  void pruneContextSnapshots().catch((error: unknown) => {
-    appLog.warn('context-snapshots', 'Could not prune old context snapshots', error)
-  })
+  for (const dir of [getContextSnapshotDir(), legacyContextSnapshotDir()]) {
+    void pruneContextSnapshots(dir).catch((error: unknown) => {
+      appLog.warn('context-snapshots', 'Could not prune old context snapshots', error)
+    })
+  }
 
   ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<ContextSnapshot | null> => {
     assertTrustedSender(event)
@@ -28,36 +28,16 @@ export function registerContextHandlers(): void {
     return readAgentBoard(parseBoardRequest(request))
   })
 
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_MODE, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<CacheModeChoice | null> => {
+  app.on('will-quit', clearDesktopFocus)
+
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_OPEN_SESSION_PAGE, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<void> => {
     assertTrustedSender(event)
-    return readCacheMode(parseSessionId(sessionId))
+    await openSessionPage(sessionId === null ? null : parseSessionId(sessionId))
   })
 
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, async (event: IpcMainInvokeEvent, sessionId: unknown, mode: unknown): Promise<CacheModeChoice> => {
+  ipcMain.handle(IPC_CHANNELS.CONTEXT_SET_DESKTOP_FOCUS, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<void> => {
     assertTrustedSender(event)
-    if (!isCacheMode(mode)) throw new Error('mode must be a cache mode')
-    return writeCacheMode(parseSessionId(sessionId), mode)
-  })
-
-  // Built from past sessions when missing or stale; the saved one is shown if that fails.
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_AUTO_WARM_SCHEDULE, async (event: IpcMainInvokeEvent): Promise<AutoWarmSchedule | null> => {
-    assertTrustedSender(event)
-    try {
-      return await freshAutoWarmSchedule(overviewForAutoWarm)
-    } catch (error) {
-      appLog.warn('context-snapshots', 'Could not build the auto keep-warm schedule', error)
-      return readAutoWarmSchedule()
-    }
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<string | null> => {
-    assertTrustedSender(event)
-    return readPiCacheWarming()
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<void> => {
-    assertTrustedSender(event)
-    await enableIdleCacheWarming()
+    setDesktopFocus(sessionId === null ? null : parseSessionId(sessionId))
   })
 }
 

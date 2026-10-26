@@ -9,116 +9,7 @@
   },
   "analytics": {
     "cache": {
-      "assumed": "{{policy}} (assumed)",
-      "auto": {
-        "auto": "Auto by hour",
-        "better": "Auto would have saved about {{amount}} over the best fixed count.",
-        "billed": "Billed",
-        "disclaimer_one": "An estimate from {{count}} day of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
-        "disclaimer_other": "An estimate from {{count}} days of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
-        "fixed": "Best fixed count",
-        "row_one": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} day)",
-        "row_other": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} days)",
-        "same": "Changing the count by hour would have cost about the same as the best fixed count.",
-        "span_one": "{{count}} day, {{from}} to {{to}}",
-        "span_other": "{{count}} days, {{from}} to {{to}}",
-        "title": "Auto (experimental) compared",
-        "worse": "Auto would have cost about {{amount}} more than the best fixed count."
-      },
-      "current": "now",
-      "days": {
-        "bar": "{{day}}: {{hit}}% of prompt tokens from the cache, {{cold}} of {{calls}} calls cold",
-        "input": "Uncached",
-        "read": "Cache hits",
-        "title": "Cache hits per day (measured)",
-        "write": "Cache writes"
-      },
-      "estimatedNote_one": "{{count}} call's prompt size is estimated: Copilot logs only totals per run. Break timing is measured.",
-      "estimatedNote_other": "{{count}} calls' prompt sizes are estimated: Copilot logs only totals per run. Break timing is measured.",
-      "fromClaudeCode": "from Claude Code",
-      "fromCodex": "from Codex",
-      "fromCopilot": "from the Copilot app",
-      "gaps": {
-        "bar_one": "{{range}}: {{count}} gap",
-        "bar_other": "{{range}}: {{count}} gaps",
-        "over": ">{{minutes}}m",
-        "range": "{{from}}–{{to}}m",
-        "title": "Gaps between calls",
-        "under": "<{{minutes}}m"
-      },
-      "hourly": {
-        "cell_one": "{{hour}}:00: {{count}} ping, {{gaps}} gaps, saves {{saving}} vs one count all day",
-        "cell_other": "{{hour}}:00: {{count}} pings, {{gaps}} gaps, saves {{saving}} vs one count all day",
-        "empty": "{{hour}}:00: no idle gaps",
-        "flat": "One ping count all day is as cheap as changing it by hour.",
-        "saving": "Changing the count by hour of day would have cost {{cost}}, {{saving}} less than the best single count.",
-        "title": "Cheapest pings per gap by hour of day"
-      },
-      "importedNote": "Read from another tool's logs and priced at the vendor's list prices. Pi cannot change that tool's cache settings, so this shows what each setting would have cost.",
-      "keep": "The current setting is already about the cheapest for this timing.",
-      "measured": "{{cost}} billed · {{calls}} calls",
-      "noOptions": "This model has no cache setting or keep-warm option to compare; only the billed cost is shown.",
-      "note": "Same calls, same timing, prompt cost only",
-      "notes": {
-        "copilot1hUnlisted": "Copilot's docs list only the 5 min price, but its backend accepts the 1 h lifetime (VS Code's extended cache setting uses it). The 1 h row assumes Anthropic's 2x write price.",
-        "copilotAutomatic": "Copilot caches this model automatically and there is no setting to change.",
-        "copilotVendor": "Copilot runs this model on the vendor's own servers, so the vendor's cache lifetimes are assumed.",
-        "implicitLifetime": "OpenAI caches this model automatically with no write charge. Lifetimes are typical values: in memory about 5 to 10 min (5 assumed), 24 h retention about 30 min.",
-        "piNo12h": "Pi's long retention asks for 30 min on this model, so 12 h cannot be picked from Pi yet.",
-        "piNoPings": "No warming pings are on record for this model. Pi only warms models with a known cache lifetime (from its own list, models.json, or the app), so pings here are a what-if."
-      },
-      "observed": {
-        "axis": "Break before the call (min); dashed line: the lifetime in use",
-        "bar": "Breaks up to {{range}} min: {{hits}} of {{gaps}} hit the cache",
-        "longer": "Hits still land after {{warm}} min, longer than the {{expected}} min lifetime.",
-        "matches": "Measured hits hold up to about {{warm}} min and drop from {{cold}} min, which fits the {{expected}} min lifetime.",
-        "pingedGaps_one": "{{hits}} of {{count}} call after a pinged break hit the cache.",
-        "pingedGaps_other": "{{hits}} of {{count}} calls after a pinged break hit the cache.",
-        "pings_one": "{{count}} warming ping: {{hits}} found the cache warm ({{cost}}).",
-        "pings_other": "{{count}} warming pings: {{hits}} found the cache warm ({{cost}}).",
-        "shorter": "The cache looks shorter than {{expected}} min: hits already drop from {{cold}} min.",
-        "title": "Measured: calls that found the cache warm after a break (%)",
-        "unclear": "Not enough breaks around {{expected}} min yet to check the lifetime."
-      },
-      "pings_one": "{{count}} ping",
-      "pings_other": "{{count}} pings",
-      "policy": {
-        "fiveMinutes": "5 min",
-        "inMemory": "In memory (about 5 min)",
-        "inMemoryWarm30": "In memory + pings (up to 30 min idle)",
-        "inMemoryWarm60": "In memory + pings (up to 1 h idle)",
-        "inMemoryWarmBreakEven": "In memory + pings (while cheaper than resending)",
-        "none": "No cache",
-        "oneHour": "1 hour",
-        "thirtyMinutes": "30 min",
-        "thirtyWarm12h": "30 min + pings (up to 12 h idle)",
-        "thirtyWarm6h": "30 min + pings (up to 6 h idle)",
-        "thirtyWarmBreakEven": "30 min + pings (while cheaper than rewriting)",
-        "twelveHours": "12 hours",
-        "twentyFourHours": "24 h retention (about 30 min)",
-        "warm30": "5 min + pings (up to 30 min idle)",
-        "warm60": "5 min + pings (up to 1 h idle)",
-        "warmBreakEven": "5 min + pings (while cheaper than rewriting)"
-      },
-      "recommend": "Cheapest: {{policy}}, about {{saving}} less on these calls.",
-      "rulesAsOf": "Cache rules as of {{date}}. Options are only compared for calls made after the vendor offered them.",
-      "sweep": {
-        "axis": "Pings allowed per idle gap (one every {{every}} min)",
-        "best_one": "Cheapest: {{base}} + {{count}} ping per gap (warm through {{idle}} of idle), {{cost}}. That would have saved about {{saving}} ({{perSession}} per session on average).",
-        "best_other": "Cheapest: {{base}} + {{count}} pings per gap (warm through {{idle}} of idle), {{cost}}. That would have saved about {{saving}} ({{perSession}} per session on average).",
-        "idleHours": "{{hours}} h",
-        "idleMinutes": "{{minutes}} min",
-        "long": "{{policy}} {{cost}}",
-        "none_one": "Cheapest is {{base}} + {{count}} ping per gap at {{cost}}, which is no cheaper than now.",
-        "none_other": "Cheapest is {{base}} + {{count}} pings per gap at {{cost}}, which is no cheaper than now.",
-        "point_one": "{{count}} ping per gap (warm through {{idle}}): {{cost}}, {{sent}} sent",
-        "point_other": "{{count}} pings per gap (warm through {{idle}}): {{cost}}, {{sent}} sent",
-        "title": "Cost by pings per idle gap on {{base}}"
-      },
-      "timing": "Now {{current}} · median gap {{gap}} · {{share}}% of gaps over {{ttl}} min",
-      "title": "Prompt cache settings",
-      "unknown": "unknown",
-      "viaCopilot": "via Copilot"
+      "rulesAsOf": "Cache rules as of {{date}}. Options are only compared for calls made after the vendor offered them."
     },
     "category": {
       "build": "Builds",
@@ -170,6 +61,90 @@
       "sessions": "Sessions",
       "title": "Projects"
     },
+    "promptCache": {
+      "allModels": "All models",
+      "chart": {
+        "aria": "Running prompt cost by ping count",
+        "dayBest": "{{day}}: cheapest with {{pings}}. Click to show it in 30-minute blocks",
+        "dayBestNote": "Under each day is that day's cheapest setting, in its line color (L is the 1-hour cache).",
+        "expand": "Show {{day}} in 30-minute blocks",
+        "modeLabel": "Chart values",
+        "saving": "Compared with no pings",
+        "savingNote": "Each line is what that ping count paid compared with no pings: below $0 saves money. Click a day to open it below.",
+        "title": "Running prompt cost by ping count · {{model}}",
+        "total": "Total cost",
+        "totalNote": "Each line is the running prompt cost with that setting. The lowest line at the right edge was cheapest. Click a day to open it below.",
+        "upTo": "{{day}}, up to {{time}}"
+      },
+      "confidence": {
+        "early": "Early",
+        "none": "Not enough data",
+        "solid": "Solid"
+      },
+      "day": {
+        "bestNote": "Each row is a model, in its line color. A number is the cheapest ping count for the breaks that ended in that block; blocks without one had no break longer than the cache lifetime.",
+        "bestRow": "Cheapest ping count per 30-minute block",
+        "cell_one": "{{model}}, {{block}}: {{count}} break ({{lengths}} min), cheapest with {{best}}",
+        "cell_other": "{{model}}, {{block}}: {{count}} breaks ({{lengths}} min), cheapest with {{best}}",
+        "close": "Close day",
+        "next": "Next day",
+        "previous": "Previous day",
+        "upTo": "Up to {{time}}"
+      },
+      "legend": {
+        "allHidden": "Every line is hidden. Click one in the list to show it.",
+        "long": "Long: 1-hour cache, no pings",
+        "noCache": "No cache (reference)",
+        "note": "Click a line to hide or show it.",
+        "perBreak": "Best count at each break",
+        "perModel": "Each model at its recommended count",
+        "recommended": "Recommended",
+        "title_one": "Total over {{count}} day",
+        "title_other": "Total over {{count}} days"
+      },
+      "lifetime": {
+        "automatic": "Provider cache",
+        "fiveMinutes": "5-min cache",
+        "thirtyMinutes": "30-min cache"
+      },
+      "longLabel": "the 1-hour cache",
+      "longShort": "L",
+      "noPings": "No pings",
+      "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
+      "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
+      "pings_one": "{{count}} ping",
+      "pings_other": "{{count}} pings",
+      "summary": {
+        "all": "All models: with each model on its recommended count, prompts cost {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
+        "automatic": "{{model}} uses the provider's cache, which pings can't change: {{cost}} a week.",
+        "noSaving": "{{model}}: pings don't pay off here, so no pings is cheapest at {{cost}} a week. The best count at every break would cost {{best}}.",
+        "saves": "{{model}}: {{pings}} is cheapest, {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
+        "thin_one": "Only {{count}} long break so far, so this uses the count of models with the same cache lifetime.",
+        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime.",
+        "vsNoCache": "Against no cache ({{noCache}} a week), the {{multiple}}x cache writes add {{writes}} and the cheaper reads save {{reads}}, before any pings."
+      },
+      "table": {
+        "estimated": "estimated",
+        "estimatedTitle": "Copilot logs only totals per run, so each call's prompt size is estimated from how the conversation grew; its timing is measured.",
+        "footnote": "Long is Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it. 30-minute models have no longer lifetime Pi can pick. No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
+        "fromClaudeCode": "from Claude Code",
+        "fromCodex": "from Codex",
+        "fromCopilot": "from Copilot",
+        "hitRate": "{{rate}}% hits",
+        "long": "Long (1 h)",
+        "longTitle": "Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it",
+        "model": "Model",
+        "noCache": "No cache",
+        "note": "Prompt cost per week. Under No pings: what the short cache's write premium adds and its cheaper reads save, compared with no cache. Green is the cheapest fixed setting; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
+        "perBreak": "Best at each break",
+        "providerRuns": "The provider runs this cache; pings can't change it",
+        "reads": "reads −{{cost}}",
+        "title": "Cost per week by ping count",
+        "writeMultiple": "writes {{multiple}}x",
+        "writes": "writes +{{cost}}"
+      },
+      "title": "Prompt cache"
+    },
     "prompts": {
       "cost": "Cost",
       "empty": "No prompts yet.",
@@ -183,32 +158,6 @@
       "sevenDays": "7 D",
       "thirtyDays": "30 D",
       "threeMonths": "90 D"
-    },
-    "recommend": {
-      "alternative": "or the {{policy}} cache instead: saves {{amount}} a week",
-      "applied": "Applied",
-      "apply": "Apply",
-      "beyondPi_one": "The replay's cheapest is {{count}} refresh ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
-      "beyondPi_other": "The replay's cheapest is {{count}} refreshes ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
-      "failed": "Could not change the cache plan: {{error}}",
-      "focus": "no refreshes after the agent stops",
-      "idleAccept": "Turn on and apply",
-      "idleCancel": "Cancel",
-      "idleMessage": "Refreshing the cache after the agent stops needs Pi's cacheWarming setting set to \"idle\". It applies to every Pi session; undo puts the old value back.",
-      "idleTitle": "Turn on idle cache warming?",
-      "keepWarm_one": "keep warm {{minutes}} min after the agent stops ({{count}} refresh)",
-      "keepWarm_other": "keep warm {{minutes}} min after the agent stops ({{count}} refreshes)",
-      "long": "use the {{policy}} cache",
-      "none": "Every model already runs with its cheapest setting.",
-      "note_one": "Saving per week, from the last day",
-      "note_other": "Saving per week, from the last {{count}} days",
-      "planned_one": "The cache plan sets 1 model.",
-      "planned_other": "The cache plan sets {{count}} models.",
-      "saving": "saves {{amount}} a week",
-      "thin_one": "Not enough breaks yet for a recommendation: {{models}}.",
-      "thin_other": "Not enough breaks yet for a recommendation: {{models}}.",
-      "title": "Cache settings to apply",
-      "undo": "Undo last change"
     },
     "retro": {
       "button": "Retro",
@@ -227,7 +176,8 @@
     "showLess": "Show less",
     "signal": {
       "buildTime": "Builds took {{share}}% of active time ({{minutes}} min over {{runs}} runs).",
-      "cachePolicy": "Cache setting {{policy}} instead of {{current}} would have saved about {{cost}} ({{share}}% of its prompt cost) on {{model}}.",
+      "cachePings_one": "Keeping the {{minutes}}-minute prompt cache warm with {{count}} ping after the agent stops would have saved about {{cost}} a week.",
+      "cachePings_other": "Keeping the {{minutes}}-minute prompt cache warm with {{count}} pings after the agent stops would have saved about {{cost}} a week.",
       "carriedTool": "{{tool}} results were sent again with later calls for {{share}}% of the cost ({{cost}}).",
       "compactions": "{{sessions}} session(s) compacted three or more times (most: {{most}}). Context is filling up fast.",
       "failingCommand": "{{command}} failed {{failures}} times.",
@@ -343,61 +293,6 @@
       "unknownMimeType": "unknown",
       "unsupportedImageType": "Unsupported image type ({{mimeType}}). Use PNG, JPEG, GIF, or WebP."
     },
-    "cacheCheck": {
-      "appliesTo": "Applying sets this model's cache setting for every chat, in the app and in the Pi CLI with pi-analytics installed. A mode you pick for one chat still wins in that chat. Undo puts the previous setting back.",
-      "close": "Close",
-      "failed": "Could not read your sessions.",
-      "intro": "{{model}}, from your last 30 days of sessions",
-      "loading": "Replaying your sessions…",
-      "longOnly": "No ping count beats what you run now, but the {{policy}} cache would have cost noticeably less. Pick Long in the cache menu to try it.",
-      "noHistory": "No calls to this model in the last 30 days yet, so there is nothing to recommend.",
-      "noSaving": "What you run now is already about the cheapest setting for this model.",
-      "notCovered": "This model's provider has no cache settings Pi can change, so there is nothing to recommend.",
-      "notEnoughData_one": "Only {{count}} break so far; a recommendation needs {{needed}} to be worth trusting.",
-      "notEnoughData_other": "Only {{count}} breaks so far; a recommendation needs {{needed}} to be worth trusting.",
-      "title": "Cache recommendation"
-    },
-    "cacheMode": {
-      "allModels": "Cache settings for all models",
-      "appliesNext": "Applies from this chat's next request. New chats start in the mode you pick.",
-      "autoHour_one": "{{hour}}:00 · {{count}} ping",
-      "autoHour_other": "{{hour}}:00 · {{count}} pings",
-      "autoHours": "Idle pings by hour of day",
-      "autoNoData": "No Anthropic sessions in the last 30 days to learn from yet, so Auto pings 3 times like Keep warm.",
-      "autoNow_one": "This hour: {{count}} idle ping, warm about {{minutes}} min past your last turn.",
-      "autoNow_other": "This hour: {{count}} idle pings, warm about {{minutes}} min past your last turn.",
-      "autoOverride": "Pick another mode to override Auto for this chat.",
-      "checkRecommendation": "Check recommendation",
-      "controlOff": "Cache control is off in Settings, so Pi runs with its own cache settings and this pick waits until it's back on.",
-      "enableIdleWarming": "Turn on idle warming",
-      "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
-      "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
-      "modes": {
-        "auto": {
-          "detail": "Keep warm with the number of idle pings that cost least at this hour of day, learned from your last 30 days.",
-          "label": "Auto"
-        },
-        "focus": {
-          "detail": "5-minute cache, refreshed only while the agent works. Nothing is paid while idle.",
-          "label": "Focus"
-        },
-        "keepWarm": {
-          "detail": "Short cache, refreshed after the agent stops: 3 times unless you set a count for the model (about 15 minutes on a 5-minute cache).",
-          "label": "Keep warm"
-        },
-        "long": {
-          "detail": "1-hour cache. Writing it costs 2× input instead of 1.25×, with nothing paid while idle.",
-          "label": "Long"
-        }
-      },
-      "pingsDetail": "Keeps this model's {{lifetime}}-minute cache warm about {{minutes}} min after the agent stops. Up to {{cap}}: Pi stops warming 30 min after a run. Saved for this model.",
-      "pingsFewer": "Fewer pings",
-      "pingsLabel": "Pings after the agent stops",
-      "pingsMore": "More pings",
-      "pingsNotWarmed": "Pi has no cache lifetime for this model, so it never pings it.",
-      "title": "Prompt cache",
-      "withMode": "Prompt cache: {{mode}}"
-    },
     "closeFileTree": "Close file tree",
     "commandPopup": {
       "selectHint": "↑↓ navigate · Enter/Tab select · Esc close"
@@ -410,6 +305,9 @@
     "contextPanel": {
       "agents": {
         "card": {
+          "answerInChat": "Answer it in the main chat, or let the main agent decide.",
+          "askedBy_one": "{{agents}} is waiting on an answer from this chat.",
+          "askedBy_other": "{{count}} subagents are waiting on answers from this chat: {{agents}}.",
           "breakdown": "Breakdown",
           "cost": "Cost",
           "details": "Details",
@@ -417,6 +315,8 @@
           "lastTool": "last: {{tool}}",
           "nextWarm": "Next if warm {{cost}}",
           "noSessionFile": "Live figures only: this run has no saved session to read yet.",
+          "question": "Waiting on an answer",
+          "questionInterview": "Waiting on answers to a few questions",
           "time": "Time",
           "toolCount_one": "{{count}} tool call",
           "toolCount_other": "{{count}} tool calls"
@@ -445,6 +345,7 @@
         "status": {
           "done": "Done",
           "failed": "Failed",
+          "needsAnswer": "Needs answer",
           "running": "Running",
           "stopped": "Stopped"
         },
@@ -492,20 +393,14 @@
         "unattributedDetail": "What the last call sent beyond the saved conversation: the system prompt, instruction files, skills and tool definitions."
       },
       "cache": {
-        "autoLimit_one": "Auto: {{count}} idle ping this break",
-        "autoLimit_other": "Auto: {{count}} idle pings this break",
         "cold": "Cold",
         "hitRate": "Last call {{percent}}% from cache",
-        "mode": "Mode: {{mode}}",
         "modelChanged": "Cold · model changed",
         "nextCold": "Next if expired",
         "nextColdDetail": "rewrites context",
         "nextWarm": "Next if warm",
         "nextWarmDetail": "reads context",
         "none": "No calls yet",
-        "switchFirstCall": "First request in {{mode}}:",
-        "switchPending": "Switched to {{mode}}. The next request shows whether it read the old cache or wrote a new one.",
-        "switchReadWrite": "read {{read}} ({{readCost}}) · wrote {{write}} ({{writeCost}})",
         "thisTurn": "This turn",
         "title": "Prompt cache",
         "titleWithLifetime": "Prompt cache · {{lifetime}}",
@@ -532,6 +427,7 @@
       "loading": "Loading…",
       "noSession": "Open a session to see its context.",
       "noSnapshot": "Nothing recorded for this session yet. Recording starts when its agent starts, so send a message or restart the agent.",
+      "openInBrowser": "Open in browser, with every Pi session on this computer",
       "tiles": {
         "calls_one": "{{count}} request",
         "calls_other": "{{count}} requests",
@@ -650,6 +546,12 @@
       "openPanel": "Open subagent panel",
       "running_one": "{{count}} subagent running",
       "running_other": "{{count}} subagents running"
+    },
+    "subagentQuestion": {
+      "fromAgent": "Question from subagent {{agent}}",
+      "fromSubagent": "Question from a subagent",
+      "hint": "The subagent is waiting. The main agent answers it next; to answer it yourself, reply here and the main agent passes your answer on.",
+      "interview": "· structured answer"
     },
     "svgBlock": {
       "renderedSvgAlt": "Rendered SVG",
@@ -984,7 +886,9 @@
     "resolutionSource": {
       "commonLocation": "Common install location",
       "engineInstall": "{{agent}} install location",
+      "env": "PI_DESKTOP_PI_PATH",
       "fallback": "Fallback (not found)",
+      "managedInstall": "pi.dev installer",
       "npmPrefix": "npm global prefix",
       "override": "Configured path",
       "path": "PATH",
@@ -1154,6 +1058,7 @@
       "exitedBeforeReady": "Pi exited with code {{code}} before becoming ready.",
       "failedToCreateManager": "Failed to create Pi manager",
       "installHint": "Install Pi with:\n  {{npmCommand}}\nor install OMP with:\n  {{bunCommand}}",
+      "installRunning": "An install is already running.",
       "nodeNotFound": "Node binary not found at resolved path:\n  {{node}}\n\nPi's .js entry point requires Node. Install Node from https://nodejs.org or set the NODE env var to your Node binary path.",
       "noManagerForWorkspace": "No Pi manager for workspace",
       "notFound": "Pi binary not found. Searched the login shell PATH, npm's global prefix, node version managers (nvm, fnm, volta, asdf, mise, nodenv, n) and common install locations.\n\n{{installHint}}\n\nAlready installed? Set the full path to Pi's cli.js in {{settingsHint}}.",
@@ -1539,6 +1444,108 @@
       "title": "Allow {{tool}}?"
     }
   },
+  "piSetup": {
+    "browseDialogTitle": "Choose the pi program or its install folder",
+    "checkedCount_one": "{{count}} place, not found",
+    "checkedCount_other": "{{count}} places, not found",
+    "close": "Close",
+    "continueWithout": "Continue without Pi",
+    "existing": {
+      "browse": "Choose pi location…",
+      "heading": "Already installed?",
+      "hint": "Point Pi Desktop at the pi program (pi.cmd, pi.exe, cli.js) or the folder it is in. You can also set the {{envVar}} environment variable. If you just installed Pi in a terminal, try again.",
+      "openSettings": "Open Settings",
+      "tryAgain": "Try again"
+    },
+    "found": "Found",
+    "install": {
+      "button": "Install",
+      "doneFound": "Installed. Starting Pi…",
+      "doneNotFound": "The install finished, but Pi still was not found. Restart Pi Desktop, or choose its location below.",
+      "failed": "The install failed (exit code {{code}}). The output is below.",
+      "heading": "Install the latest Pi",
+      "hint": "Each button runs the command shown under it. The pi.dev installer also installs Node.js if you do not have it.",
+      "installer": "pi.dev installer",
+      "installerUnavailable": "Needs PowerShell on Windows or curl on macOS and Linux. Run the command in a terminal instead.",
+      "npm": "npm",
+      "npmUnavailable": "npm was not found. Install Node.js first, or use the pi.dev installer.",
+      "recommended": "Recommended",
+      "running": "Installing…",
+      "winget": "winget",
+      "wingetUnavailable": "winget was not found on this PC."
+    },
+    "intro": "Pi Desktop runs the pi coding agent, and it could not find pi on this computer. Install it below, or show Pi Desktop where it is.",
+    "introFound": "Pi Desktop uses {{path}}.",
+    "introNoNode": "Found {{path}}, but it needs Node.js, and Node.js was not found. Install Node.js (or use the pi.dev installer, which brings its own), then try again.",
+    "notes": {
+      "envUnset": "PI_DESKTOP_PI_PATH is not set.",
+      "managedInstall": "Where the pi.dev installer may have put Pi. PI_MANAGED_INSTALL_ROOT is checked first when set.",
+      "npmMissing": "npm did not answer, so it is not installed or not on PATH.",
+      "npmPrefix": "npm installs global packages under {{prefix}}.",
+      "settingsUnset": "No path is set in Settings, so Pi Desktop searches on its own.",
+      "versionManager": "Node versions installed by nvm, fnm, Volta and similar tools."
+    },
+    "notice": {
+      "fix": "Click here to resolve",
+      "noNode": "Pi was found, but Node.js is missing, so Pi cannot start.",
+      "notFound": "Pi is not installed, or it is not in a folder Pi Desktop knows about."
+    },
+    "notSet": "Not set",
+    "platform": {
+      "linux": "Linux",
+      "mac": "macOS",
+      "windows": "Windows"
+    },
+    "rejectedOverride": "The path in Settings does not exist, so it was skipped: {{path}}",
+    "searched": {
+      "heading": "Where Pi Desktop looked on {{platform}}",
+      "hint": "In this order. The first match wins.",
+      "loading": "Searching…"
+    },
+    "steps": {
+      "commonLocation": "Common install folders (npm, winget, Scoop, Bun, Homebrew)",
+      "env": "PI_DESKTOP_PI_PATH environment variable",
+      "managedInstall": "pi.dev installer folders",
+      "npmPrefix": "npm global packages",
+      "omp": "Oh My Pi (used when Pi is missing)",
+      "path": "Folders on PATH",
+      "settings": "Path set in Settings",
+      "versionManager": "Node version managers"
+    },
+    "title": "Pi is not installed",
+    "titleFound": "Pi is ready",
+    "titleNoNode": "Node.js is missing"
+  },
+  "providers": {
+    "authType": {
+      "apiKey": "API key",
+      "oauth": "Account sign-in"
+    },
+    "change": "Change",
+    "connect": "Connect a provider",
+    "description": "The AI services Pi can use. This list, each status and the sign-in screen all come from Pi itself, so new providers and sign-in methods show up when Pi updates.",
+    "loading": "Asking Pi…",
+    "login": {
+      "done": "Done",
+      "hint": "This is Pi's own sign-in. Follow its steps; links open in your browser. Click Done when you are finished.",
+      "title": "Sign in with Pi",
+      "titleProvider": "Sign in to {{provider}} with Pi"
+    },
+    "none": "Pi has no provider it can use yet.",
+    "notice": {
+      "connect": "Connect a provider",
+      "none": "No AI provider is connected yet, so Pi cannot answer."
+    },
+    "piMissing": "Install Pi first, then connect a provider here.",
+    "refresh": "Check again",
+    "signIn": "Sign in",
+    "status": {
+      "invalid": "Sign-in failed",
+      "notReady": "Not signed in",
+      "ready": "Connected",
+      "unknown": "Unknown"
+    }
+  },
   "repoSets": {
     "bar": {
       "addRepository": "Add repo",
@@ -1664,6 +1671,28 @@
     "sessionStatusHeading": "Session Status",
     "subtitle": "Control what {{agent}} can do before changes move forward."
   },
+  "sessionPage": {
+    "followDesktop": "Follow Pi Desktop",
+    "historyNote": "From Pi's session log: this session ran without pi-analytics, so the prompt, tools and cache details are estimates.",
+    "live": "Live",
+    "loading": "Loading…",
+    "noData": "Nothing recorded for this session yet.",
+    "none": "No Pi sessions in the last 7 days.",
+    "pick": "Pick a session",
+    "recent": "Recent",
+    "reconnecting": "Reconnecting…",
+    "running": "Running",
+    "state": {
+      "ended": "Ended",
+      "history": "From log",
+      "idle": "Idle",
+      "stopped": "Stopped",
+      "working": "Working"
+    },
+    "stoppedNote": "Pi stopped without closing this session, so the figures end where it stopped.",
+    "title": "Pi sessions",
+    "untitled": "Untitled session"
+  },
   "sessions": {
     "activeBadge": "active",
     "archivedBadge": "archived",
@@ -1751,40 +1780,12 @@
       "pathPlaceholder": "Path to executable, cli.js, or install directory",
       "rescanTitle": "Rescan installed agents",
       "scanningStatus": "Scanning common install locations and PATH…",
-      "selectDialogTitle": "Select Agent Executable or Directory"
+      "selectDialogTitle": "Select Agent Executable or Directory",
+      "showSearch": "Where does Pi Desktop look?"
     },
     "autoScroll": {
       "description": "Automatically scroll to new messages",
       "label": "Auto Scroll"
-    },
-    "cache": {
-      "apply": "Apply",
-      "cancel": "Cancel",
-      "control": "Cache control",
-      "controlOff": "Off: Pi runs with its own cache settings. Your settings below are kept for when it's back on.",
-      "controlOn": "On: each model runs with the setting below, and chats with the mode picked for them.",
-      "empty": "No model has a setting yet. Recommend lists the models you've used.",
-      "keepWarmPings_one": "Keep warm · {{count}} ping",
-      "keepWarmPings_other": "Keep warm · {{count}} pings",
-      "lifetime": "Cache",
-      "minutes": "≈{{minutes}} min",
-      "model": "Model",
-      "note": "Saved per model for every chat, in Pi Desktop and the Pi CLI. Not set: Pi Desktop chats use the mode they start in (Keep warm unless you picked another), and the Pi CLI leaves Pi alone. A mode picked in one chat's menu still wins in that chat.",
-      "off": "Off",
-      "on": "On",
-      "or": "or {{setting}}",
-      "piDefault": "Not set",
-      "pingsTitle": "Warm about {{minutes}} min after the agent stops; up to {{cap}} pings",
-      "proposed": "Proposed (last 30 days)",
-      "recommend": "Recommend",
-      "recommendAgain": "Recommend again",
-      "reset": "Reset to defaults",
-      "resetConfirm": "Reset everything",
-      "resetDetail": "Clears every model's setting, turns cache control on and puts Pi's warming setting back to what it was before the first change.",
-      "saves": "saves {{amount}}/wk",
-      "setting": "Setting",
-      "settingFor": "Cache setting for {{model}}",
-      "undo": "Undo"
     },
     "chatWidth": {
       "description": "How wide messages and the prompt box can grow",
@@ -1831,10 +1832,6 @@
     "desktopNotifications": {
       "description": "Notify when Pi finishes, fails, or waits for approval in a workspace you are not looking at",
       "label": "Desktop Notifications"
-    },
-    "experimentalAutoCache": {
-      "description": "Experimental. Adds Auto to the cache menu: Keep warm with a different number of idle pings for each hour of the day, re-tuned every 6 hours from your last 30 days. Untested on real usage; Check recommendation is the steadier way to pick a setting.",
-      "label": "Auto cache mode"
     },
     "language": {
       "description": "Language of menus, buttons, and messages",
@@ -1885,7 +1882,7 @@
       "behavior": "Behavior",
       "customModels": "Custom Models",
       "multiAgentCouncilPlanning": "Multi-Agent Council Planning",
-      "promptCache": "Prompt cache",
+      "providers": "Providers",
       "typesafe": "TypeSafe Jev",
       "voiceDictation": "Voice dictation"
     },
@@ -2204,6 +2201,7 @@
     "hideTerminal": "Hide terminal",
     "openWorkflowRuns": "Open workflow runs",
     "piError": "{{agent}} error",
+    "piErrorTitle": "Show what went wrong and how to fix it",
     "piRunning": "{{agent}} running (PID: {{pid}})",
     "piStarting": "{{agent}} starting",
     "piStopped": "{{agent}} stopped",

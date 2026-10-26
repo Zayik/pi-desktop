@@ -12,6 +12,8 @@ import { NotesPanel } from './components/notes-panel'
 import { SkillsPanel } from './components/skills-panel'
 import { DiagnosticsPanel } from './components/diagnostics-panel'
 import { AnalyticsView } from './components/analytics-view'
+import { PiMissingNotice, PiSetupScreen } from './components/pi-setup-screen'
+import { NoProviderNotice, PiLoginDialog } from './components/providers-panel'
 import { MissionControl } from './components/mission-control'
 import { TaskLauncher } from './components/task-launcher'
 import { NotePicker } from './components/note-picker'
@@ -47,6 +49,48 @@ export function App(): React.JSX.Element {
   const workflowPanelOpen = useAppStore((state) => state.workflowPanelOpen)
   const workflowPanelFilter = useAppStore((state) => state.workflowPanelFilter)
   const workflowPanelWorkspaceId = useAppStore((state) => state.workflowPanelWorkspaceId)
+  const openSessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
+
+  // The live session page, once popped out, follows the chat open here.
+  useEffect(() => {
+    void window.piDesktop.context.setDesktopFocus(openSessionId).catch(() => {})
+  }, [openSessionId])
+
+  const piSetupOpen = useAppStore((state) => state.piSetupOpen)
+  const setPiSetupOpen = useAppStore((state) => state.setPiSetupOpen)
+  const piSetupFailure = useAppStore((state) => state.piSetupFailure)
+  const setPiSetupFailure = useAppStore((state) => state.setPiSetupFailure)
+  const piLogin = useAppStore((state) => state.piLogin)
+  const refreshPiProviders = useAppStore((state) => state.refreshPiProviders)
+  // Pi runs but nothing is signed in: every prompt would fail.
+  const noProvider = useAppStore(
+    (state) => state.piSetupFailure === null && state.piProviders !== null && !state.piProviders.some((p) => p.status === 'ready')
+  )
+
+  // Nothing works without Pi, so a launch that cannot find it opens straight
+  // onto the setup screen instead of a chat that fails on first use.
+  useEffect(() => {
+    let cancelled = false
+    window.piDesktop.pi
+      .getSetupReport()
+      .then((report) => {
+        if (cancelled) return
+        setPiSetupFailure(report.failure)
+        if (report.failure !== null) setPiSetupOpen(true)
+        else void refreshPiProviders()
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [setPiSetupOpen, setPiSetupFailure, refreshPiProviders])
+
+  // Pi starting by any route (a Settings path, a terminal install and a
+  // restart) settles the question, so the warning goes away.
+  const piRunning = useAppStore((state) => state.piStatus === 'running')
+  useEffect(() => {
+    if (piRunning) setPiSetupFailure(null)
+  }, [piRunning, setPiSetupFailure])
 
   // Global context menu
   const { show, ContextMenuComponent } = useContextMenu()
@@ -143,6 +187,9 @@ export function App(): React.JSX.Element {
           </button>
         </div>
       )}
+      {/* Stays up after "Continue without Pi", so the fix is one click away. */}
+      {piSetupFailure !== null && !piSetupOpen && <PiMissingNotice failure={piSetupFailure} variant="banner" />}
+      {noProvider && !piSetupOpen && <NoProviderNotice />}
       {isHome && !sidebarOpen && (
         <button
           type="button"
@@ -189,6 +236,8 @@ export function App(): React.JSX.Element {
 
       {showChrome && <StatusBar />}
       {showChrome && !globalWorkflowOpen && <WorkflowNavigator />}
+      {piSetupOpen && <PiSetupScreen />}
+      {piLogin && <PiLoginDialog key={piLogin.provider ?? ''} provider={piLogin.provider} />}
       <ExtensionUiDialog />
       <LinkedTaskDialog />
       <AppConfirmDialog />

@@ -87,6 +87,7 @@ import type {
   ModelsFileInfo,
   ModelInfo,
   PiPromptResultEvent,
+  PiProviderStatus,
 } from '../../shared/ipc-contracts'
 import {
   promptRanWithoutAgent, promptRefusal, promptResultRefusal, reportsNoAgentRun, reportsPromptOutcome,
@@ -325,6 +326,15 @@ interface AppState {
 
   // UI
   currentView: 'home' | 'chat' | 'mission-control' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills' | 'diagnostics' | 'analytics'
+  /** The full-page "Pi not found" setup screen, shown over every view. */
+  piSetupOpen: boolean
+  /** Why Pi cannot start, from the last setup check; null when it can. */
+  piSetupFailure: 'pi-not-found' | 'node-not-found' | null
+  /** Providers Pi can use, from Pi itself; null until first asked. */
+  piProviders: PiProviderStatus[] | null
+  piProvidersLoading: boolean
+  /** The open "sign in with Pi" dialog, for one provider or Pi's full picker. */
+  piLogin: { provider: string | null } | null
   // Scope for the Sessions view: 'current' shows only the active workspace's
   // sessions, 'all' keeps every project's history visible. Entry points set it
   // (sidebar Sessions = current, View all / command palette = all); the panel's
@@ -566,6 +576,11 @@ interface AppActions {
 
   // UI
   setCurrentView: (view: AppState['currentView']) => void
+  setPiSetupOpen: (open: boolean) => void
+  setPiSetupFailure: (failure: AppState['piSetupFailure']) => void
+  refreshPiProviders: () => Promise<void>
+  openPiLogin: (provider: string | null) => void
+  closePiLogin: () => void
   setSessionsScope: (scope: 'all' | 'current') => void
   setWorkflowPanelOpen: (open: boolean) => void
   openWorkflowRunsForSession: (sessionId: string) => void
@@ -1162,6 +1177,11 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // Default to the Home/launcher view; useInitialize switches to 'chat' when
   // the openToHomeOnLaunch setting is off (legacy boot-into-chat behavior).
   currentView: 'home',
+  piSetupOpen: false,
+  piSetupFailure: null,
+  piProviders: null,
+  piProvidersLoading: false,
+  piLogin: null,
   sessionsScope: 'all',
   workflowPanelOpen: false,
   workflowPanelFilter: null,
@@ -2348,6 +2368,25 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   // ─── UI ───────────────────────────────────────────────────────────────
 
   setCurrentView: (view) => set({ currentView: view }),
+  setPiSetupOpen: (open) => set({ piSetupOpen: open }),
+  setPiSetupFailure: (failure) => set({ piSetupFailure: failure }),
+  refreshPiProviders: async () => {
+    if (get().piProvidersLoading) return
+    set({ piProvidersLoading: true })
+    try {
+      set({ piProviders: await window.piDesktop.pi.listProviders() })
+    } catch {
+      set({ piProviders: [] })
+    } finally {
+      set({ piProvidersLoading: false })
+    }
+  },
+  openPiLogin: (provider) => set({ piLogin: { provider } }),
+  // A sign-in may have added or changed a credential, so ask Pi again.
+  closePiLogin: () => {
+    set({ piLogin: null })
+    void get().refreshPiProviders()
+  },
   // Lifted into the store so the scope survives SessionPanel remounts (it
   // unmounts on every navigation) and so sidebar entry points can set it.
   setSessionsScope: (scope) => set({ sessionsScope: scope }),
@@ -2500,6 +2539,12 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
         // matching pending echo means skip. Assistant-role message_start is
         // ignored: assistant content renders via message_update / message_end.
         const startedMessage = (event as PiMessageStartEvent).message
+        // A subagent's question to this chat: shown before the reply it triggers.
+        if (startedMessage && (startedMessage as { role?: unknown }).role === 'custom') {
+          const parsed = parseAgentMessage(startedMessage)
+          if (parsed?.subagentQuestion) get().addMessage(parsed)
+          break
+        }
         if (startedMessage && (startedMessage as { role?: unknown }).role === 'user') {
           const parsed = parseAgentMessage(startedMessage)
           if (parsed && parsed.content.trim() && !consumeLocalEcho(parsed.content)) {

@@ -13,7 +13,6 @@ import { VoiceMicButton } from './voice-mic-button'
 import { useVoiceDictation } from '../voice/use-voice-dictation'
 import { applyInterim } from '../../../shared/voice-composer'
 import { ThinkingLevelSelector } from './thinking-level-selector'
-import { CacheModeSelector } from './cache-mode-selector'
 import { CornerDownLeft, Square, Paperclip, X, FileText, StickyNote, Users, Search, AlertCircle } from 'lucide-react'
 import {
   SUPPORTED_IMAGE_EXTENSIONS,
@@ -948,8 +947,6 @@ export function ChatInput({ dropZoneRef }: ChatInputProps): React.JSX.Element {
                 <ModelSelector compact className="min-w-0" />
                 <div className="h-3.5 w-px bg-border" aria-hidden="true" />
                 <ThinkingLevelSelector className="shrink-0" />
-                <div className="h-3.5 w-px bg-border" aria-hidden="true" />
-                <CacheModeSelector className="shrink-0" />
               </div>
             )}
 
