@@ -84,9 +84,9 @@ The main agent's snapshot is recorded by the bundled [pi-analytics](packages/pi-
 Analytics shows where money and time went: per tool, per kind of work (tests, builds, lint, installs, reading, searching, editing, subagents), per skill, per prompt and per day. It has two scopes:
 
 - **This session**: the chart button on the right-edge tool rail. The open chat plus its pi-subagents children, billion-context delegates and forks.
-- **Overall**: Sidebar > Tools > Analytics. Every session in a date range (7 days to all time), optionally only the open project, with cost per day, the most expensive sessions and prompts, and projects.
+- **Overall**: Sidebar > Tools > Analytics. Every session in a date range (7 days to all time), optionally only the open project, with the [prompt cache](#prompt-cache) analysis, cost per day, the most expensive sessions and prompts, and projects.
 
-![Analytics across sessions: signals, cost per day, work by kind and tools](docs/screenshots/analytics-overview.png)
+![Analytics across sessions: signals, then the prompt cache cost per week by ping count](docs/screenshots/analytics-overview.png)
 
 ![Analytics for one session beside the chat](docs/screenshots/analytics-session.png)
 
@@ -96,7 +96,9 @@ What it measures:
 - **Carried cost**: a tool result stays in the context and is sent again with every later call, mostly as cache reads, until a compaction drops it. Each result is charged its tokens times the prompt price of every later call on the same branch. This is usually where a large `read` really costs.
 - **Tests and builds**: shell commands are sorted by what they run (`npm test`, `vitest`, `pytest`, `go test`, `cargo test`, `npm run build`, `tsc`, `eslint`, ...), with run counts, failures and median run time.
 - **Skills**: a read of a skill's `SKILL.md`, or a `/skill:` command, counts as a load, and its text is charged carried cost like a tool result.
-- **Signals**: coarse rules that point at the biggest costs, for example tests taking a large share of active time, tests rerun many times per session, a command failing again and again, or one tool's results making up a large share of cost.
+- **Signals**: coarse rules that point at the biggest costs, for example tests taking a large share of active time, tests rerun many times per session, a command failing again and again, one tool's results making up a large share of cost, or keep-warm pings that would have saved money.
+
+### Prompt cache
 
 **Prompt cache** (Overall scope) is read only: it shows what each cache setting would have cost, and changes nothing in Pi. It replays each model's calls, with their real prompt sizes and the real breaks between them, the way Pi warms: a refresh at 90% of the cache lifetime, and none after Pi stops warming, 30 minutes after a run. A break the pings do not bridge pays for its pings and a full rewrite.
 
@@ -106,6 +108,10 @@ What it measures:
 Rates follow the vendors: Anthropic writes cost 1.25x input on the 5-minute cache and 2x on the 1-hour one, reads 0.1x (0.05x on Opus 5.5); OpenAI GPT-5.6 and later have a 30-minute cache with 1.25x writes, and Pi's long setting asks them for 30 minutes too, so they have no Long column; older OpenAI and Gemini models cache automatically with no write charge, so pings cannot change them; GitHub Copilot bills at the upstream vendor's rates. The section says which day the rules were last checked. It is an estimate: it assumes the same calls at the same times.
 
 ![Prompt cache cost per week by ping count, and the running cost chart for one model](docs/screenshots/analytics-cache.png)
+
+**Other tools' sessions**: the replay also reads the local logs of Claude Code (`~/.claude/projects`), the Codex CLI (`~/.codex/sessions`) and the GitHub Copilot app and CLI (`~/.copilot/session-state`), so it can check warming against more than Pi's own history. Their models get their own rows with a **from Claude Code** (or Codex, Copilot) tag, priced at the vendors' API list prices, so a subscription session shows what the API would have charged. Copilot logs only per-run totals, so its rows are marked **estimated**. The [pi-analytics README](packages/pi-analytics/README.md#other-tools-sessions) lists what each tool records and how to turn each one off.
+
+Coming next: long-prompt tier pricing with a model price table (`pi-analytics prices`), and a Pi extension that applies each model's ping count while you are away. Until then nothing here changes how Pi warms its cache.
 
 The same report runs without the app: [`packages/pi-analytics`](packages/pi-analytics/README.md) is a Pi package and CLI (`pi-analytics report`, or `/analytics` inside Pi) that writes this view as one HTML file, and `pi-analytics cache` prints the prompt cache analysis.
 
