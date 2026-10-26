@@ -10,26 +10,7 @@
   "analytics": {
     "cache": {
       "assumed": "{{policy}}（推定）",
-      "auto": {
-        "auto": "按小时自动",
-        "better": "自动模式比最佳固定次数约节省 {{amount}}。",
-        "billed": "实际计费",
-        "disclaimer_other": "基于这些模型 {{count}} 天会话的估算：每天都用仅由此前各天构建的小时计划计价，与自动模式的实际运行方式一致。仅计提示成本，且限于 Pi 在运行结束后保持预热的 30 分钟内。记录的天数越多，估算越准确。",
-        "fixed": "最佳固定次数",
-        "row_other": "计费 {{billed}} · {{pings}} 次 {{fixed}} · 自动 {{auto}}（{{count}} 天）",
-        "same": "按小时调整次数与最佳固定次数的花费大致相同。",
-        "span_other": "{{count}} 天，{{from}} 至 {{to}}",
-        "title": "自动模式（实验性）对比",
-        "worse": "自动模式比最佳固定次数约多花 {{amount}}。"
-      },
       "current": "当前",
-      "days": {
-        "bar": "{{day}}：{{hit}}% 的提示 token 来自缓存，{{calls}} 次调用中 {{cold}} 次未命中",
-        "input": "未缓存",
-        "read": "缓存命中",
-        "title": "每日缓存命中（实测）",
-        "write": "缓存写入"
-      },
       "gaps": {
         "bar_other": "{{range}}：{{count}} 个间隔",
         "over": ">{{minutes}} 分",
@@ -47,7 +28,6 @@
       "keep": "按这种调用节奏，当前设置已接近最便宜。",
       "measured": "已计费 {{cost}} · {{calls}} 次调用",
       "noOptions": "此模型没有可比较的缓存设置或保活选项，仅显示实际计费。",
-      "note": "相同调用、相同时间，仅比较提示费用",
       "notes": {
         "copilot1hUnlisted": "Copilot 文档只列出 5 分钟价格，但其后端接受 1 小时时长（VS Code 的扩展缓存设置会使用）。1 小时一行按 Anthropic 的 2 倍写入价估算。",
         "copilotAutomatic": "Copilot 会自动缓存此模型，没有可更改的设置。",
@@ -99,7 +79,6 @@
         "title": "{{base}} 按每段空闲保活次数的费用"
       },
       "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 {{ttl}} 分钟",
-      "title": "提示缓存设置",
       "unknown": "未知",
       "viaCopilot": "经由 Copilot"
     },
@@ -151,6 +130,103 @@
       "sessions": "会话",
       "title": "项目"
     },
+    "promptCache": {
+      "automaticBasis": "该缓存由服务商管理，没有可设置的有效期，保活无济于事。",
+      "basis_other": "{{count}} 天 · 超过 {{minutes}} 分钟的间隔 {{breaks}} 次 · 保活最长覆盖 {{reach}} 分钟",
+      "best": "最佳",
+      "breaks": {
+        "fewPings": "少量保活即可覆盖",
+        "morePings": "更多保活可覆盖",
+        "note": "按时长统计的调用间隔。只有蓝色行里的间隔保活才划算。",
+        "onePing": "1 次保活可覆盖",
+        "over": "超过 {{minutes}} 分钟",
+        "title": "间隔分布",
+        "tooLong": "太长，保活无法覆盖",
+        "under": "不超过 {{minutes}} 分钟",
+        "warm": "缓存仍然有效，无需保活"
+      },
+      "cells": {
+        "cell_other": "{{from}}–{{to}}：{{count}} 次间隔（{{lengths}} 分钟）。最佳：{{best}}，节省 {{saving}}。",
+        "empty": "{{from}}–{{to}}：没有长到需要保活的间隔",
+        "note": "数字表示该段内结束的间隔最省的保活次数。灰色段没有长到需要保活的间隔。",
+        "title": "每 30 分钟段最省的保活次数"
+      },
+      "chart": {
+        "aria": "按保活次数的累计提示费用",
+        "back_other": "返回 {{count}} 天",
+        "clickToZoom": "点击图表展开某一天",
+        "expand": "将 {{day}} 展开为 30 分钟分段",
+        "modeLabel": "图表数值",
+        "nextDay": "后一天",
+        "previousDay": "前一天",
+        "saving": "与不保活相比",
+        "savingNote": "每条线表示用该次数保活时的费用，与不保活相比。越低越省。离开期间保持平直，在每次间隔处变化。点击某天可展开。",
+        "title": "按保活次数的费用",
+        "total": "总费用",
+        "totalNote": "每条线表示用该次数保活时的累计提示费用。由于用量远大于保活带来的差异，线条彼此接近。点击某天可展开。",
+        "upTo": "{{day}}，截至 {{time}}",
+        "zoomNote": "同样的线条，按 30 分钟分段显示一天。悬停可查看该段的间隔。"
+      },
+      "confidence": {
+        "early": "初步",
+        "none": "数据不足",
+        "solid": "可靠"
+      },
+      "details": "详情",
+      "dynamic": {
+        "label": "动态保活",
+        "multi_other": "所有模型统一 {{count}} 次保活节省 {{fixed}}。每个模型用各自最优次数（{{models}}）节省 {{perModel}}。事后看每次间隔都选最省次数可节省 {{perBreak}}，这是按时间设置次数的上限。",
+        "single_other": "事后看，每次间隔都选最省的次数，比固定 {{count}} 次保活多省 {{extra}}。这是按时间设置次数最多能带来的收益。"
+      },
+      "group": {
+        "automatic": "自动缓存",
+        "fiveMinutes": "5 分钟缓存",
+        "thirtyMinutes": "30 分钟缓存"
+      },
+      "headline": {
+        "automatic": "{{rate}}% 的输入来自缓存。",
+        "automaticNone": "还没有缓存读取。",
+        "none": "保活不会省钱，保持关闭即可。",
+        "save_other": "{{count}} 次保活每周约可节省 {{cost}}。",
+        "thin_other": "长间隔还不够（超过 {{minutes}} 分钟的有 {{count}} 次）。多用一段时间后再看。",
+        "tie": "{{low}} 次和 {{high}} 次保活效果相当。"
+      },
+      "hitRate": "命中率",
+      "legend": {
+        "bestFixed": "最佳固定值",
+        "day": "当天",
+        "savingNote": "低于 $0 表示省钱，高于 $0 表示多花。悬停某行可突出对应的线。",
+        "total_other": "{{count}} 天合计",
+        "totalNote": "累计提示费用。切换到“与不保活相比”可看清差异。"
+      },
+      "line": {
+        "perBreak": "每次间隔取最优",
+        "perModel": "每个模型取各自最优"
+      },
+      "models": {
+        "all": "全部模型",
+        "breaks": "超过 {{minutes}} 分钟的间隔",
+        "data": "数据",
+        "filter": "图表中的模型",
+        "label": "模型",
+        "model": "模型",
+        "note": "逐个模型单独计算。长间隔少于 10 次的模型沿用分组的次数。点击模型可只看该模型。",
+        "title": "按模型",
+        "useGroup": "沿用分组：{{pings}}"
+      },
+      "noPings": "不保活",
+      "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
+      "pings_other": "{{count}} 次保活",
+      "readOnly": "只读",
+      "savesPerWeek": "每周节省",
+      "showing": "正在显示",
+      "title": "提示缓存",
+      "weeks": {
+        "differ": "上上周以 {{earlier}} 最省（{{earlierSaving}}），上周以 {{later}} 最省（{{laterSaving}}）。随着数据增多值得继续观察。",
+        "label": "最近两周",
+        "same_other": "两周都以 {{count}} 次保活最省（分别节省 {{earlier}} 和 {{later}}）。"
+      }
+    },
     "prompts": {
       "cost": "费用",
       "empty": "暂无提示。",
@@ -170,12 +246,7 @@
       "applied": "已应用",
       "apply": "应用",
       "beyondPi_other": "回放中最便宜的是刷新 {{count}} 次（{{minutes}} 分钟），但 Pi 在运行结束 30 分钟后停止预热。",
-      "failed": "无法更改缓存计划：{{error}}",
       "focus": "智能体停止后不再刷新",
-      "idleAccept": "开启并应用",
-      "idleCancel": "取消",
-      "idleMessage": "智能体停止后刷新缓存需要将 Pi 的 cacheWarming 设置为 \"idle\"。这会影响所有 Pi 会话；撤销会恢复原值。",
-      "idleTitle": "开启空闲缓存预热？",
       "keepWarm_other": "智能体停止后保持缓存 {{minutes}} 分钟（刷新 {{count}} 次）",
       "long": "使用 {{policy}} 缓存",
       "none": "每个模型都已使用最便宜的设置。",
@@ -202,7 +273,7 @@
     "showLess": "收起",
     "signal": {
       "buildTime": "构建占活跃时间的 {{share}}%（{{runs}} 次共 {{minutes}} 分钟）。",
-      "cachePolicy": "在 {{model}} 上用 {{policy}} 代替 {{current}} 约可节省 {{cost}}（占其提示费用的 {{share}}%）。",
+      "cachePings_other": "在智能体停止后用 {{count}} 次保活维持 {{minutes}} 分钟提示缓存，每周约可节省 {{cost}}。",
       "carriedTool": "{{tool}} 的结果随后续调用重复发送，占费用的 {{share}}%（{{cost}}）。",
       "compactions": "{{sessions}} 个会话压缩了三次或更多（最多 {{most}} 次）。上下文增长很快。",
       "failingCommand": "{{command}} 失败了 {{failures}} 次。",
@@ -318,7 +389,6 @@
       "unsupportedImageType": "不支持的图片类型（{{mimeType}}）。请使用 PNG、JPEG、GIF 或 WebP。"
     },
     "cacheCheck": {
-      "appliesTo": "",
       "close": "",
       "failed": "",
       "intro": "",
@@ -338,6 +408,7 @@
       "autoNow_other": "",
       "autoOverride": "",
       "checkRecommendation": "",
+      "controlOff": "设置中的缓存控制已关闭，Pi 使用自身的缓存设置；此选择会在重新开启后生效。",
       "enableIdleWarming": "",
       "idleWarmingEnabled": "",
       "idleWarmingOff": "",
@@ -351,7 +422,7 @@
           "label": ""
         },
         "keepWarm": {
-          "detail": "短缓存，代理停止后刷新：除非为该模型设置了次数，否则刷新 3 次（5 分钟缓存约可保持 15 分钟）。",
+          "detail": "5 分钟缓存，代理停止后最多刷新 3 次，因此在你最后一次对话后约可保持 15 分钟。",
           "label": ""
         },
         "long": {
@@ -360,14 +431,7 @@
         }
       },
       "title": "",
-      "withMode": "",
-      "pingsLabel": "代理停止后的保温请求",
-      "pingsFewer": "减少",
-      "pingsMore": "增加",
-      "pingsDetail": "让此模型 {{lifetime}} 分钟的缓存在代理停止后保持约 {{minutes}} 分钟。最多 {{cap}} 次：Pi 在运行结束 30 分钟后停止保温。按模型保存。",
-      "pingsNotWarmed": "Pi 没有此模型的缓存时长，因此不会为它保温。",
-      "controlOff": "设置中的缓存控制已关闭，Pi 使用自身的缓存设置；此选择会在重新开启后生效。",
-      "allModels": "所有模型的缓存设置"
+      "withMode": ""
     },
     "closeFileTree": "关闭文件树",
     "commandPopup": {
@@ -1738,10 +1802,6 @@
       "description": "当 Pi 在你未查看的工作区中完成、失败或等待批准时通知你",
       "label": "桌面通知"
     },
-    "experimentalAutoCache": {
-      "description": "",
-      "label": ""
-    },
     "language": {
       "description": "菜单、按钮和消息的语言",
       "label": "语言",
@@ -1792,8 +1852,7 @@
       "customModels": "自定义模型",
       "multiAgentCouncilPlanning": "多智能体委员会规划",
       "typesafe": "TypeSafe Jev",
-      "voiceDictation": "语音听写",
-      "promptCache": "提示缓存"
+      "voiceDictation": "语音听写"
     },
     "shortcuts": {
       "actionWithShortcut": "{{action}}（{{shortcut}}）",
@@ -1909,34 +1968,6 @@
       "selected": "使用中",
       "sizeMb": "约 {{mb}} MB",
       "use": "使用"
-    },
-    "cache": {
-      "control": "缓存控制",
-      "controlOn": "开启：每个模型使用下方设置，聊天使用为其选择的模式。",
-      "controlOff": "关闭：Pi 使用自身的缓存设置。下方设置会保留，重新开启后生效。",
-      "on": "开",
-      "off": "关",
-      "undo": "撤销",
-      "reset": "恢复默认",
-      "resetConfirm": "全部重置",
-      "cancel": "取消",
-      "resetDetail": "清除每个模型的设置，开启缓存控制，并将 Pi 的保温设置恢复为首次更改前的值。",
-      "model": "模型",
-      "lifetime": "缓存",
-      "setting": "设置",
-      "proposed": "建议（最近 30 天）",
-      "empty": "还没有模型设置。点击“推荐”列出你用过的模型。",
-      "piDefault": "未设置",
-      "settingFor": "{{model}} 的缓存设置",
-      "pingsTitle": "代理停止后保持约 {{minutes}} 分钟；最多 {{cap}} 次",
-      "minutes": "≈{{minutes}} 分钟",
-      "keepWarmPings_other": "保温 · {{count}} 次",
-      "saves": "每周节省 {{amount}}",
-      "apply": "应用",
-      "or": "或 {{setting}}",
-      "note": "按模型保存，适用于 Pi Desktop 和 Pi CLI 中的所有聊天。未设置：Pi Desktop 聊天使用其起始模式（默认为保温），Pi CLI 不做更改。在某个聊天菜单中选择的模式在该聊天中仍优先。",
-      "recommend": "推荐",
-      "recommendAgain": "重新推荐"
     }
   },
   "sidebar": {

@@ -45,7 +45,7 @@ function signalLine(signal: AnalyticsSignal): string {
     case 'carried-tool': return `Results of \`${v.tool}\` were resent with later calls for ${v.share}% of all cost (${money(Number(v.cost))}).`
     case 'skill-cost': return `Skill \`${v.skill}\` stayed in context for ${v.share}% of all cost (${v.uses} loads).`
     case 'subagent-share': return `Subagents made up ${v.share}% of the cost.`
-    case 'cache-policy': return `Cache setting ${v.policy} instead of ${v.current} would have saved about ${money(Number(v.cost))} (${v.share}% of its simulated prompt cost) on ${v.model}.`
+    case 'cache-pings': return `Keeping the ${v.minutes}-minute prompt cache warm with ${v.pings} ping(s) after the agent stops would have saved about ${money(Number(v.cost))} a week.`
     case 'compactions': return `${v.sessions} session(s) compacted three or more times (most: ${v.most}).`
   }
 }

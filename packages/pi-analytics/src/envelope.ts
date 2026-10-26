@@ -2,7 +2,7 @@ import type { AnalyticsRangeKey, AnalyticsReport } from '../../../src/shared/ana
 import type { CachePlan } from './cache-plan'
 import type { CacheCheck, CacheRecommendation } from './recommendations'
 
-export const REPORT_ENVELOPE_VERSION = 1
+export const REPORT_ENVELOPE_VERSION = 2
 /** The placeholder the built page carries where the data goes. */
 export const REPORT_DATA_MARKER = '<!--pi-analytics-data-->'
 

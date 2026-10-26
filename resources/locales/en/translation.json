@@ -10,29 +10,7 @@
   "analytics": {
     "cache": {
       "assumed": "{{policy}} (assumed)",
-      "auto": {
-        "auto": "Auto by hour",
-        "better": "Auto would have saved about {{amount}} over the best fixed count.",
-        "billed": "Billed",
-        "disclaimer_one": "An estimate from {{count}} day of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
-        "disclaimer_other": "An estimate from {{count}} days of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
-        "fixed": "Best fixed count",
-        "row_one": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} day)",
-        "row_other": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} days)",
-        "same": "Changing the count by hour would have cost about the same as the best fixed count.",
-        "span_one": "{{count}} day, {{from}} to {{to}}",
-        "span_other": "{{count}} days, {{from}} to {{to}}",
-        "title": "Auto (experimental) compared",
-        "worse": "Auto would have cost about {{amount}} more than the best fixed count."
-      },
       "current": "now",
-      "days": {
-        "bar": "{{day}}: {{hit}}% of prompt tokens from the cache, {{cold}} of {{calls}} calls cold",
-        "input": "Uncached",
-        "read": "Cache hits",
-        "title": "Cache hits per day (measured)",
-        "write": "Cache writes"
-      },
       "gaps": {
         "bar_one": "{{range}}: {{count}} gap",
         "bar_other": "{{range}}: {{count}} gaps",
@@ -52,7 +30,6 @@
       "keep": "The current setting is already about the cheapest for this timing.",
       "measured": "{{cost}} billed · {{calls}} calls",
       "noOptions": "This model has no cache setting or keep-warm option to compare; only the billed cost is shown.",
-      "note": "Same calls, same timing, prompt cost only",
       "notes": {
         "copilot1hUnlisted": "Copilot's docs list only the 5 min price, but its backend accepts the 1 h lifetime (VS Code's extended cache setting uses it). The 1 h row assumes Anthropic's 2x write price.",
         "copilotAutomatic": "Copilot caches this model automatically and there is no setting to change.",
@@ -110,7 +87,6 @@
         "title": "Cost by pings per idle gap on {{base}}"
       },
       "timing": "Now {{current}} · median gap {{gap}} · {{share}}% of gaps over {{ttl}} min",
-      "title": "Prompt cache settings",
       "unknown": "unknown",
       "viaCopilot": "via Copilot"
     },
@@ -164,6 +140,114 @@
       "sessions": "Sessions",
       "title": "Projects"
     },
+    "promptCache": {
+      "automaticBasis": "The provider runs this cache. It has no lifetime to set, so pings cannot help.",
+      "basis_one": "{{count}} day · {{breaks}} breaks over {{minutes}} min · pings cover breaks up to {{reach}} min",
+      "basis_other": "{{count}} days · {{breaks}} breaks over {{minutes}} min · pings cover breaks up to {{reach}} min",
+      "best": "Best",
+      "breaks": {
+        "fewPings": "a few pings cover these",
+        "morePings": "more pings cover these",
+        "note": "Breaks between calls, by length. Pings only pay off in the blue rows.",
+        "onePing": "1 ping covers these",
+        "over": "Over {{minutes}} min",
+        "title": "Where your breaks fall",
+        "tooLong": "too long for pings",
+        "under": "Up to {{minutes}} min",
+        "warm": "the cache is still warm, no pings needed"
+      },
+      "cells": {
+        "cell_one": "{{from}}–{{to}}: {{count}} break ({{lengths}} min). Best: {{best}}, saves {{saving}}.",
+        "cell_other": "{{from}}–{{to}}: {{count}} breaks ({{lengths}} min). Best: {{best}}, saves {{saving}}.",
+        "empty": "{{from}}–{{to}}: no break long enough for pings to matter",
+        "note": "The number is the cheapest ping count for the breaks that ended in that block. Grey blocks had no break long enough for pings to matter.",
+        "title": "Cheapest ping count per 30-minute block"
+      },
+      "chart": {
+        "aria": "Running prompt cost by ping count",
+        "back_one": "Back to {{count}} day",
+        "back_other": "Back to {{count}} days",
+        "clickToZoom": "Click the chart to expand a day",
+        "expand": "Expand {{day}} into 30-minute blocks",
+        "modeLabel": "Chart values",
+        "nextDay": "Next day",
+        "previousDay": "Previous day",
+        "saving": "Compared with no pings",
+        "savingNote": "Each line is what you would have paid with that many pings, compared with no pings. Lower is cheaper. Flat while you were away, it steps at each break. Click a day to expand it.",
+        "title": "Cost by ping count",
+        "total": "Total cost",
+        "totalNote": "Each line is your running prompt cost with that many pings. The lines sit close because usage outweighs what pings change. Click a day to expand it.",
+        "upTo": "{{day}}, up to {{time}}",
+        "zoomNote": "The same lines for one day, in 30-minute blocks. Hover a block for its breaks."
+      },
+      "confidence": {
+        "early": "Early",
+        "none": "Not enough data",
+        "solid": "Solid"
+      },
+      "details": "Details",
+      "dynamic": {
+        "label": "Dynamic pings",
+        "multi_one": "One count for every model ({{count}} ping) saves {{fixed}}. Each model on its own best count ({{models}}) saves {{perModel}}. The cheapest count at every break, in hindsight, saves {{perBreak}}: the most a count set by time could reach.",
+        "multi_other": "One count for every model ({{count}} pings) saves {{fixed}}. Each model on its own best count ({{models}}) saves {{perModel}}. The cheapest count at every break, in hindsight, saves {{perBreak}}: the most a count set by time could reach.",
+        "single_one": "Choosing the cheapest count at every break, in hindsight, would have saved {{extra}} more than a fixed {{count}} ping. That is the most a count set by time could add.",
+        "single_other": "Choosing the cheapest count at every break, in hindsight, would have saved {{extra}} more than a fixed {{count}} pings. That is the most a count set by time could add."
+      },
+      "group": {
+        "automatic": "Automatic caching",
+        "fiveMinutes": "5-minute cache",
+        "thirtyMinutes": "30-minute cache"
+      },
+      "headline": {
+        "automatic": "{{rate}}% of input was read from cache.",
+        "automaticNone": "No cache reads yet.",
+        "none": "Pings would not have saved money. Leave them off.",
+        "save_one": "{{count}} ping would have saved about {{cost}} a week.",
+        "save_other": "{{count}} pings would have saved about {{cost}} a week.",
+        "thin_one": "Not enough breaks yet ({{count}} over {{minutes}} min). Check back after more use.",
+        "thin_other": "Not enough breaks yet ({{count}} over {{minutes}} min). Check back after more use.",
+        "tie": "{{low}} and {{high}} pings are about the same."
+      },
+      "hitRate": "Hit rate",
+      "legend": {
+        "bestFixed": "Best fixed",
+        "day": "This day",
+        "savingNote": "Below $0 saves money, above $0 costs extra. Hover a row to pick out its line.",
+        "total_one": "{{count}}-day total",
+        "total_other": "{{count}}-day total",
+        "totalNote": "Running prompt cost. Switch to “compared with no pings” to see the gaps."
+      },
+      "line": {
+        "perBreak": "Best at each break",
+        "perModel": "Each model at its best"
+      },
+      "models": {
+        "all": "All models",
+        "breaks": "Breaks over {{minutes}} min",
+        "data": "Data",
+        "filter": "Models in the chart",
+        "label": "Models",
+        "model": "Model",
+        "note": "Each model on its own. A model with fewer than 10 long breaks borrows the group's count. Click a model to chart just that one.",
+        "title": "By model",
+        "useGroup": "Uses group: {{pings}}"
+      },
+      "noPings": "No pings",
+      "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
+      "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
+      "pings_one": "{{count}} ping",
+      "pings_other": "{{count}} pings",
+      "readOnly": "Read only",
+      "savesPerWeek": "Saves / week",
+      "showing": "Showing details",
+      "title": "Prompt cache",
+      "weeks": {
+        "differ": "The week before last was cheapest with {{earlier}} ({{earlierSaving}}), last week with {{later}} ({{laterSaving}}). Worth watching as more weeks come in.",
+        "label": "Last two weeks",
+        "same_one": "Both weeks agree on {{count}} ping (saving {{earlier}} and {{later}}).",
+        "same_other": "Both weeks agree on {{count}} pings (saving {{earlier}} and {{later}})."
+      }
+    },
     "prompts": {
       "cost": "Cost",
       "empty": "No prompts yet.",
@@ -184,12 +268,7 @@
       "apply": "Apply",
       "beyondPi_one": "The replay's cheapest is {{count}} refresh ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
       "beyondPi_other": "The replay's cheapest is {{count}} refreshes ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
-      "failed": "Could not change the cache plan: {{error}}",
       "focus": "no refreshes after the agent stops",
-      "idleAccept": "Turn on and apply",
-      "idleCancel": "Cancel",
-      "idleMessage": "Refreshing the cache after the agent stops needs Pi's cacheWarming setting set to \"idle\". It applies to every Pi session; undo puts the old value back.",
-      "idleTitle": "Turn on idle cache warming?",
       "keepWarm_one": "keep warm {{minutes}} min after the agent stops ({{count}} refresh)",
       "keepWarm_other": "keep warm {{minutes}} min after the agent stops ({{count}} refreshes)",
       "long": "use the {{policy}} cache",
@@ -221,7 +300,8 @@
     "showLess": "Show less",
     "signal": {
       "buildTime": "Builds took {{share}}% of active time ({{minutes}} min over {{runs}} runs).",
-      "cachePolicy": "Cache setting {{policy}} instead of {{current}} would have saved about {{cost}} ({{share}}% of its prompt cost) on {{model}}.",
+      "cachePings_one": "Keeping the {{minutes}}-minute prompt cache warm with {{count}} ping after the agent stops would have saved about {{cost}} a week.",
+      "cachePings_other": "Keeping the {{minutes}}-minute prompt cache warm with {{count}} pings after the agent stops would have saved about {{cost}} a week.",
       "carriedTool": "{{tool}} results were sent again with later calls for {{share}}% of the cost ({{cost}}).",
       "compactions": "{{sessions}} session(s) compacted three or more times (most: {{most}}). Context is filling up fast.",
       "failingCommand": "{{command}} failed {{failures}} times.",
@@ -338,7 +418,6 @@
       "unsupportedImageType": "Unsupported image type ({{mimeType}}). Use PNG, JPEG, GIF, or WebP."
     },
     "cacheCheck": {
-      "appliesTo": "Applying sets this model's cache setting for every chat, in the app and in the Pi CLI with pi-analytics installed. A mode you pick for one chat still wins in that chat. Undo puts the previous setting back.",
       "close": "Close",
       "failed": "Could not read your sessions.",
       "intro": "{{model}}, from your last 30 days of sessions",
@@ -361,6 +440,7 @@
       "autoNow_other": "This hour: {{count}} idle pings, warm about {{minutes}} min past your last turn.",
       "autoOverride": "Pick another mode to override Auto for this chat.",
       "checkRecommendation": "Check recommendation",
+      "controlOff": "Cache control is off in Settings, so Pi runs with its own cache settings and this pick waits until it's back on.",
       "enableIdleWarming": "Turn on idle warming",
       "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
       "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
@@ -374,7 +454,7 @@
           "label": "Focus"
         },
         "keepWarm": {
-          "detail": "Short cache, refreshed after the agent stops: 3 times unless you set a count for the model (about 15 minutes on a 5-minute cache).",
+          "detail": "5-minute cache, refreshed up to 3 times after the agent stops, so it lasts about 15 minutes past your last turn.",
           "label": "Keep warm"
         },
         "long": {
@@ -383,14 +463,7 @@
         }
       },
       "title": "Prompt cache",
-      "withMode": "Prompt cache: {{mode}}",
-      "pingsLabel": "Pings after the agent stops",
-      "pingsFewer": "Fewer pings",
-      "pingsMore": "More pings",
-      "pingsDetail": "Keeps this model's {{lifetime}}-minute cache warm about {{minutes}} min after the agent stops. Up to {{cap}}: Pi stops warming 30 min after a run. Saved for this model.",
-      "pingsNotWarmed": "Pi has no cache lifetime for this model, so it never pings it.",
-      "controlOff": "Cache control is off in Settings, so Pi runs with its own cache settings and this pick waits until it's back on.",
-      "allModels": "Cache settings for all models"
+      "withMode": "Prompt cache: {{mode}}"
     },
     "closeFileTree": "Close file tree",
     "commandPopup": {
@@ -1797,10 +1870,6 @@
       "description": "Notify when Pi finishes, fails, or waits for approval in a workspace you are not looking at",
       "label": "Desktop Notifications"
     },
-    "experimentalAutoCache": {
-      "description": "Experimental. Adds Auto to the cache menu: Keep warm with a different number of idle pings for each hour of the day, re-tuned every 6 hours from your last 30 days. Untested on real usage; Check recommendation is the steadier way to pick a setting.",
-      "label": "Auto cache mode"
-    },
     "language": {
       "description": "Language of menus, buttons, and messages",
       "label": "Language",
@@ -1851,8 +1920,7 @@
       "customModels": "Custom Models",
       "multiAgentCouncilPlanning": "Multi-Agent Council Planning",
       "typesafe": "TypeSafe Jev",
-      "voiceDictation": "Voice dictation",
-      "promptCache": "Prompt cache"
+      "voiceDictation": "Voice dictation"
     },
     "shortcuts": {
       "actionWithShortcut": "{{action}} ({{shortcut}})",
@@ -1968,35 +2036,6 @@
       "selected": "In use",
       "sizeMb": "~{{mb}} MB",
       "use": "Use"
-    },
-    "cache": {
-      "control": "Cache control",
-      "controlOn": "On: each model runs with the setting below, and chats with the mode picked for them.",
-      "controlOff": "Off: Pi runs with its own cache settings. Your settings below are kept for when it's back on.",
-      "on": "On",
-      "off": "Off",
-      "undo": "Undo",
-      "reset": "Reset to defaults",
-      "resetConfirm": "Reset everything",
-      "cancel": "Cancel",
-      "resetDetail": "Clears every model's setting, turns cache control on and puts Pi's warming setting back to what it was before the first change.",
-      "model": "Model",
-      "lifetime": "Cache",
-      "setting": "Setting",
-      "proposed": "Proposed (last 30 days)",
-      "empty": "No model has a setting yet. Recommend lists the models you've used.",
-      "piDefault": "Not set",
-      "settingFor": "Cache setting for {{model}}",
-      "pingsTitle": "Warm about {{minutes}} min after the agent stops; up to {{cap}} pings",
-      "minutes": "≈{{minutes}} min",
-      "keepWarmPings_one": "Keep warm · {{count}} ping",
-      "keepWarmPings_other": "Keep warm · {{count}} pings",
-      "saves": "saves {{amount}}/wk",
-      "apply": "Apply",
-      "or": "or {{setting}}",
-      "note": "Saved per model for every chat, in Pi Desktop and the Pi CLI. Not set: Pi Desktop chats use the mode they start in (Keep warm unless you picked another), and the Pi CLI leaves Pi alone. A mode picked in one chat's menu still wins in that chat.",
-      "recommend": "Recommend",
-      "recommendAgain": "Recommend again"
     }
   },
   "sidebar": {

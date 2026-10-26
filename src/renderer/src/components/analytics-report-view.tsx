@@ -4,9 +4,10 @@ import { clsx } from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../../../shared/analytics-report'
 import type { WorkCategory } from '../../../shared/session-analytics'
-import { CACHE_RULES_CHECKED, GAP_BUCKET_MINUTES, OBSERVED_GAP_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport, type ObservedCache } from '../../../shared/cache-policy'
+import { GAP_BUCKET_MINUTES, OBSERVED_GAP_MINUTES, type CacheNote, type CachePolicyId, type ModelCacheReport, type ObservedCache } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
+import { PromptCacheAnalysis, money } from './prompt-cache-analysis'
 
 const CATEGORY_LABEL_KEYS = {
   test: 'analytics.category.test',
@@ -120,25 +121,24 @@ function signalText(signal: AnalyticsSignal, t: Translate): string {
     case 'carried-tool': return t('analytics.signal.carriedTool', { tool: v.tool, share: v.share, cost: formatUsd(Number(v.cost)) })
     case 'skill-cost': return t('analytics.signal.skillCost', { skill: v.skill, share: v.share, uses: v.uses })
     case 'subagent-share': return t('analytics.signal.subagentShare', { share: v.share })
-    case 'cache-policy': return t('analytics.signal.cachePolicy', { model: v.model, policy: policyLabel(String(v.policy), t), current: policyLabel(String(v.current), t), cost: formatUsd(Number(v.cost)), share: v.share })
+    case 'cache-pings': return t('analytics.signal.cachePings', { minutes: v.minutes, count: Number(v.pings), cost: money(Number(v.cost)) })
     case 'compactions': return t('analytics.signal.compactions', { sessions: v.sessions, most: v.most })
   }
 }
 
 /** One report, for the session panel (narrow) or the Analytics view (wide). */
-/** `actions` sits under the signals: the cache settings to apply, in the app and in the CLI's report. */
-/** `autoCompare` shows the experimental Auto comparison; Pi Desktop shows it only with its Experimental setting on. */
-export function AnalyticsReportView({ report, wide = false, actions, autoCompare = true }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode; autoCompare?: boolean }): React.JSX.Element {
+/** `actions` sits under the signals. The prompt cache analysis follows them in the overall report. */
+export function AnalyticsReportView({ report, wide = false, actions }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <Tiles report={report} />
       <Signals signals={report.signals} />
       {actions}
+      {report.scope === 'overall' && <PromptCacheAnalysis analysis={report.cacheAnalysis} />}
       {report.scope === 'overall' && report.days.length > 1 && <DailyCost report={report} />}
       <div className={clsx('space-y-4', wide && 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0')}>
         <WorkByKind report={report} />
-        <CachePolicies report={report} autoCompare={autoCompare} />
         <Section title={t('analytics.tools.title')} note={t('analytics.tools.note')}>
           <Table
             headers={[t('analytics.tools.tool'), t('analytics.tools.calls'), t('analytics.tools.time'), t('analytics.tools.carried')]}
@@ -322,77 +322,6 @@ function WorkByKind({ report }: { report: AnalyticsReport }): React.JSX.Element 
   )
 }
 
-function CachePolicies({ report, autoCompare }: { report: AnalyticsReport; autoCompare: boolean }): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const models = report.cache.models.filter((model) => model.policies.length > 0 || model.measuredCost > 0)
-  if (models.length === 0) return null
-  return (
-    <Section title={t('analytics.cache.title')} note={t('analytics.cache.note')}>
-      <div className="space-y-3">
-        {report.cache.days.length > 1 && <CacheDays days={report.cache.days} />}
-        {autoCompare && report.scope === 'overall' && <AutoCompare report={report} />}
-        {models.slice(0, MAX_ROWS).map((model) => <ModelCache key={model.model} model={model} />)}
-        <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
-      </div>
-    </Section>
-  )
-}
-
-/** Auto (experimental) priced walk-forward against the billed cost and the best fixed count, across all sessions. */
-function AutoCompare({ report }: { report: AnalyticsReport }): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const total = report.cache.autoComparison
-  if (!total) return null
-  const compared = report.cache.models.filter((model) => model.autoComparison)
-  const rows = [
-    { key: 'billed', label: t('analytics.cache.auto.billed'), cost: total.billed, tone: 'bg-faint' },
-    { key: 'fixed', label: t('analytics.cache.auto.fixed'), cost: total.fixed, tone: 'bg-accent' },
-    { key: 'auto', label: t('analytics.cache.auto.auto'), cost: total.auto, tone: 'bg-success' },
-  ]
-  const max = Math.max(...rows.map((row) => row.cost), 1e-9)
-  const diff = total.fixed - total.auto
-  return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-secondary">{t('analytics.cache.auto.title')}</span>
-        <span className="text-[10px] text-dim">{t('analytics.cache.auto.span', { count: total.days, from: total.fromDay, to: total.toDay })}</span>
-      </div>
-      <div className="mt-2 space-y-1">
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-center gap-2">
-            <span className="w-32 shrink-0 truncate text-[11px] text-muted">{row.label}</span>
-            <span className="h-2.5 min-w-0 flex-1 rounded-sm bg-card">
-              <span className={clsx('block h-full rounded-sm', row.tone)} style={{ width: `${(row.cost / max) * 100}%` }} />
-            </span>
-            <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-secondary">{formatUsd(row.cost)}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[11px] text-secondary">
-        {Math.abs(diff) < Math.max(0.001, total.fixed * 0.01)
-          ? t('analytics.cache.auto.same')
-          : diff > 0
-            ? t('analytics.cache.auto.better', { amount: formatUsd(diff) })
-            : t('analytics.cache.auto.worse', { amount: formatUsd(-diff) })}
-      </p>
-      {compared.length > 1 && (
-        <div className="mt-1.5 space-y-0.5">
-          {compared.map((model) => {
-            const entry = model.autoComparison!
-            return (
-              <div key={model.model} className="flex items-baseline gap-2 text-[10px] text-dim tabular-nums">
-                <span className="min-w-0 flex-1 truncate font-mono">{model.model}</span>
-                <span>{t('analytics.cache.auto.row', { billed: formatUsd(entry.billed), fixed: formatUsd(entry.fixed), pings: entry.fixedPings, auto: formatUsd(entry.auto), count: entry.days })}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <p className="mt-1.5 text-[10px] text-faint">{t('analytics.cache.auto.disclaimer', { count: total.days })}</p>
-    </div>
-  )
-}
-
 export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.Element {
   const { t } = useTranslation()
   const cheapest = model.policies.reduce<number | null>((min, policy) => (min === null || policy.cost < min ? policy.cost : min), null)
@@ -446,45 +375,6 @@ export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.El
           </p>
         </>
       )}
-    </div>
-  )
-}
-
-/** Measured prompt tokens per day: read from the cache, written to it, sent uncached. */
-function CacheDays({ days }: { days: CacheDay[] }): React.JSX.Element {
-  const { t, i18n } = useTranslation()
-  const format = (key: string): string => new Date(`${key}T00:00:00`).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
-  return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-xs text-secondary">{t('analytics.cache.days.title')}</span>
-        <span className="flex items-center gap-2 text-[10px] text-dim">
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-success" aria-hidden="true" />{t('analytics.cache.days.read')}</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-warning" aria-hidden="true" />{t('analytics.cache.days.write')}</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-border-strong" aria-hidden="true" />{t('analytics.cache.days.input')}</span>
-        </span>
-      </div>
-      <div className="flex h-16 items-end gap-px" role="img" aria-label={t('analytics.cache.days.title')}>
-        {days.map((day) => {
-          const total = day.readTokens + day.writeTokens + day.inputTokens
-          const share = (part: number): string => `${total > 0 ? (part / total) * 100 : 0}%`
-          return (
-            <div
-              key={day.day}
-              className="flex h-full min-w-0 flex-1 flex-col-reverse overflow-hidden rounded-t-sm"
-              title={t('analytics.cache.days.bar', { day: format(day.day), hit: Math.round(total > 0 ? (day.readTokens / total) * 100 : 0), cold: day.coldCalls, calls: day.calls })}
-            >
-              <div className="bg-success" style={{ height: share(day.readTokens) }} />
-              <div className="bg-warning" style={{ height: share(day.writeTokens) }} />
-              <div className="bg-border-strong" style={{ height: share(day.inputTokens) }} />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-1 flex justify-between text-[10px] text-faint tabular-nums">
-        <span>{format(days[0].day)}</span>
-        <span>{format(days[days.length - 1].day)}</span>
-      </div>
     </div>
   )
 }

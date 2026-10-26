@@ -12,8 +12,8 @@ const WRITE_DELAY_MS = 200
 const FOOTER_KEY = 'pi-analytics'
 
 /**
- * pi-analytics in Pi: the `/analytics` command (report, recommend, apply,
- * undo, reset, plan) and the cache plan applied to every request. It owns
+ * pi-analytics in Pi: the `/analytics` command (report, cache, and plan,
+ * undo, reset for settings an earlier version made) and the cache plan applied to every request. It owns
  * `cache_warming_decision`; other extensions only observe it.
  */
 export default function piAnalytics(pi: ExtensionAPI): void {
@@ -85,7 +85,7 @@ export default function piAnalytics(pi: ExtensionAPI): void {
   })
 
   pi.registerCommand('analytics', {
-    description: 'Cost and cache report for your Pi sessions; apply, undo or reset its cache recommendations',
+    description: 'Cost and prompt-cache report for your Pi sessions: whether keep-warm pings would save money, and how many',
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       // The session index loads node:sqlite; it is loaded only when asked for.
       const { runCommand } = await import('./commands')

@@ -1,5 +1,4 @@
 import { useAppStore } from '../store'
-import { CacheSettings } from './cache-settings'
 import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../../shared/agent-engine-label'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { clsx } from 'clsx'
@@ -1097,13 +1096,6 @@ export function SettingsPanel(): React.JSX.Element {
           </SettingsRow>
 
           <SettingsRow
-            label={t('settings.experimentalAutoCache.label')}
-            description={t('settings.experimentalAutoCache.description')}
-          >
-            <Toggle checked={experimentalAutoCache} onChange={(v) => { setExperimentalAutoCache(v); setSettingsDraft({ experimentalAutoCache: v }) }} />
-          </SettingsRow>
-
-          <SettingsRow
             label={t('settings.openToHomeOnLaunch.label')}
             description={t('settings.openToHomeOnLaunch.description')}
           >
@@ -1130,10 +1122,6 @@ export function SettingsPanel(): React.JSX.Element {
           >
             <Toggle checked={minimizeToTrayOnClose} onChange={(v) => { setMinimizeToTrayOnClose(v); void applyImmediate({ minimizeToTrayOnClose: v }) }} />
           </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title={t('settings.sections.promptCache')}>
-          <CacheSettings />
         </SettingsSection>
 
         <SettingsSection title={t('settings.shortcuts.heading')}>

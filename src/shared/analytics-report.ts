@@ -4,6 +4,7 @@
  * it, and the retro digest reads the same numbers.
  */
 import { addModelUsage, type ModelUsage } from './agent-board'
+import { buildCacheAnalysis, summarize, type CacheAnalysis } from './cache-analysis'
 import { buildCacheReport, type CacheReport } from './cache-policy'
 import type { CachePlan } from '../../packages/pi-analytics/src/cache-plan'
 import {
@@ -126,7 +127,7 @@ export type SignalId =
   | 'subagent-share'
   | 'compactions'
   | 'build-time'
-  | 'cache-policy'
+  | 'cache-pings'
 
 /** A finding, kept as data and translated at render. */
 export interface AnalyticsSignal {
@@ -166,6 +167,8 @@ export interface AnalyticsReport {
   projects: ProjectRow[]
   /** What each cache setting would have cost these calls, per model. */
   cache: CacheReport
+  /** What each count of keep-warm pings would have cost, per lifetime group and model. */
+  cacheAnalysis: CacheAnalysis
   signals: AnalyticsSignal[]
 }
 
@@ -241,6 +244,7 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
     days: [],
     projects: [],
     cache: { models: [], days: [], saving: 0, autoComparison: null },
+    cacheAnalysis: { from: 0, to: 0, days: 0, groups: [] },
     signals: [],
   }
   const days = new Map<string, DayPoint>()
@@ -332,9 +336,11 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
   if (scope === 'overall') report.sessionRows = report.sessionRows.slice(0, MAX_ROWS)
   report.days = fillDays([...days.values()], from, to)
   report.projects = [...projects.values()].sort((a, b) => b.cost - a.cost).slice(0, MAX_ROWS)
-  report.cache = buildCacheReport(sessions.map(({ facts }) => (from === null && to === null
+  const windowed = sessions.map(({ facts }) => (from === null && to === null
     ? facts
-    : { ...facts, cacheCalls: (facts.cacheCalls ?? []).filter(([at]) => (from === null || at >= from) && (to === null || at <= to)) })))
+    : { ...facts, cacheCalls: (facts.cacheCalls ?? []).filter(([at]) => (from === null || at >= from) && (to === null || at <= to)) }))
+  report.cache = buildCacheReport(windowed)
+  report.cacheAnalysis = buildCacheAnalysis(windowed, from, to)
   report.signals = findSignals(report, { compactingSessions, maxCompactions })
   return report
 }
@@ -414,15 +420,19 @@ export function findSignals(report: AnalyticsReport, extra: { compactingSessions
     const subagentShare = report.subagentCost / report.cost
     if (subagentShare >= 0.4) signals.push({ id: 'subagent-share', severity: 'low', values: { share: percent(subagentShare) } })
   }
-  for (const model of report.cache.models) {
-    if (!model.recommended || !model.currentPolicy) continue
-    // Ranked by what it saves of all cost, worded by what it saves of this model's prompts.
-    const ofAll = report.cost > 0 ? model.saving / report.cost : 0
+  const { cacheAnalysis } = report
+  for (const group of cacheAnalysis.groups) {
+    if (group.id === 'automatic') continue
+    // The same replay and cap as the Prompt cache section, so the two never disagree.
+    const summary = summarize(group.models, group.maxPings, cacheAnalysis.days)
+    if (summary.best === 0 || summary.confidence === 'none') continue
+    const saving = summary.savingPerWeek * Math.max(cacheAnalysis.days, 1) / 7
+    const ofAll = report.cost > 0 ? saving / report.cost : 0
     if (ofAll < 0.02) continue
     signals.push({
-      id: 'cache-policy',
+      id: 'cache-pings',
       severity: ofAll >= 0.15 ? 'high' : ofAll >= 0.05 ? 'medium' : 'low',
-      values: { model: model.model, policy: model.recommended, current: model.currentPolicy, cost: Math.round(model.saving * 100) / 100, share: percent(model.savingShare) },
+      values: { minutes: group.lifetimeMinutes ?? 0, pings: summary.best, cost: Math.round(summary.savingPerWeek * 100) / 100 },
     })
   }
   if (extra.compactingSessions > 0) {

@@ -1,6 +1,6 @@
 # pi-analytics
 
-Cost and prompt-cache analytics for Pi sessions, outside Pi Desktop. It reads the same session files with the same code as the app's Analytics view, writes the same view as one HTML file, and can put its cache recommendations into effect (and take them back).
+Cost and prompt-cache analytics for Pi sessions, outside Pi Desktop. It reads the same session files with the same code as the app's Analytics view, writes the same view as one HTML file, and tells you whether keep-warm pings would have saved money, and how many.
 
 ## Build and install
 
@@ -20,12 +20,11 @@ The same commands run as `pi-analytics <command>` in a terminal or `/analytics <
 | Command | What it does |
 |---|---|
 | `report [--range 7\|30\|90\|365\|all] [--out file] [--no-open] [--rebuild]` | Writes the HTML report to `~/.pi/agent/pi-analytics/reports/` and opens it. Default range: 30 days. |
-| `recommend [--range ...]` | Numbered cache settings that would have cost less, with the saving per week. |
-| `apply <number>... \| all [--yes]` | Puts them into the cache plan. A setting that refreshes the cache after the agent stops needs Pi's `cacheWarming: "idle"`; it is turned on only when you agree (`--yes`, or the prompt). |
-| `plan` | The plan, Pi's `cacheWarming`, and the last change. |
-| `undo` / `reset` | Step back one change, or go back to before the first. Both put Pi's `cacheWarming` back when a change had set it. |
+| `cache [--range ...] [--details 5m\|30m]` | Per cache lifetime and model: the hit rate, the ping count that would have cost least, and what it saves a week. `--details` adds every count's cost, the per-model and per-break comparisons, and the last two weeks side by side. |
+| `plan` | The plan an earlier version wrote, Pi's `cacheWarming`, and the last change. |
+| `undo` / `reset` / `control on\|off` | Clear what an earlier version set: step back one change, go back to before the first (both put Pi's `cacheWarming` back when a change had set it), or switch the plan off. |
 
-Recommendations stay within what Pi can do: Pi stops idle warming 30 minutes after a run, so a 5-minute cache gets at most 6 refreshes; when the replay's cheapest count is past that, the report says so. Pi cannot ask for OpenAI's 12-hour retention, so that is never recommended.
+The cache analysis is read only for now: it recommends, it does not apply. It replays your calls the way Pi warms: a refresh at 90% of the lifetime, and no more than fit in the 30 minutes Pi keeps warming after a run (6 on a 5-minute cache, 1 on a 30-minute one). A model with fewer than 10 breaks longer than its lifetime borrows its group's answer.
 
 ## Files
 

@@ -13,6 +13,8 @@ export interface CacheRecommendationsProps {
   onApply?: (recommendation: CacheRecommendation, index: number, long: boolean) => void
   onUndo?: () => void
   busy?: boolean
+  /** Analytics only: no apply or undo, and no plan line. */
+  readOnly?: boolean
 }
 
 function sameSetting(entry: ModelCachePlan | undefined, setting: CacheRecommendation['setting']): boolean {
@@ -20,12 +22,13 @@ function sameSetting(entry: ModelCachePlan | undefined, setting: CacheRecommenda
 }
 
 /** Cache settings Pi can run that would have cost less, with their weekly saving, and a way to apply each. */
-export function CacheRecommendations({ recommendations, plan, days, checks = [], onApply, onUndo, busy = false }: CacheRecommendationsProps): React.JSX.Element | null {
+export function CacheRecommendations({ recommendations, plan, days, checks = [], onApply, onUndo, busy = false, readOnly = false }: CacheRecommendationsProps): React.JSX.Element | null {
   const { t } = useTranslation()
-  const planned = plan ? Object.keys(plan.models).length + (plan.default ? 1 : 0) : 0
+  const planned = plan && !readOnly ? Object.keys(plan.models).length + (plan.default ? 1 : 0) : 0
   const thin = checks.filter((check) => check.status === 'not-enough-data')
   if (recommendations.length === 0 && planned === 0 && thin.length === 0) return null
   const action = (rec: CacheRecommendation, index: number, long: boolean): React.ReactNode => {
+    if (readOnly) return null
     if (sameSetting(plan?.models[rec.model], long && rec.alternative ? rec.alternative.setting : rec.setting)) {
       return <span className="text-[10px] text-dim">{t('analytics.recommend.applied')}</span>
     }
