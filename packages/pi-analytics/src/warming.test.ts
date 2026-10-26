@@ -131,3 +131,23 @@ test('a setting with a bad value is refused', () => {
   assert.throws(() => updateCacheSettings({ haiku: 1 }, dir))
   done()
 })
+
+test('a Copilot model gets its setting, its lifetime and its pings by the id Pi gives it', () => {
+  const { dir, warming, done } = setup()
+  updateCacheSettings({ 'github-copilot/claude-sonnet-5.5': 2, 'github-copilot/gpt-5.6-luna': 1 }, dir)
+  const sonnet: Record<string, unknown> = { provider: 'github-copilot', id: 'claude-sonnet-5.5' }
+  warming.setModel(sonnet)
+  assert.deepEqual(sonnet.promptCache, { short: 300, long: 3600 })
+  warming.userMessage()
+  warming.realRequest()
+  assert.deepEqual([warming.decide(IDLE), warming.decide(IDLE), warming.decide(IDLE)], ['warm', 'warm', 'stop'])
+  const luna: Record<string, unknown> = { provider: 'github-copilot', id: 'gpt-5.6-luna' }
+  warming.setModel(luna)
+  assert.deepEqual(luna.promptCache, { short: 1800, long: 1800 })
+  warming.realRequest()
+  assert.deepEqual([warming.decide(IDLE), warming.decide(IDLE)], ['warm', 'stop'])
+  const unset: Record<string, unknown> = { provider: 'github-copilot', id: 'claude-opus-5.5' }
+  warming.setModel(unset)
+  assert.equal(unset.promptCache, undefined, 'a model without a setting is left as Pi has it')
+  done()
+})
