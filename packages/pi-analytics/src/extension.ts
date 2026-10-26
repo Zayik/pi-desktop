@@ -5,7 +5,7 @@ import { recordContext } from '../../../resources/pi-desktop-context'
 import { analyticsDir, contextDir, sessionStatusPath } from './paths'
 import { CacheWarming, type WarmingModel } from './warming'
 import { quietSqliteWarning } from './quiet'
-import type { SessionCacheStatus } from './cache-plan'
+import type { SessionCacheStatus } from './cache-mode'
 
 /** Sent on `pi.events` whenever a session's cache status changes. */
 export const STATUS_EVENT = 'pi-analytics:status'
@@ -13,10 +13,10 @@ const WRITE_DELAY_MS = 200
 const FOOTER_KEY = 'pi-analytics'
 
 /**
- * pi-analytics in Pi: the `/analytics` command (report, recommend, apply,
- * undo, reset, plan), the cache plan applied to every request, and the
- * context recorder the session page reads. It owns `cache_warming_decision`;
- * other extensions only observe it.
+ * pi-analytics in Pi: the `/analytics` command (report and cache), the
+ * session's cache mode applied to every request, and the context recorder
+ * the session page reads. It owns `cache_warming_decision`; other
+ * extensions only observe it.
  */
 export default function piAnalytics(pi: ExtensionAPI): void {
   quietSqliteWarning()
@@ -103,15 +103,11 @@ export default function piAnalytics(pi: ExtensionAPI): void {
   })
 
   pi.registerCommand('analytics', {
-    description: 'Cost and cache report for your Pi sessions; apply, undo or reset its cache recommendations',
+    description: 'Cost and prompt-cache report for your Pi sessions: whether keep-warm pings would save money, and how many',
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       // The session index loads node:sqlite; it is loaded only when asked for.
       const { runCommand } = await import('./commands')
-      const lines = await runCommand(args, {
-        dir,
-        confirm: (title, message) => (ctx.hasUI ? ctx.ui.confirm(title, message) : Promise.resolve(false)),
-        afterPlanChange: () => warming.apply(),
-      })
+      const lines = await runCommand(args, { dir })
       ctx.ui.notify(lines.join('\n'), 'info')
     },
   })

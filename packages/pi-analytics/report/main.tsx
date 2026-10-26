@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client'
 import { I18nextProvider, useTranslation } from 'react-i18next'
 import { i18n } from '../../../src/shared/i18n'
 import { AnalyticsReportView } from '../../../src/renderer/src/components/analytics-report-view'
-import { CacheRecommendations } from '../../../src/renderer/src/components/cache-recommendations'
 import { REPORT_ENVELOPE_VERSION, type ReportEnvelope } from '../src/envelope'
 import './report.css'
 
@@ -21,7 +20,7 @@ function readEnvelope(): ReportEnvelope | null {
 function Page({ envelope }: { envelope: ReportEnvelope | null }): React.JSX.Element {
   const { t } = useTranslation()
   if (!envelope) return <p className="p-10 text-center text-sm text-dim">{t('analytics.page.noData')}</p>
-  const { report, recommendations, checks, plan, days, generatedAt } = envelope.data
+  const { report, days, generatedAt } = envelope.data
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
@@ -33,7 +32,7 @@ function Page({ envelope }: { envelope: ReportEnvelope | null }): React.JSX.Elem
       {report.sessions === 0 ? (
         <p className="py-10 text-center text-xs text-dim">{t('analytics.view.empty')}</p>
       ) : (
-        <AnalyticsReportView report={report} wide actions={<CacheRecommendations recommendations={recommendations} checks={checks} plan={plan} days={days} />} />
+        <AnalyticsReportView report={report} wide />
       )}
     </main>
   )

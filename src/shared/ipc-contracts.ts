@@ -119,12 +119,6 @@ export const IPC_CHANNELS = {
   ANALYTICS_GET_SESSION_REPORT: 'analytics:get-session-report',
   ANALYTICS_GET_OVERVIEW: 'analytics:get-overview',
   ANALYTICS_REBUILD: 'analytics:rebuild',
-  ANALYTICS_GET_CACHE_PLAN: 'analytics:get-cache-plan',
-  ANALYTICS_APPLY_CACHE_RECOMMENDATION: 'analytics:apply-cache-recommendation',
-  ANALYTICS_UNDO_CACHE_PLAN: 'analytics:undo-cache-plan',
-  ANALYTICS_SET_MODEL_CACHE: 'analytics:set-model-cache',
-  ANALYTICS_SET_CACHE_CONTROL: 'analytics:set-cache-control',
-  ANALYTICS_RESET_CACHE_PLAN: 'analytics:reset-cache-plan',
 
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',

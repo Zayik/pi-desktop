@@ -121,7 +121,7 @@ const HIT_SHARE = 0.5
 export const GAP_BUCKET_MINUTES = [1, 5, 10, 15, 30, 60]
 
 /** The short lifetime a ping sweep keeps warm, how far apart its pings are, and how much idle it sweeps. */
-interface SweepSpec {
+export interface SweepSpec {
   base: CachePolicyId
   ttlMs: number
   write: number
@@ -129,7 +129,7 @@ interface SweepSpec {
   horizonMs: number
 }
 
-interface CacheProfile {
+export interface CacheProfile {
   family: CacheFamily
   route: CacheRoute
   policies: PolicySpec[]
@@ -216,7 +216,7 @@ function vendorProfile(kind: CacheProvider, id: string, calls: CacheCall[]): Omi
   return { family: 'none', policies: [], defaultPolicy: null, longPolicy: null, sweep: null, notes: [] }
 }
 
-function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
+export function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
   const [provider, ...rest] = model.split('/')
   const id = rest.join('/').toLowerCase()
   const kind = cacheProvider(model)
@@ -423,13 +423,13 @@ export interface AutoComparisonTotal {
   auto: number
 }
 
-interface Prices {
+export interface Prices {
   inputPrice: number
   readRatio: number
   readRatioMeasured: boolean
 }
 
-interface CallTotals {
+export interface CallTotals {
   input: number
   inputCost: number
   read: number
@@ -439,7 +439,7 @@ interface CallTotals {
   write1h: number
 }
 
-function callTotals(calls: CacheCall[]): CallTotals {
+export function callTotals(calls: CacheCall[]): CallTotals {
   const totals: CallTotals = { input: 0, inputCost: 0, read: 0, readCost: 0, write: 0, writeCost: 0, write1h: 0 }
   for (const call of calls) {
     totals.input += call[2]
@@ -454,7 +454,7 @@ function callTotals(calls: CacheCall[]): CallTotals {
 }
 
 /** Input price and read multiple measured from the calls, falling back to the list multiple. */
-function measurePrices(totals: CallTotals, profile: CacheProfile, model: string): Prices | null {
+export function measurePrices(totals: CallTotals, profile: CacheProfile, model: string): Prices | null {
   let inputPrice = totals.input > 0 && totals.inputCost > 0 ? totals.inputCost / totals.input : 0
   // A session that sent everything through the cache shows no input price; derive it from the writes.
   if (inputPrice === 0 && totals.write > 0 && totals.writeCost > 0) {
@@ -484,7 +484,7 @@ function currentPolicy(profile: CacheProfile, totals: CallTotals, prices: Prices
   return null
 }
 
-function promptTokens(call: CacheCall): number {
+export function promptTokens(call: CacheCall): number {
   return call[2] + call[3] + call[4]
 }
 
@@ -537,7 +537,8 @@ export function replay(calls: CacheCall[], spec: PolicySpec, prices: Pick<Prices
 }
 
 function sweepMaxPings(sweep: SweepSpec): number {
-  return Math.ceil((sweep.horizonMs - sweep.ttlMs) / sweep.everyMs)
+  // The epsilon keeps a horizon of exactly N pings from rounding up to N + 1.
+  return Math.ceil((sweep.horizonMs - sweep.ttlMs) / sweep.everyMs - 1e-9)
 }
 
 /**
@@ -546,23 +547,28 @@ function sweepMaxPings(sweep: SweepSpec): number {
  * hour the gap starts in. A gap's cost depends only on its own length and
  * prompts, so any schedule of counts is a sum over these rows.
  */
-interface GapRow {
+export interface GapRow {
   hour: number
   day: string
+  /** When the call after the gap ran, and how long the gap was. */
+  at: number
+  gapMs: number
   costs: number[]
   sent: number[]
 }
 
-function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Prices, 'inputPrice' | 'readRatio'>): { first: number; firstByDay: Map<string, number>; gaps: GapRow[] } {
+export function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Prices, 'inputPrice' | 'readRatio'>): { first: number; firstByDay: Map<string, number>; openings: Array<[at: number, cost: number]>; gaps: GapRow[] } {
   const maxPings = sweepMaxPings(sweep)
   const read = prices.inputPrice * prices.readRatio
   let first = 0
   const firstByDay = new Map<string, number>()
   const gaps: GapRow[] = []
+  const openings: Array<[number, number]> = []
   for (const run of runs) {
     if (run.length === 0) continue
     const opening = promptTokens(run[0]) * prices.inputPrice * sweep.write
     first += opening
+    openings.push([run[0][0], opening])
     const day = localDayKey(run[0][0])
     firstByDay.set(day, (firstByDay.get(day) ?? 0) + opening)
     for (let index = 1; index < run.length; index++) {
@@ -582,10 +588,10 @@ function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Pri
         costs.push(pings * cached * read + call)
         sent.push(pings)
       }
-      gaps.push({ hour: new Date(run[index - 1][0]).getHours(), day: localDayKey(run[index - 1][0]), costs, sent })
+      gaps.push({ hour: new Date(run[index - 1][0]).getHours(), day: localDayKey(run[index - 1][0]), at: run[index][0], gapMs: gap, costs, sent })
     }
   }
-  return { first, firstByDay, gaps }
+  return { first, firstByDay, openings, gaps }
 }
 
 function cheapestUpTo(costs: number[], cap: number): number {

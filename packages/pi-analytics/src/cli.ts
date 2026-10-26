@@ -1,17 +1,5 @@
 #!/usr/bin/env node
-import { createInterface } from 'node:readline/promises'
 import { quietSqliteWarning } from './quiet'
-
-async function confirm(title: string, message: string): Promise<boolean> {
-  if (!process.stdin.isTTY) return false
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  try {
-    const answer = await rl.question(`${title}\n${message}\n[y/N] `)
-    return /^y(es)?$/i.test(answer.trim())
-  } finally {
-    rl.close()
-  }
-}
 
 function fail(error: unknown): void {
   console.error(error instanceof Error ? error.message : String(error))
@@ -35,6 +23,6 @@ if (args[0] === 'serve') {
 } else {
   // Loaded after the warning filter: the session index pulls in node:sqlite.
   import('./commands')
-    .then(({ runCommand }) => runCommand(args, { confirm }))
+    .then(({ runCommand }) => runCommand(args))
     .then((lines) => console.log(lines.join('\n')), fail)
 }
