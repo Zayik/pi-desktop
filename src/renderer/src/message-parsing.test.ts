@@ -91,3 +91,14 @@ test('a reloaded answer the user stopped keeps its stopped mark', () => {
   const finished = parseAgentMessage({ role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: 'All' }] })
   assert.equal(finished?.stopped, undefined)
 })
+
+test('a subagent question becomes a notice naming the subagent; other custom messages stay hidden', () => {
+  const question = parseAgentMessage({
+    role: 'custom', customType: 'subagent_supervisor_request', timestamp: 1_000, content: 'visible',
+    details: { requestId: 'r1', expectsReply: true, agent: 'worker', reason: 'need_decision', requestBody: 'Which database?' },
+  })
+  assert.equal(question?.role, 'system')
+  assert.equal(question?.content, 'Which database?')
+  assert.deepEqual(question?.subagentQuestion, { agent: 'worker', reason: 'need_decision' })
+  assert.equal(parseAgentMessage({ role: 'custom', customType: 'something_else', content: 'x' }), null)
+})

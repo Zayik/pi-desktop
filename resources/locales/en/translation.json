@@ -323,6 +323,9 @@
     "contextPanel": {
       "agents": {
         "card": {
+          "answerInChat": "Answer it in the main chat, or let the main agent decide.",
+          "askedBy_one": "{{agents}} is waiting on an answer from this chat.",
+          "askedBy_other": "{{count}} subagents are waiting on answers from this chat: {{agents}}.",
           "breakdown": "Breakdown",
           "cost": "Cost",
           "details": "Details",
@@ -330,6 +333,8 @@
           "lastTool": "last: {{tool}}",
           "nextWarm": "Next if warm {{cost}}",
           "noSessionFile": "Live figures only: this run has no saved session to read yet.",
+          "question": "Waiting on an answer",
+          "questionInterview": "Waiting on answers to a few questions",
           "time": "Time",
           "toolCount_one": "{{count}} tool call",
           "toolCount_other": "{{count}} tool calls"
@@ -358,6 +363,7 @@
         "status": {
           "done": "Done",
           "failed": "Failed",
+          "needsAnswer": "Needs answer",
           "running": "Running",
           "stopped": "Stopped"
         },
@@ -562,6 +568,12 @@
       "openPanel": "Open subagent panel",
       "running_one": "{{count}} subagent running",
       "running_other": "{{count}} subagents running"
+    },
+    "subagentQuestion": {
+      "fromAgent": "Question from subagent {{agent}}",
+      "fromSubagent": "Question from a subagent",
+      "hint": "The subagent is waiting. The main agent answers it next; to answer it yourself, reply here and the main agent passes your answer on.",
+      "interview": "· structured answer"
     },
     "svgBlock": {
       "renderedSvgAlt": "Rendered SVG",
@@ -896,7 +908,9 @@
     "resolutionSource": {
       "commonLocation": "Common install location",
       "engineInstall": "{{agent}} install location",
+      "env": "PI_DESKTOP_PI_PATH",
       "fallback": "Fallback (not found)",
+      "managedInstall": "pi.dev installer",
       "npmPrefix": "npm global prefix",
       "override": "Configured path",
       "path": "PATH",
@@ -1066,6 +1080,7 @@
       "exitedBeforeReady": "Pi exited with code {{code}} before becoming ready.",
       "failedToCreateManager": "Failed to create Pi manager",
       "installHint": "Install Pi with:\n  {{npmCommand}}\nor install OMP with:\n  {{bunCommand}}",
+      "installRunning": "An install is already running.",
       "nodeNotFound": "Node binary not found at resolved path:\n  {{node}}\n\nPi's .js entry point requires Node. Install Node from https://nodejs.org or set the NODE env var to your Node binary path.",
       "noManagerForWorkspace": "No Pi manager for workspace",
       "notFound": "Pi binary not found. Searched the login shell PATH, npm's global prefix, node version managers (nvm, fnm, volta, asdf, mise, nodenv, n) and common install locations.\n\n{{installHint}}\n\nAlready installed? Set the full path to Pi's cli.js in {{settingsHint}}.",
@@ -1451,6 +1466,108 @@
       "title": "Allow {{tool}}?"
     }
   },
+  "piSetup": {
+    "browseDialogTitle": "Choose the pi program or its install folder",
+    "checkedCount_one": "{{count}} place, not found",
+    "checkedCount_other": "{{count}} places, not found",
+    "close": "Close",
+    "continueWithout": "Continue without Pi",
+    "existing": {
+      "browse": "Choose pi location…",
+      "heading": "Already installed?",
+      "hint": "Point Pi Desktop at the pi program (pi.cmd, pi.exe, cli.js) or the folder it is in. You can also set the {{envVar}} environment variable. If you just installed Pi in a terminal, try again.",
+      "openSettings": "Open Settings",
+      "tryAgain": "Try again"
+    },
+    "found": "Found",
+    "install": {
+      "button": "Install",
+      "doneFound": "Installed. Starting Pi…",
+      "doneNotFound": "The install finished, but Pi still was not found. Restart Pi Desktop, or choose its location below.",
+      "failed": "The install failed (exit code {{code}}). The output is below.",
+      "heading": "Install the latest Pi",
+      "hint": "Each button runs the command shown under it. The pi.dev installer also installs Node.js if you do not have it.",
+      "installer": "pi.dev installer",
+      "installerUnavailable": "Needs PowerShell on Windows or curl on macOS and Linux. Run the command in a terminal instead.",
+      "npm": "npm",
+      "npmUnavailable": "npm was not found. Install Node.js first, or use the pi.dev installer.",
+      "recommended": "Recommended",
+      "running": "Installing…",
+      "winget": "winget",
+      "wingetUnavailable": "winget was not found on this PC."
+    },
+    "intro": "Pi Desktop runs the pi coding agent, and it could not find pi on this computer. Install it below, or show Pi Desktop where it is.",
+    "introFound": "Pi Desktop uses {{path}}.",
+    "introNoNode": "Found {{path}}, but it needs Node.js, and Node.js was not found. Install Node.js (or use the pi.dev installer, which brings its own), then try again.",
+    "notes": {
+      "envUnset": "PI_DESKTOP_PI_PATH is not set.",
+      "managedInstall": "Where the pi.dev installer may have put Pi. PI_MANAGED_INSTALL_ROOT is checked first when set.",
+      "npmMissing": "npm did not answer, so it is not installed or not on PATH.",
+      "npmPrefix": "npm installs global packages under {{prefix}}.",
+      "settingsUnset": "No path is set in Settings, so Pi Desktop searches on its own.",
+      "versionManager": "Node versions installed by nvm, fnm, Volta and similar tools."
+    },
+    "notice": {
+      "fix": "Click here to resolve",
+      "noNode": "Pi was found, but Node.js is missing, so Pi cannot start.",
+      "notFound": "Pi is not installed, or it is not in a folder Pi Desktop knows about."
+    },
+    "notSet": "Not set",
+    "platform": {
+      "linux": "Linux",
+      "mac": "macOS",
+      "windows": "Windows"
+    },
+    "rejectedOverride": "The path in Settings does not exist, so it was skipped: {{path}}",
+    "searched": {
+      "heading": "Where Pi Desktop looked on {{platform}}",
+      "hint": "In this order. The first match wins.",
+      "loading": "Searching…"
+    },
+    "steps": {
+      "commonLocation": "Common install folders (npm, winget, Scoop, Bun, Homebrew)",
+      "env": "PI_DESKTOP_PI_PATH environment variable",
+      "managedInstall": "pi.dev installer folders",
+      "npmPrefix": "npm global packages",
+      "omp": "Oh My Pi (used when Pi is missing)",
+      "path": "Folders on PATH",
+      "settings": "Path set in Settings",
+      "versionManager": "Node version managers"
+    },
+    "title": "Pi is not installed",
+    "titleFound": "Pi is ready",
+    "titleNoNode": "Node.js is missing"
+  },
+  "providers": {
+    "authType": {
+      "apiKey": "API key",
+      "oauth": "Account sign-in"
+    },
+    "change": "Change",
+    "connect": "Connect a provider",
+    "description": "The AI services Pi can use. This list, each status and the sign-in screen all come from Pi itself, so new providers and sign-in methods show up when Pi updates.",
+    "loading": "Asking Pi…",
+    "login": {
+      "done": "Done",
+      "hint": "This is Pi's own sign-in. Follow its steps; links open in your browser. Click Done when you are finished.",
+      "title": "Sign in with Pi",
+      "titleProvider": "Sign in to {{provider}} with Pi"
+    },
+    "none": "Pi has no provider it can use yet.",
+    "notice": {
+      "connect": "Connect a provider",
+      "none": "No AI provider is connected yet, so Pi cannot answer."
+    },
+    "piMissing": "Install Pi first, then connect a provider here.",
+    "refresh": "Check again",
+    "signIn": "Sign in",
+    "status": {
+      "invalid": "Sign-in failed",
+      "notReady": "Not signed in",
+      "ready": "Connected",
+      "unknown": "Unknown"
+    }
+  },
   "repoSets": {
     "bar": {
       "addRepository": "Add repo",
@@ -1685,7 +1802,8 @@
       "pathPlaceholder": "Path to executable, cli.js, or install directory",
       "rescanTitle": "Rescan installed agents",
       "scanningStatus": "Scanning common install locations and PATH…",
-      "selectDialogTitle": "Select Agent Executable or Directory"
+      "selectDialogTitle": "Select Agent Executable or Directory",
+      "showSearch": "Where does Pi Desktop look?"
     },
     "autoScroll": {
       "description": "Automatically scroll to new messages",
@@ -1786,6 +1904,7 @@
       "behavior": "Behavior",
       "customModels": "Custom Models",
       "multiAgentCouncilPlanning": "Multi-Agent Council Planning",
+      "providers": "Providers",
       "typesafe": "TypeSafe Jev",
       "voiceDictation": "Voice dictation"
     },
@@ -2104,6 +2223,7 @@
     "hideTerminal": "Hide terminal",
     "openWorkflowRuns": "Open workflow runs",
     "piError": "{{agent}} error",
+    "piErrorTitle": "Show what went wrong and how to fix it",
     "piRunning": "{{agent}} running (PID: {{pid}})",
     "piStarting": "{{agent}} starting",
     "piStopped": "{{agent}} stopped",

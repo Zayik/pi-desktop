@@ -51,7 +51,12 @@ test('finds subagent, worktree, parent-linked and recorder-linked sessions of a 
       type: 'message', id: 't1', parentId: 'a2', timestamp: new Date(start + 4_000).toISOString(),
       message: { role: 'toolResult', toolCallId: 'call-1', toolName: 'acp_delegate', content: [{ type: 'text', text: 'Started delegate del_mabc123_x9z1 (async).' }] },
     }
-    await writeFile(main, sessionFile('main', repo, start, {}, [delegateCall, delegateResult]))
+    // pi-subagents: the child below asked the chat a question it has not answered.
+    const question = {
+      type: 'custom_message', id: 'q1', parentId: 't1', timestamp: new Date(NOW - 60_000).toISOString(), customType: 'subagent_supervisor_request', display: true, content: 'q',
+      details: { id: 'req-1', requestId: 'req-1', expectsReply: true, runId: 'run-abc', agent: 'worker', childIndex: 0, requestBody: 'Which database?' },
+    }
+    await writeFile(main, sessionFile('main', repo, start, {}, [delegateCall, delegateResult, question]))
     const temp = join(root, 'tmp')
     await mkdir(join(temp, 'acp-delegate'), { recursive: true })
     await writeFile(join(temp, 'acp-delegate', 'del_mabc123_x9z1.session.jsonl'), sessionFile('delegate', repo, start + 5_000))
@@ -91,6 +96,8 @@ test('finds subagent, worktree, parent-linked and recorder-linked sessions of a 
     assert.equal(board.children.find((child) => child.summary.sessionId === 'delegate')?.agentName, 'reviewer')
     assert.equal(board.children.find((child) => child.summary.sessionId === 'pi-subagent')?.summary.name, 'worker: fix tests')
     assert.equal(board.children.find((child) => child.summary.sessionId === 'spawned')?.snapshot?.sessionId, 'spawned')
+    assert.equal(board.children.find((child) => child.summary.sessionId === 'pi-subagent')?.question?.body, 'Which database?')
+    assert.equal(board.children.find((child) => child.summary.sessionId === 'delegate')?.question, null)
   } finally {
     if (saved.pi === undefined) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = saved.pi

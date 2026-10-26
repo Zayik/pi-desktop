@@ -57,6 +57,10 @@ The Context panel shows every agent working on the active chat, what each sends 
 
 - **Tiles**: total cost and calls across all agents, tokens in and out, active time and how many agents are running, and the main agent's context against its window (highlighted from 70% or 300k tokens, since every call resends it). **View model breakdown** lists calls, tokens, and cost per model across all agents.
 - **Agent cards**: the main agent first, then subagents and other sessions under **Running** and **Finished**. Each card shows its current model (hover for every model it called) and effort level, its context, tokens, cost and turns, active time, tool calls and the last tool, and its prompt-cache countdown. Subagents show a countdown only while they run, using the model's cache lifetime from the main session's model list. **Finished** collapses to one line with its total cost. Open a card for its full cache, billing, and context breakdown. The main agent's billing table adds what its subagents spent this turn.
+- **Subagent questions**: when a pi-subagents child asks the chat a question (`contact_supervisor`), its card shows **Needs answer** with the question and moves to the top of **Running**, the main agent's card names who is waiting, and the chat shows the question as **Question from subagent ...** right before the main agent's reply to it. The badge clears once the answer is sent, the child carries on, or pi-subagents gives up waiting (10 minutes by default). billion-context delegates run headless and never ask.
+
+![A subagent waiting on an answer](docs/screenshots/subagent-question.png)
+
 - **Prompt cache**: a countdown from the last request, using the model's declared cache lifetime (`promptCache` in the model definition; Anthropic models ship 5m and 1h, and `PI_CACHE_RETENTION=long` picks the long tier). A cache-warming refresh restarts it, and a model switch shows it cold. Under it, what the next call costs to resend the context while the cache is warm (cache-read rate) and after it expires (cache-write rate), and this turn's cost. Rates are the ones the last calls were billed at when known, else the model's listed prices.
 - **Billing table**: new input, cache read, cache write, and output for the last call and for the whole turn (every call since your last prompt).
 - **Cache mode**: picked per chat from the timer button beside the effort picker, and remembered for new chats. **Keep warm** (the default) uses the 5-minute cache and refreshes it up to 3 times after the agent stops, about 4 minutes apart, so it lasts about 15 minutes past your last turn. It needs Pi's global `cacheWarming: "idle"`, which the picker can turn on (agents already running pick it up when restarted); without it Keep warm acts like Focus. **Focus** keeps the cache alive only while the agent works. **Long** uses the 1-hour cache (`PI_CACHE_RETENTION=long`): writes cost 2× input instead of 1.25×, and nothing is paid while idle. A switch applies from the chat's next request, and the cache panel then shows that request's cache read and write, so you can see whether it reused the old cache or wrote a new one. Pi warms only models it knows a cache lifetime for, and its catalog has them for direct Anthropic models only, so the app's agents use the lifetimes the vendors advertise: 5 minutes (1 hour on the long tier) for Claude, 30 minutes for GPT-5.6 and later, and 5 minutes (30 on the long tier) for older OpenAI models, with GitHub Copilot models matching their vendor. A lifetime set in Pi's `models.json` still wins. All of this is done by the bundled [pi-analytics](packages/pi-analytics) package, which the app loads into its Pi agents (unless you installed it in Pi yourself); install it in Pi with `pi install` and terminal sessions get the same modes. The picker's **Prompt cache analysis** link opens Analytics, which shows what each setting would have cost.
@@ -250,11 +254,23 @@ The right model depends on your machine and language. Moonshine is small and fas
 
 ## Getting started
 
-You need Pi installed first:
+You need Pi installed first. Any of the ways Pi's own docs list works:
 
 ```bash
-npm install -g @earendil-works/pi-coding-agent
+curl -fsSL https://pi.dev/install.sh | sh                 # macOS / Linux
+powershell -c "irm https://pi.dev/install.ps1 | iex"     # Windows
+npm install -g @earendil-works/pi-coding-agent           # anywhere with Node.js
 ```
+
+If Pi Desktop cannot find Pi when it starts, it opens a setup page instead of the chat. The page has an Install button for each of those commands, lets you choose where Pi is, and lists every place it searched, in order, for your system: the Settings path, the `PI_DESKTOP_PI_PATH` environment variable, npm's global folder, the folders on PATH, the pi.dev installer's folders (`PI_MANAGED_INSTALL_ROOT`), Node version managers, and common folders (npm, winget, Scoop, Bun, Homebrew). On Windows it also re-reads PATH from the registry, so an install made while the app is open is found without a restart. If you continue without Pi, a warning strip stays across the top of the window with a link back to the page. You can also open it from the status bar when Pi fails to start, or from Settings > Agent Configuration.
+
+![Setup page when Pi is not installed](docs/screenshots/pi-setup.png)
+
+### Connecting a provider
+
+Settings > Providers lists the AI services Pi can use and whether each one is signed in. All of it comes from Pi: the list from `pi --list-models`, each status from `pi auth check --json`. **Connect a provider** (or **Sign in** on a row) opens Pi's own `/login` screen in a terminal inside the app, so every sign-in method Pi supports (account sign-in, device codes, API keys) works, and new ones arrive when Pi updates. Credentials go where Pi keeps them (`~/.pi/agent/auth.json`). While Pi runs with no provider signed in, a strip at the top of the window links to the same screen.
+
+![Pi's sign-in inside Pi Desktop](docs/screenshots/pi-login.png)
 
 On Linux, grab the AppImage from [Releases](https://github.com/FaqFirebase/pi-desktop/releases):
 

@@ -41,6 +41,7 @@ import {
   ImageOff,
   Square,
   FileText,
+  MessageCircleQuestion,
 } from 'lucide-react'
 
 function MessageBubbleImpl({
@@ -997,6 +998,23 @@ function StoppedNotice({ className }: { className: string }): React.JSX.Element 
 // ─── System Message ──────────────────────────────────────────────────────────
 
 function SystemMessage({ message }: { message: DisplayMessage }): React.JSX.Element {
+  const { t } = useTranslation()
+  if (message.subagentQuestion) {
+    const { agent, reason } = message.subagentQuestion
+    return (
+      <div className="mb-4 animate-fade-in rounded-lg border border-l-[3px] border-border border-l-warning bg-surface px-3 py-2">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-warning">
+          <MessageCircleQuestion size={12} aria-hidden="true" />
+          {agent
+            ? t('chat.subagentQuestion.fromAgent', { agent })
+            : t('chat.subagentQuestion.fromSubagent')}
+          {reason === 'interview_request' && <span className="normal-case tracking-normal text-dim">{t('chat.subagentQuestion.interview')}</span>}
+        </div>
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-secondary">{message.content}</p>
+        <p className="mt-1 text-[11px] text-dim">{t('chat.subagentQuestion.hint')}</p>
+      </div>
+    )
+  }
   return (
     <div className="mb-4 flex justify-center animate-fade-in">
       <div className="rounded-full bg-surface px-3 py-1 text-xs text-dim">

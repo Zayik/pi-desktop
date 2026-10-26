@@ -30,6 +30,7 @@ export function StatusBar(): React.JSX.Element {
   const toggleTerminal = useAppStore((state) => state.toggleTerminal)
   const terminalOpen = useAppStore((state) => state.terminalOpen)
   const setCurrentView = useAppStore((state) => state.setCurrentView)
+  const setPiSetupOpen = useAppStore((state) => state.setPiSetupOpen)
   const compactContext = useAppStore((state) => state.compactContext)
   const isCompacting = useAppStore((state) => state.sessionState?.isCompacting ?? false)
   const activeWorkspace = useAppStore((state) => state.activeWorkspace)
@@ -64,7 +65,14 @@ export function StatusBar(): React.JSX.Element {
               piStatus === 'stopped' && 'bg-elevated'
             )}
           />
-          <span className="text-dim">
+          <span
+            className={clsx('text-dim', piStatus === 'error' && 'cursor-pointer hover:text-primary hover:underline')}
+            // The error is usually "Pi not found"; the setup screen says where
+            // it looked and how to fix it.
+            onClick={piStatus === 'error' ? () => setPiSetupOpen(true) : undefined}
+            role={piStatus === 'error' ? 'button' : undefined}
+            title={piStatus === 'error' ? t('statusBar.piErrorTitle') : undefined}
+          >
             {piStatus === 'running'
               ? t('statusBar.piRunning', { agent: engineLabel, pid: piPid })
               : piStatus === 'starting'
