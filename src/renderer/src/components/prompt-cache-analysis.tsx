@@ -7,12 +7,16 @@ import {
   SLOT_MS,
   dayStarts,
   optimalCounts,
+  recommendedSetting,
   slotBest,
   slotCosts,
   slotLong,
   slotNoCache,
   summarize,
   type CacheAnalysis,
+  type CacheRecommendation,
+  type CacheSetting,
+  type CacheSettingsState,
   type CacheConfidence,
   type CacheGroupAnalysis,
   type CacheGroupId,
@@ -20,7 +24,7 @@ import {
   type PingSummary,
 } from '../../../shared/cache-analysis'
 import { CACHE_RULES_CHECKED } from '../../../shared/cache-policy'
-import { importSourceOf, type ImportSource } from '../../../shared/import-sources'
+import { importSourceOf, isImportedModel, type ImportSource } from '../../../shared/import-sources'
 import { formatMultiple, formatPerMillion, priceSheet, type PriceBand } from '../../../shared/list-prices'
 import type { Translate } from '../../../shared/i18n'
 
@@ -163,10 +167,7 @@ function choiceTotal(entry: ModelEntry, choice: Choice): number {
 }
 
 function recommendedChoice(entry: Omit<ModelEntry, 'recommended'>): Choice | null {
-  if (entry.group.id === 'automatic') return null
-  const { summary, optimal } = entry
-  if (summary.longTotal !== null && summary.confidence !== 'none' && summary.longTotal < summary.baseTotal + summary.totals[optimal] - 1e-9) return LONG
-  return optimal
+  return recommendedSetting(entry.group, entry.summary, entry.optimal)
 }
 
 function costRow(entry: ModelEntry, maxPings: number, weeks: number): CostRow {
@@ -188,8 +189,31 @@ function cacheEffect(summary: PingSummary, warmable: boolean, weeks: number): Pi
   return { writes: summary.writePremium / weeks, reads: (summary.noCacheTotal - (now - summary.writePremium)) / weeks }
 }
 
-/** Prompt cost per model at every ping count, with a running-cost chart for the model you pick; read only. */
-export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): React.JSX.Element | null {
+/** Pi Desktop's handles on the cache settings; the HTML report has none and stays read only. */
+export interface CacheSettingsControls {
+  state: CacheSettingsState
+  busy: boolean
+  onSet: (changes: Record<string, CacheSetting | null>) => void
+  onWarming: (on: boolean) => void
+  onAway: (away: boolean) => void
+}
+
+/** The setting a model runs on now: its own (no pings while cache warming is off), or no pings when Pi decides. Null where none applies. */
+function inUseChoice(entry: ModelEntry, state: CacheSettingsState): Choice | null {
+  if (!settable(entry)) return null
+  const setting = state.models[entry.model.model]
+  if (setting === LONG) return entry.model.long ? LONG : 0
+  if (!state.warming || setting === undefined) return 0
+  return Math.min(setting, entry.group.maxPings)
+}
+
+/** Pi runs the model and it has a cache a setting can change. */
+function settable(entry: ModelEntry): boolean {
+  return entry.group.id !== 'automatic' && !isImportedModel(entry.model.model)
+}
+
+/** Prompt cost per model at every ping count, with a running-cost chart for the model you pick; with `settings`, a click on a cost uses that setting. */
+export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAnalysis; settings?: CacheSettingsControls }): React.JSX.Element | null {
   const { t, i18n } = useTranslation()
   const [mode, setMode] = useState<ChartMode>('total')
   const [picked, setPicked] = useState<string | null>(null)
@@ -290,7 +314,8 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
         <span className="text-[10px] text-faint">{t('analytics.promptCache.note', { count: analysis.days })}</span>
       </div>
 
-      <CostTable entries={entries} maxPings={maxPings} weeks={weeks} selected={selected} multi={multi} onPick={pick} />
+      {settings && <SettingsBar entries={entries} controls={settings} />}
+      <CostTable entries={entries} maxPings={maxPings} weeks={weeks} selected={selected} multi={multi} onPick={pick} settings={settings} />
 
       <div className="space-y-3 rounded-lg border border-border bg-surface px-3 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -425,15 +450,25 @@ function SourceTag({ model }: { model: string }): React.JSX.Element | null {
   return source ? <span className="rounded-full bg-card px-1.5 font-medium">{t(IMPORT_KEYS[source])}</span> : null
 }
 
-function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
+function CostTable({ entries, maxPings, weeks, selected, multi, onPick, settings }: {
   entries: ModelEntry[]
   maxPings: number
   weeks: number
   selected: string
   multi: boolean
   onPick: (key: string) => void
+  settings?: CacheSettingsControls
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const state = settings?.state ?? null
+  const inUse = (entry: ModelEntry): Choice | null => state ? inUseChoice(entry, state) : null
+  /** What the recommended setting would save each week over the one in use. */
+  const leftOver = (entry: ModelEntry): number | null => {
+    const current = inUse(entry)
+    if (current === null || entry.recommended === null) return null
+    return Math.max(0, choiceTotal(entry, current) - choiceTotal(entry, entry.recommended)) / weeks
+  }
+  const leftTotal = sum(entries.map((entry) => leftOver(entry) ?? 0))
   const rows = entries.map((entry) => ({ entry, cost: costRow(entry, maxPings, weeks) }))
   // All models: every model at the same count, capped at what Pi sends it.
   const totalCost: CostRow = {
@@ -450,21 +485,35 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
   const columns = Array.from({ length: maxPings + 1 }, (_, count) => count)
   const hasLong = totalCost.long !== null
 
-  const row = (key: string, label: React.ReactNode, cost: CostRow, detail: React.ReactNode, recommended: Choice | null, automatic: boolean, strong: boolean): React.JSX.Element => {
+  const row = (key: string, label: React.ReactNode, cost: CostRow, detail: React.ReactNode, recommended: Choice | null, automatic: boolean, strong: boolean, entry: ModelEntry | null = null): React.JSX.Element => {
     const fixed = [...cost.counts.map((value) => value ?? Infinity), cost.long ?? Infinity]
     const best: Choice = cheapest(fixed) === cost.counts.length ? LONG : cheapest(fixed)
-    const cell = (choice: Choice, value: number | null): React.JSX.Element => (
+    const current = entry ? inUse(entry) : null
+    const canSet = Boolean(settings && entry && settable(entry))
+    const cell = (choice: Choice, value: number | null): React.JSX.Element => {
+      const className = clsx(
+        'inline-block rounded px-1',
+        choice === current ? 'bg-accent font-semibold text-white' : choice === best ? 'font-semibold text-success' : 'text-secondary',
+        choice === recommended && 'ring-1 ring-success',
+      )
+      return (
       <td key={choice} className="py-1.5 pl-2 text-right align-top tabular-nums">
-        {value === null ? <span className="text-ghost">–</span> : (
-          <span
-            className={clsx(
-              'inline-block rounded px-1',
-              choice === best ? 'font-semibold text-success' : 'text-secondary',
-              choice === recommended && 'ring-1 ring-accent',
-            )}
+        {value === null ? <span className="text-ghost">–</span> : canSet && entry && settings ? (
+          <button
+            type="button"
+            disabled={settings.busy}
+            aria-pressed={choice === current}
+            aria-label={t('analytics.promptCache.settings.useAria', { model: modelName(entry.model.model), setting: choiceLabel(choice, t), cost: money(value) })}
+            onClick={(event) => {
+              event.stopPropagation()
+              settings.onSet({ [entry.model.model]: choice })
+            }}
+            className={clsx(className, 'min-h-6 hover:ring-1 hover:ring-accent disabled:opacity-60')}
           >
             {money(value)}
-          </span>
+          </button>
+        ) : (
+          <span className={className}>{money(value)}</span>
         )}
         {choice === 0 && cost.writes !== null && cost.reads !== null && (
           <div className="mt-0.5 text-[10px] font-normal leading-tight">
@@ -473,8 +522,10 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
           </div>
         )}
       </td>
-    )
+      )
+    }
     const on = selected === key
+    const left = entry ? leftOver(entry) : strong && state ? leftTotal : null
     return (
       <tr
         key={key}
@@ -491,14 +542,19 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
         {automatic ? (
           <>
             <td className="py-1.5 pl-2 text-right tabular-nums text-primary">{money(cost.counts[0] ?? 0)}</td>
-            <td colSpan={maxPings + (hasLong ? 2 : 1)} className="py-1.5 pl-2 text-center text-[11px] text-dim">{t('analytics.promptCache.table.providerRuns')}</td>
+            <td colSpan={maxPings + (hasLong ? 1 : 0) + (state ? 0 : 1)} className="py-1.5 pl-2 text-center text-[11px] text-dim">{t('analytics.promptCache.table.providerRuns')}</td>
           </>
         ) : (
           <>
             {cost.counts.map((value, count) => cell(count, value))}
             {hasLong && cell(LONG, cost.long)}
-            <td className="py-1.5 pl-3 pr-2 text-right tabular-nums text-special">{cost.perBreak === null ? '–' : money(cost.perBreak)}</td>
+            {!state && <td className="py-1.5 pl-3 pr-2 text-right tabular-nums text-special">{cost.perBreak === null ? '–' : money(cost.perBreak)}</td>}
           </>
+        )}
+        {state && (
+          <td className={clsx('py-1.5 pl-3 pr-2 text-right tabular-nums', left === null ? 'text-ghost' : left < 0.005 ? 'text-success' : 'font-semibold text-warning')}>
+            {left === null ? '–' : left < 0.005 ? t('analytics.promptCache.settings.best') : money(left)}
+          </td>
         )}
       </tr>
     )
@@ -507,7 +563,7 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2.5">
       <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.table.title')}</div>
-      <p className="mt-0.5 text-[11px] text-dim">{t('analytics.promptCache.table.note')}</p>
+      <p className="mt-0.5 text-[11px] text-dim">{t(state ? 'analytics.promptCache.settings.tableNote' : 'analytics.promptCache.table.note')}</p>
       <div className="mt-1.5 overflow-x-auto">
         <table className="w-full min-w-[720px] whitespace-nowrap text-xs">
           <thead>
@@ -530,7 +586,8 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
                   </span>
                 </th>
               )}
-              <th className="pb-1 pl-3 pr-2 text-right font-medium">{t('analytics.promptCache.table.perBreak')}</th>
+              {!state && <th className="pb-1 pl-3 pr-2 text-right font-medium">{t('analytics.promptCache.table.perBreak')}</th>}
+              {state && <th className="pb-1 pl-3 pr-2 text-right font-medium" title={t('analytics.promptCache.settings.leftTitle')}>{t('analytics.promptCache.settings.left')}</th>}
             </tr>
           </thead>
           <tbody>
@@ -556,12 +613,69 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
               entry.recommended,
               entry.group.id === 'automatic',
               false,
+              entry,
             ))}
             {multi && row(ALL_KEY, t('analytics.promptCache.allModels'), totalCost, null, null, false, true)}
           </tbody>
         </table>
       </div>
       <p className="mt-1.5 text-[10px] text-faint">{t('analytics.promptCache.table.footnote')}</p>
+    </div>
+  )
+}
+
+/** Cache warming on or off, Apply recommendations, and Away, above the table they act on. */
+function SettingsBar({ entries, controls }: { entries: ModelEntry[]; controls: CacheSettingsControls }): React.JSX.Element {
+  const { t, i18n } = useTranslation()
+  const { state, busy } = controls
+  const recommendations: CacheRecommendation[] = entries
+    .filter((entry) => settable(entry) && entry.recommended !== null)
+    .map((entry) => ({ model: entry.model.model, setting: entry.recommended as CacheSetting, lowData: entry.summary.confidence === 'none' }))
+  const pending = recommendations.filter((entry) => !entry.lowData && state.models[entry.model] !== entry.setting)
+  const needsWarming = pending.some((entry) => typeof entry.setting === 'number' && entry.setting > 0)
+  const apply = (): void => {
+    controls.onSet(Object.fromEntries(pending.map((entry) => [entry.model, entry.setting])))
+    if (needsWarming && !state.warming) controls.onWarming(true)
+  }
+  const awayTime = state.away === null ? null : new Date(state.away).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.settings.title')}</div>
+          <p className="mt-0.5 text-[11px] text-dim">{t('analytics.promptCache.settings.note')}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-[11px] text-muted" title={t('analytics.promptCache.settings.warmingTitle')}>
+            <input type="checkbox" checked={state.warming} disabled={busy} onChange={(event) => controls.onWarming(event.target.checked)} />
+            {t(state.warming ? 'analytics.promptCache.settings.warmingOn' : 'analytics.promptCache.settings.warmingOff')}
+          </label>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => controls.onAway(state.away === null)}
+            title={t('analytics.promptCache.settings.awayTitle')}
+            className="flex h-7 items-center rounded-md border border-border px-2 text-[11px] text-muted hover:bg-surface-hover disabled:opacity-50"
+          >
+            {awayTime === null ? t('analytics.promptCache.settings.away') : t('analytics.promptCache.settings.awayClear', { time: awayTime })}
+          </button>
+          <button
+            type="button"
+            disabled={busy || pending.length === 0}
+            onClick={apply}
+            className="flex h-7 items-center rounded-md bg-accent px-2.5 text-[11px] font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+          >
+            {pending.length ? t('analytics.promptCache.settings.apply', { count: pending.length }) : t('analytics.promptCache.settings.applied')}
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-dim">
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-accent" />{t('analytics.promptCache.settings.inUse')}</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-success" />{t('analytics.promptCache.settings.recommended')}</span>
+        <span>{t('analytics.promptCache.settings.lowData')}</span>
+      </div>
+      {!state.warming && <p className="rounded border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] text-warning">{t('analytics.promptCache.settings.offNote')}</p>}
+      {state.away !== null && awayTime !== null && <p className="text-[11px] text-dim">{t('analytics.promptCache.settings.awayNote', { time: awayTime })}</p>}
     </div>
   )
 }

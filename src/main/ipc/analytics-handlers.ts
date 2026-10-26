@@ -1,10 +1,21 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
+import type { CacheSetting, CacheSettingsState } from '../../shared/cache-analysis'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey, type AnalyticsReport, type OverviewRequest } from '../../shared/analytics-report'
 import { getAnalyticsIndex } from '../analytics-index'
 import { isWithinSessionRoots } from '../pi-paths'
 import { appLog } from '../app-log'
 import { assertTrustedSender, isObject, isString } from './validation'
+import {
+  clearAway,
+  isModelCacheSetting,
+  markAway,
+  readAway,
+  readCacheSettings,
+  readCacheWarming,
+  updateCacheSettings,
+  writeCacheWarming,
+} from '../../../packages/pi-analytics/src/cache-settings'
 
 /** The first full scan waits until startup work has settled. */
 const STARTUP_SCAN_DELAY_MS = 15_000
@@ -33,6 +44,52 @@ export function registerAnalyticsHandlers(): void {
     assertTrustedSender(event)
     await getAnalyticsIndex().rebuild()
   })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_GET_CACHE_SETTINGS, (event: IpcMainInvokeEvent): CacheSettingsState => {
+    assertTrustedSender(event)
+    return cacheSettingsState()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_CACHE_SETTINGS, (event: IpcMainInvokeEvent, changes: unknown): CacheSettingsState => {
+    assertTrustedSender(event)
+    updateCacheSettings(parseSettingChanges(changes))
+    return cacheSettingsState()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_CACHE_WARMING, (event: IpcMainInvokeEvent, on: unknown): CacheSettingsState => {
+    assertTrustedSender(event)
+    if (typeof on !== 'boolean') throw new Error('on must be a boolean')
+    writeCacheWarming(on)
+    return cacheSettingsState()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_AWAY, (event: IpcMainInvokeEvent, away: unknown): CacheSettingsState => {
+    assertTrustedSender(event)
+    if (typeof away !== 'boolean') throw new Error('away must be a boolean')
+    if (away) markAway()
+    else clearAway()
+    return cacheSettingsState()
+  })
+}
+
+function cacheSettingsState(): CacheSettingsState {
+  let warmingMode: string | null = null
+  try {
+    warmingMode = readCacheWarming()
+  } catch (error) {
+    appLog.warn('analytics', 'Could not read Pi settings.json', error)
+  }
+  return { models: readCacheSettings().models, warming: warmingMode === 'idle', warmingMode, away: readAway() }
+}
+
+function parseSettingChanges(value: unknown): Record<string, CacheSetting | null> {
+  if (!isObject(value)) throw new Error('changes must be an object')
+  const changes: Record<string, CacheSetting | null> = {}
+  for (const [model, setting] of Object.entries(value)) {
+    if (setting !== null && !isModelCacheSetting(setting)) throw new Error(`${model}: not a cache setting`)
+    changes[model] = setting
+  }
+  return changes
 }
 
 function parseOverviewRequest(value: unknown): OverviewRequest {

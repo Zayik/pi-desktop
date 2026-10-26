@@ -4,7 +4,7 @@ import { ExternalLink, X } from 'lucide-react'
 import type { ContextSnapshot } from '../../../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../../../shared/agent-board'
 import { useAppStore } from '../store'
-import { AgentBoardView, taskSessionFile } from './agent-board-view'
+import { AgentBoardView, StopWarmingContext, taskSessionFile } from './agent-board-view'
 
 /** The Context panel re-reads the session's snapshot this often while it is open. */
 const SNAPSHOT_POLL_MS = 2_000
@@ -88,6 +88,13 @@ export function ContextPanel({ onClose }: { onClose: () => void }): React.JSX.El
     [sessionId, sessionFile, subagentFiles]
   )
   const board = useAgentBoard(request)
+  const engine = useAppStore((state) => state.piEngine)
+  // `/done` comes from pi-analytics, which Pi Desktop loads into Pi (not OMP); it reaches the open chat only.
+  const stopWarming = engine === 'pi' && !isStreaming
+    ? (target: string): void => {
+        if (target === useAppStore.getState().sessionState?.sessionId) void useAppStore.getState().sendPrompt('/done')
+      }
+    : null
   const [popOutError, setPopOutError] = useState<string | null>(null)
 
   return (
@@ -123,7 +130,9 @@ export function ContextPanel({ onClose }: { onClose: () => void }): React.JSX.El
             {loaded ? t('chat.contextPanel.noSnapshot') : t('chat.contextPanel.loading')}
           </p>
         ) : (
-          <AgentBoardView snapshot={snapshot} board={board} tasks={tasks} isStreaming={isStreaming} mainEffort={mainEffort} />
+          <StopWarmingContext.Provider value={stopWarming}>
+            <AgentBoardView snapshot={snapshot} board={board} tasks={tasks} isStreaming={isStreaming} mainEffort={mainEffort} />
+          </StopWarmingContext.Provider>
         )}
       </div>
     </div>

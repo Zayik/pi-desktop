@@ -8,6 +8,7 @@
  */
 import { PI_REFRESH_AT, cacheProfile, callTotals, gapCostsByPings, measurePrices, piMaxIdlePings, promptTokens, tokenPrice, type CacheRoute } from './cache-policy'
 import { longPromptTier, tierMultiple } from './list-prices'
+import { isImportedModel } from './import-sources'
 import type { CacheCall, SessionAnalytics } from './session-analytics'
 
 export type CacheGroupId = '5m' | '30m' | 'automatic'
@@ -370,6 +371,52 @@ export function optimalCounts(analysis: CacheAnalysis): Map<string, number> {
     for (const [model, count] of summarize(group.models, group.maxPings, analysis.days).modelBest) counts.set(model, count)
   }
   return counts
+}
+
+/** A fixed setting for one model: how many idle pings, or the long lifetime with none. */
+export type CacheSetting = number | 'long'
+
+/**
+ * The setting to recommend for a model: its best count (its group's while its
+ * own data is thin), or the long lifetime when that costs less and the model
+ * has enough breaks to tell. Null where the provider runs the cache. Never
+ * "no cache": the cheapest of these always caches.
+ */
+export function recommendedSetting(group: CacheGroupAnalysis, summary: PingSummary, optimal: number): CacheSetting | null {
+  if (group.id === 'automatic') return null
+  if (summary.longTotal !== null && summary.confidence !== 'none' && summary.longTotal < summary.baseTotal + summary.totals[optimal] - 1e-9) return 'long'
+  return optimal
+}
+
+/** The settings in use, as Pi Desktop shows them. */
+export interface CacheSettingsState {
+  /** `provider/model` to its setting; a model left out is left to Pi. */
+  models: Record<string, CacheSetting>
+  /** Pi pings after you stop (its cacheWarming is "idle"). */
+  warming: boolean
+  /** Pi's cacheWarming as set, or null for its default ("streaming"). */
+  warmingMode: string | null
+  /** When `/away` was last used, or null. */
+  away: number | null
+}
+
+export interface CacheRecommendation {
+  model: string
+  setting: CacheSetting
+  /** Too few breaks of its own: the count is borrowed from its group, and Apply leaves it alone. */
+  lowData: boolean
+}
+
+/** A recommended setting for every model Pi ran that can take one. */
+export function cacheRecommendations(analysis: CacheAnalysis): CacheRecommendation[] {
+  const optimal = optimalCounts(analysis)
+  return analysis.groups.flatMap((group) => group.models
+    .filter((model) => !isImportedModel(model.model))
+    .flatMap((model) => {
+      const summary = summarize([model], group.maxPings, analysis.days)
+      const setting = recommendedSetting(group, summary, optimal.get(model.model) ?? 0)
+      return setting === null ? [] : [{ model: model.model, setting, lowData: summary.confidence === 'none' }]
+    }))
 }
 
 /** The cheapest count for the gaps ending in each slot of a day, or null where no gap's count mattered. */

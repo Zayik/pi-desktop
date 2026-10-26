@@ -21,14 +21,19 @@ The same commands run as `pi-analytics <command>` in a terminal or `/analytics <
 |---|---|
 | `report [--range 7\|30\|90\|365\|all] [--out file] [--no-open] [--rebuild]` | Writes the HTML report to `~/.pi/agent/pi-analytics/reports/` and opens it. Default range: 30 days. |
 | `cache [--range ...] [--details 5m\|30m]` | Per cache lifetime and model: the hit rate, the ping count that would have cost least, and what it saves a week. `--details` adds every count's cost, the per-model and per-break comparisons, and the last two weeks side by side. |
+| `cache show` | The setting each model uses, whether Pi pings after you stop (cache warming), and `/away`. |
+| `cache set <provider/model> <0-12\|long\|pi>` | Fix a model's idle pings (0 for none), or `long` for the longer cache with no pings; `pi` leaves the model to Pi. |
+| `cache apply [--range ...]` | Sets every model to its recommended setting, except models with too little data to tell. |
+| `warming on\|off` | Sets Pi's `cacheWarming` to `idle` (Pi may ping after you stop, which the pings need) or back to its default `streaming`. |
+| `away [clear]` | No idle pings in any Pi chat until your next message in it, as `/away` does. |
 | `sources [--rebuild]` | Which tools' sessions are read, with how many sessions, the days they cover and their list-price cost. |
 
 | `sessions [--session <id>] [--no-open]` | Opens the live session page (below). |
 | `serve [--port <port>]` | Runs the page's helper in the foreground, to see its log. |
 
-Inside Pi, `/start-session-analyzer` opens the live session page on the current session.
+Inside Pi, `/start-session-analyzer` opens the live session page on the current session, `/done` stops idle cache pings for the current chat, and `/away` stops them in every chat. Both hold only until your next message in a chat, so there is nothing to turn back on.
 
-The cache analysis is read only for now: it recommends, it does not apply. It replays your calls the way Pi warms: a refresh at 90% of the lifetime, and no more than fit in the 30 minutes Pi keeps warming after a run (6 on a 5-minute cache, 1 on a 30-minute one). A model with fewer than 10 breaks longer than its lifetime borrows its group's answer.
+The cache analysis replays your calls the way Pi warms: a refresh at 90% of the lifetime, and no more than fit in the 30 minutes Pi keeps warming after a run (6 on a 5-minute cache, 1 on a 30-minute one). A model with fewer than 10 breaks longer than its lifetime borrows its group's answer.
 
 ## Live session page
 
@@ -61,4 +66,8 @@ Everything lives in `~/.pi/agent/pi-analytics/` (`PI_ANALYTICS_DIR` overrides it
 - `server.json`, `server-token`: where the page's helper listens, and its token. `desktop-focus.json`: the chat Pi Desktop has open, while its page follows it.
 - `analytics.sqlite`, `archive/`: the session index and copies of delegate sessions from the temp folder.
 
-The extension only observes. It changes no request and leaves Pi's cache settings and warming as they are.
+- `cache-settings.json`: one fixed setting per model, `{"version":1,"models":{"anthropic/claude-haiku-5-5":6,"github-copilot/gpt-6-luna":"long"}}`. A number is how many idle pings Pi sends after you stop; `"long"` asks for the longer cache (`PI_CACHE_RETENTION=long` on that model's requests) and sends none. `away.json`: when `/away` was last used.
+
+## Cache warming
+
+The extension changes one thing: what Pi does after you stop, in a main chat whose model has a setting. Then it answers Pi's `cache_warming_decision` with exactly that many pings (reset by each request), or none for `0` and `long`. It also gives the model the vendor's cache lifetime when the model definition has none (GitHub Copilot models), since Pi warms only models with one. While the agent works, in subagents (sessions started by another Pi session), and for models without a setting, Pi decides by price as usual. Idle pings need Pi's `cacheWarming` set to `idle` (`pi-analytics warming on`); Pi still stops them 30 minutes after the last request.

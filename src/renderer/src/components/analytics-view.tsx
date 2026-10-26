@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
 import { ClipboardList, RefreshCw } from 'lucide-react'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey, type AnalyticsReport } from '../../../shared/analytics-report'
+import type { CacheSetting, CacheSettingsState } from '../../../shared/cache-analysis'
 import { retroDigest, retroPrompt } from '../../../shared/retro-digest'
 import { useAppStore } from '../store'
 import { AnalyticsReportView } from './analytics-report-view'
 import { CopyButton } from './copy-button'
+import type { CacheSettingsControls } from './prompt-cache-analysis'
 
 const RANGE_LABEL_KEYS = {
   '7': 'analytics.ranges.sevenDays',
@@ -44,6 +46,31 @@ export function AnalyticsView(): React.JSX.Element {
   useEffect(() => {
     void load()
   }, [load])
+
+  const [cacheState, setCacheState] = useState<CacheSettingsState | null>(null)
+  const [cacheBusy, setCacheBusy] = useState(false)
+  const [cacheError, setCacheError] = useState(false)
+  const changeCache = useCallback(async (change: () => Promise<CacheSettingsState>): Promise<void> => {
+    setCacheBusy(true)
+    setCacheError(false)
+    try {
+      setCacheState(await change())
+    } catch {
+      setCacheError(true)
+    } finally {
+      setCacheBusy(false)
+    }
+  }, [])
+  useEffect(() => {
+    void changeCache(() => window.piDesktop.analytics.getCacheSettings())
+  }, [changeCache])
+  const cacheSettings: CacheSettingsControls | undefined = cacheState ? {
+    state: cacheState,
+    busy: cacheBusy,
+    onSet: (changes: Record<string, CacheSetting | null>) => void changeCache(() => window.piDesktop.analytics.setCacheSettings(changes)),
+    onWarming: (on: boolean) => void changeCache(() => window.piDesktop.analytics.setCacheWarming(on)),
+    onAway: (away: boolean) => void changeCache(() => window.piDesktop.analytics.setAway(away)),
+  } : undefined
 
 
   const digest = report ? retroDigest(report) : null
@@ -112,10 +139,14 @@ export function AnalyticsView(): React.JSX.Element {
           ) : report.sessions === 0 ? (
             <p className="py-10 text-center text-xs text-dim">{t('analytics.view.empty')}</p>
           ) : (
-            <AnalyticsReportView
-              report={report}
-              wide
-            />
+            <>
+              {cacheError && <p className="mb-2 text-xs text-error">{t('analytics.promptCache.settings.error')}</p>}
+              <AnalyticsReportView
+                report={report}
+                wide
+                cacheSettings={cacheSettings}
+              />
+            </>
           )}
         </div>
       </div>

@@ -7,6 +7,20 @@ import type { AnalyticsSource } from '../../../src/shared/session-analytics'
 import { IMPORT_SOURCE_NAMES, type ImportSource } from '../../../src/shared/import-sources'
 import { IMPORT_ENV } from '../../../src/main/pi-paths'
 import { cacheLines, priceLines } from './cache-text'
+import { cacheRecommendations } from '../../../src/shared/cache-analysis'
+import {
+  MAX_SETTING_PINGS,
+  cacheSettingsPath,
+  clearAway,
+  isModelCacheSetting,
+  markAway,
+  readAway,
+  readCacheSettings,
+  readCacheWarming,
+  updateCacheSettings,
+  writeCacheWarming,
+  type ModelCacheSetting,
+} from './cache-settings'
 import { analyticsDir } from './paths'
 import { buildEnvelope, listSources, writeReport } from './report'
 import { openFile } from './open'
@@ -16,6 +30,16 @@ export const USAGE = [
   '    Write the HTML report (the same view as Pi Desktop) and open it.',
   'pi-analytics cache [--range ...] [--details 5m|30m]',
   '    Whether keep-warm pings would have saved money, and how many, per cache lifetime and model. Read only.',
+  'pi-analytics cache show',
+  '    The setting each model uses, whether Pi pings after you stop (cache warming), and /away.',
+  `pi-analytics cache set <provider/model> <0-${MAX_SETTING_PINGS}|long|pi>`,
+  '    Fix a model\'s idle pings (0 for none), or "long" for the longer cache with no pings; "pi" leaves it to Pi.',
+  'pi-analytics cache apply [--range ...]',
+  '    Set every model to its recommended setting, except models with too little data to tell.',
+  'pi-analytics warming on|off',
+  '    Let Pi ping after you stop (Pi\'s cacheWarming "idle", which the pings need), or only while it works ("streaming", Pi\'s default).',
+  'pi-analytics away [clear]',
+  '    No idle pings in any Pi chat until your next message in it, as /away does. "clear" lets them warm again now.',
   'pi-analytics prices [--range ...]',
   '    List prices per million tokens (input, output, cache read and writes) of the models you used, with the long-prompt rates.',
   'pi-analytics sessions [--session <id>] [--no-open]',
@@ -83,10 +107,47 @@ export async function runCommand(args: string | string[], options: CommandOption
       return [`Report written to ${path}`, '', ...cacheLines(envelope.data.report.cacheAnalysis)]
     }
     case 'cache': {
+      const sub = parsed.positional[0]
+      if (sub === 'show') return showSettings(dir)
+      if (sub === 'set') {
+        const [, model, value] = parsed.positional
+        if (!model || value === undefined) return [`Usage: pi-analytics cache set <provider/model> <0-${MAX_SETTING_PINGS}|long|pi>`]
+        const setting = value === 'pi' ? null : value === 'long' ? 'long' : Number(value)
+        if (setting !== null && !isModelCacheSetting(setting)) return [`The setting is 0 to ${MAX_SETTING_PINGS} pings, "long" or "pi".`]
+        updateCacheSettings({ [model]: setting }, dir)
+        return [`${model}: ${settingLabel(setting)}.`, ...warmingNote(setting)]
+      }
+      if (sub === 'apply') {
+        const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
+        const recommendations = cacheRecommendations(envelope.data.report.cacheAnalysis)
+        const apply = recommendations.filter((entry) => !entry.lowData)
+        if (apply.length) updateCacheSettings(Object.fromEntries(apply.map((entry) => [entry.model, entry.setting])), dir)
+        return [
+          ...apply.map((entry) => `${entry.model}: ${settingLabel(entry.setting)}`),
+          ...recommendations.filter((entry) => entry.lowData).map((entry) => `${entry.model}: left as it is, too little data (recommended ${settingLabel(entry.setting)})`),
+          ...(recommendations.length ? [] : ['No model Pi ran can take a setting yet.']),
+          ...warmingNote(apply.some((entry) => typeof entry.setting === 'number' && entry.setting > 0) ? 1 : null),
+        ]
+      }
+      if (sub !== undefined) return [`Unknown cache command "${sub}".`, ...USAGE]
       const details = flags.get('details')
       if (details !== undefined && details !== '5m' && details !== '30m') return ['--details takes 5m or 30m.']
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
       return cacheLines(envelope.data.report.cacheAnalysis, details ?? null)
+    }
+    case 'warming': {
+      const value = parsed.positional[0]
+      if (value !== 'on' && value !== 'off') return ['Usage: pi-analytics warming on|off']
+      const mode = writeCacheWarming(value === 'on')
+      return [`Pi's cacheWarming is now "${mode}": ${value === 'on' ? 'Pi pings after you stop, as each model\'s setting says' : 'Pi warms only while the agent works, so every setting runs like 0 pings'}. Running Pi chats pick it up on their next request.`]
+    }
+    case 'away': {
+      if (parsed.positional[0] === 'clear') {
+        clearAway(dir)
+        return ['Away cleared: chats still inside Pi\'s 30 idle minutes warm again.']
+      }
+      const at = markAway(Date.now(), dir)
+      return [`Away since ${new Date(at).toLocaleTimeString()}: no idle pings in any Pi chat until your next message in it. Nothing to undo.`]
     }
     case 'prices': {
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
@@ -125,3 +186,28 @@ export async function runCommand(args: string | string[], options: CommandOption
   }
 }
 
+
+function settingLabel(setting: ModelCacheSetting | null): string {
+  if (setting === null) return 'left to Pi'
+  if (setting === 'long') return 'long cache, no idle pings'
+  return setting === 1 ? '1 idle ping' : `${setting} idle pings`
+}
+
+/** A reminder when pings are set but Pi does not ping after you stop. */
+function warmingNote(setting: ModelCacheSetting | null): string[] {
+  if (typeof setting !== 'number' || setting === 0 || readCacheWarming() === 'idle') return []
+  return ['Cache warming is off, so Pi sends no idle pings yet: turn it on with `pi-analytics warming on`.']
+}
+
+function showSettings(dir: string): string[] {
+  const { models } = readCacheSettings(dir)
+  const warming = readCacheWarming()
+  const away = readAway(dir)
+  const entries = Object.entries(models).sort(([a], [b]) => a.localeCompare(b))
+  return [
+    `Cache warming: ${warming === 'idle' ? 'on' : 'off'} (Pi's cacheWarming is "${warming ?? 'streaming'}")`,
+    ...(away === null ? [] : [`Away since ${new Date(away).toLocaleString()}: chats with no message since then send no idle pings.`]),
+    ...(entries.length ? entries.map(([model, setting]) => `${model}: ${settingLabel(setting)}`) : ['No model has a setting; Pi decides for all of them.']),
+    `Settings file: ${cacheSettingsPath(dir)}`,
+  ]
+}
