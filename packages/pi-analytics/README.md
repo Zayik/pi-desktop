@@ -22,7 +22,6 @@ The same commands run as `pi-analytics <command>` in a terminal or `/analytics <
 | `report [--range 7\|30\|90\|365\|all] [--out file] [--no-open] [--rebuild]` | Writes the HTML report to `~/.pi/agent/pi-analytics/reports/` and opens it. Default range: 30 days. |
 | `cache [--range ...] [--details 5m\|30m]` | Per cache lifetime and model: the hit rate, the ping count that would have cost least, and what it saves a week. `--details` adds every count's cost, the per-model and per-break comparisons, and the last two weeks side by side. |
 | `sources [--rebuild]` | Which tools' sessions are read, with how many sessions, the days they cover and their list-price cost. |
-
 | `sessions [--session <id>] [--no-open]` | Opens the live session page (below). |
 | `serve [--port <port>]` | Runs the page's helper in the foreground, to see its log. |
 
