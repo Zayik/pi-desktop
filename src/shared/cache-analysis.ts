@@ -56,6 +56,9 @@ export interface CacheModelAnalysis {
    * lifetime to pick (GPT-5.6 and later get 30 minutes either way).
    */
   long: Array<[at: number, cost: number]> | null
+  /** Cache write price as a multiple of input on the short lifetime (null where the provider runs the cache), and what that premium added with no pings over the window. */
+  writeMultiple: number | null
+  writePremium: number
 }
 
 export interface CacheGroupAnalysis {
@@ -156,6 +159,8 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       gaps: [],
       noCache: [],
       long: null,
+      writeMultiple: null,
+      writePremium: 0,
     }
     if (profile.sweep && prices && id !== 'automatic') {
       const everyMs = ttlMs * PI_REFRESH_AT
@@ -173,6 +178,12 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
         else entry.gaps.push({ at: gap.at, gapMs: gap.gapMs, costs: gap.costs })
       }
       entry.base = [...base.entries()].sort((a, b) => a[0] - b[0])
+      // The same replay with writes at the input price: the difference is what the write premium cost.
+      const atInput = gapCostsByPings(runs, { ...profile.sweep, write: 1, everyMs, horizonMs: ttlMs }, prices)
+      const noPings = (run: { openings: Array<[number, number]>; gaps: Array<{ costs: number[] }> }): number =>
+        run.openings.reduce((sum, [, cost]) => sum + cost, 0) + run.gaps.reduce((sum, gap) => sum + gap.costs[0], 0)
+      entry.writeMultiple = profile.sweep.write
+      entry.writePremium = noPings({ openings, gaps }) - noPings(atInput)
       const uncached = new Map<number, number>()
       for (const call of all) {
         const slot = slotStart(call[0], start)
@@ -253,6 +264,8 @@ export interface PingSummary {
   noCacheTotal: number
   /** The whole prompt cost on the long lifetime, summed over the models that have one; null when none does. */
   longTotal: number | null
+  /** What the write premium added with no pings, over the window. */
+  writePremium: number
   /** What caching with the best count saves over no cache, per week; below 0 when no cache would have been cheaper. */
   cacheSavingPerWeek: number
 }
@@ -271,9 +284,11 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
   let baseTotal = 0
   let noCacheTotal = 0
   let longTotal: number | null = null
+  let writePremium = 0
   for (const model of models) {
     for (const [, cost] of model.base) baseTotal += cost
     for (const [, cost] of model.noCache) noCacheTotal += cost
+    writePremium += model.writePremium
     if (model.long) longTotal = (longTotal ?? 0) + model.long.reduce((sum, [, cost]) => sum + cost, 0)
     const own = confidenceOf(model.longBreaks) === 'none' ? best : cheapest(countTotals([model], maxPings))
     modelBest.set(model.model, own)
@@ -296,6 +311,7 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
     baseTotal,
     noCacheTotal,
     longTotal,
+    writePremium,
     cacheSavingPerWeek: (noCacheTotal - baseTotal - totals[best]) / weeks,
   }
 }

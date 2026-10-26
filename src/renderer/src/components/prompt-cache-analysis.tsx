@@ -130,6 +130,9 @@ interface CostRow {
   long: number | null
   perBreak: number | null
   noCache: number | null
+  /** Against no cache, with no pings: what the write premium added and what cheaper reads saved. */
+  writes: number | null
+  reads: number | null
 }
 
 interface Line {
@@ -165,7 +168,15 @@ function costRow(entry: ModelEntry, maxPings: number, weeks: number): CostRow {
     long: summary.longTotal === null ? null : summary.longTotal / weeks,
     perBreak: warmable ? (summary.baseTotal + summary.perBreakTotal) / weeks : null,
     noCache: summary.noCacheTotal > 0 ? summary.noCacheTotal / weeks : null,
+    ...cacheEffect(summary, warmable, weeks),
   }
+}
+
+/** No cache against the short cache with no pings: the writes cost more, the reads cost less. */
+function cacheEffect(summary: PingSummary, warmable: boolean, weeks: number): Pick<CostRow, 'writes' | 'reads'> {
+  if (!warmable || summary.noCacheTotal <= 0) return { writes: null, reads: null }
+  const now = summary.baseTotal + summary.totals[0]
+  return { writes: summary.writePremium / weeks, reads: (summary.noCacheTotal - (now - summary.writePremium)) / weeks }
 }
 
 /** Prompt cost per model at every ping count, with a running-cost chart for the model you pick; read only. */
@@ -387,6 +398,10 @@ function Summary({ entry, entries, weeks }: { entry: ModelEntry | null; entries:
         ? t('analytics.promptCache.summary.saves', { model: name, pings: choiceLabel(choice, t), cost: weekly(recommended), now: weekly(now), saving: weekly(now - recommended), best })
         : t('analytics.promptCache.summary.noSaving', { model: name, cost: weekly(now), best })
       if (summary.confidence === 'none') text += ` ${t('analytics.promptCache.summary.thin', { count: model.longBreaks })}`
+      const effect = cacheEffect(summary, true, weeks)
+      if (effect.writes !== null && effect.reads !== null && model.writeMultiple !== null) {
+        text += ` ${t('analytics.promptCache.summary.vsNoCache', { noCache: weekly(summary.noCacheTotal), multiple: model.writeMultiple, writes: money(effect.writes), reads: money(effect.reads) })}`
+      }
     }
   }
   return <p className="text-[13px] font-medium leading-snug text-primary">{text}</p>
@@ -411,6 +426,8 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
     long: rows.some(({ cost }) => cost.long !== null) ? sum(rows.map(({ cost }) => cost.long ?? cost.counts[0] ?? 0)) : null,
     perBreak: sum(rows.map(({ cost }) => cost.perBreak ?? cost.counts[0] ?? 0)),
     noCache: sum(rows.map(({ cost }) => cost.noCache ?? 0)) || null,
+    writes: sum(rows.map(({ cost }) => cost.writes ?? 0)),
+    reads: sum(rows.map(({ cost }) => cost.reads ?? 0)),
   }
   const columns = Array.from({ length: maxPings + 1 }, (_, count) => count)
   const hasLong = totalCost.long !== null
@@ -419,7 +436,7 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
     const fixed = [...cost.counts.map((value) => value ?? Infinity), cost.long ?? Infinity]
     const best: Choice = cheapest(fixed) === cost.counts.length ? LONG : cheapest(fixed)
     const cell = (choice: Choice, value: number | null): React.JSX.Element => (
-      <td key={choice} className="py-1.5 pl-2 text-right tabular-nums">
+      <td key={choice} className="py-1.5 pl-2 text-right align-top tabular-nums">
         {value === null ? <span className="text-ghost">–</span> : (
           <span
             className={clsx(
@@ -430,6 +447,12 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
           >
             {money(value)}
           </span>
+        )}
+        {choice === 0 && cost.writes !== null && cost.reads !== null && (
+          <div className="mt-0.5 text-[10px] font-normal leading-tight">
+            <div className="text-warning">{t('analytics.promptCache.table.writes', { cost: money(cost.writes) })}</div>
+            <div className="text-success">{t('analytics.promptCache.table.reads', { cost: money(cost.reads) })}</div>
+          </div>
         )}
       </td>
     )
@@ -499,6 +522,7 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
               cost,
               <div className="flex items-center gap-1.5 text-[10px] text-dim" title={entry.model.model}>
                 <span>{t(LIFETIME_KEYS[entry.group.id])}</span>
+                {entry.model.writeMultiple !== null && <span>{t('analytics.promptCache.table.writeMultiple', { multiple: entry.model.writeMultiple })}</span>}
                 {entry.summary.hitRate !== null && <span>{t('analytics.promptCache.table.hitRate', { rate: Math.round(entry.summary.hitRate * 100) })}</span>}
                 {entry.group.id !== 'automatic' && entry.summary.confidence !== 'solid' && (
                   <span className={clsx('rounded-full px-1.5 font-medium', CONFIDENCE_CLASSES[entry.summary.confidence])}>{t(CONFIDENCE_KEYS[entry.summary.confidence])}</span>

@@ -135,6 +135,9 @@ test('no cache prices every prompt token at the input price, and caching beats i
   const { none } = slotCosts(model, 0, DAY_ONE, SLOTS_PER_DAY)
   assert.ok(Math.abs(none.reduce((sum, value) => sum + value, 0) - summary.baseTotal - summary.totals[0]) < 1e-9)
   assert.ok(Math.abs(slotNoCache(model, DAY_ONE, SLOTS_PER_DAY).reduce((sum, value) => sum + value, 0) - summary.noCacheTotal) < 1e-9)
+  // Writes cost 1.25x: the premium is a quarter of the written tokens at the input price.
+  assert.equal(model.writeMultiple, 1.25)
+  assert.ok(model.writePremium > 0)
 })
 
 test('a prompt sent once after every long break is cheaper with no cache', () => {

@@ -120,7 +120,8 @@
         "noSaving": "{{model}}: pings don't pay off here, so no pings is cheapest at {{cost}} a week. The best count at every break would cost {{best}}.",
         "saves": "{{model}}: {{pings}} is cheapest, {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
         "thin_one": "Only {{count}} long break so far, so this uses the count of models with the same cache lifetime.",
-        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime."
+        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime.",
+        "vsNoCache": "Against no cache ({{noCache}} a week), the {{multiple}}x cache writes add {{writes}} and the cheaper reads save {{reads}}, before any pings."
       },
       "table": {
         "footnote": "Long is Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it. 30-minute models have no longer lifetime Pi can pick. No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
@@ -129,10 +130,13 @@
         "longTitle": "Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it",
         "model": "Model",
         "noCache": "No cache",
-        "note": "Prompt cost per week. Green is the cheapest fixed setting; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
+        "note": "Prompt cost per week. Under No pings: what the short cache's write premium adds and its cheaper reads save, compared with no cache. Green is the cheapest fixed setting; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
         "perBreak": "Best at each break",
         "providerRuns": "The provider runs this cache; pings can't change it",
-        "title": "Cost per week by ping count"
+        "reads": "reads −{{cost}}",
+        "title": "Cost per week by ping count",
+        "writeMultiple": "writes {{multiple}}x",
+        "writes": "writes +{{cost}}"
       },
       "title": "Prompt cache"
     },
