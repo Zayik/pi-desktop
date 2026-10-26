@@ -61,11 +61,15 @@
     },
     "promptCache": {
       "allModels": "所有模型",
-      "bar": {
-        "idle": "{{label}}：无调用",
-        "same": "{{label}}：{{cost}}，保温请求无影响",
-        "saved": "{{label}}：该设置 {{cost}}，不发送 {{none}}（节省 {{saving}}）",
-        "wasted": "{{label}}：该设置 {{cost}}，不发送 {{none}}（多 {{extra}}）"
+      "chart": {
+        "aria": "各模型的累计提示花费",
+        "expand": "按 30 分钟查看 {{day}}",
+        "modeLabel": "图表数值",
+        "saving": "对比不发送",
+        "savingNote": "每条曲线表示模型在该设置下相对不发送保温请求的花费：低于 $0 即节省。空闲时持平，每次间隔时变化。点击某一天在下方查看。",
+        "total": "总花费",
+        "totalNote": "每条曲线表示模型在该设置下的累计提示花费。点击某一天在下方查看。",
+        "upTo": "{{day}}，截至 {{time}}"
       },
       "choice": {
         "capped": "30 分钟缓存最多只发送 1 次保温请求，因此这些模型止于 1。",
@@ -74,48 +78,47 @@
         "optimal": "最优",
         "optimalNote": "最优：每个模型使用各自最省钱的固定次数。长间隔少于 10 次的模型沿用相同缓存时长模型的次数。"
       },
-      "clickDay": "点击某一天，按 30 分钟查看",
       "confidence": {
         "early": "初步",
         "none": "数据不足",
         "solid": "可靠"
       },
       "day": {
-        "bestNote": "柱下数字：在该时段结束的间隔最省钱的保温次数。没有数字的时段没有超过缓存时长的间隔。",
-        "bestRow": "每个时段最省钱的保温次数",
-        "cell_other": "{{block}}：{{count}} 次间隔（{{lengths}} 分钟），{{best}}最省钱",
-        "close": "关闭当天视图",
-        "empty": "当天没有调用。",
-        "next": "后一天",
-        "previous": "前一天",
-        "total": "使用{{pings}} {{cost}}，不发送 {{none}}"
-      },
-      "facts": {
-        "automatic": "缓存由服务商管理，保温请求无效",
-        "best": "最佳固定次数：{{pings}}",
-        "costs": "{{pings}}每周多花 {{cost}}",
-        "hitRate": "命中率 {{rate}}",
-        "noCacheCheaper": "不使用缓存每周可便宜 {{cost}}",
-        "saves": "{{pings}}每周节省 {{cost}}",
-        "thin_other": "数据不足（{{count}} 次长间隔）",
-        "vsNoCache": "相比不使用缓存，每周节省 {{cost}}"
+        "bestNote": "每行对应一个模型，颜色与曲线一致。数字表示在该时段结束的间隔最省钱的保温次数；没有数字的时段没有超过缓存时长的间隔。",
+        "bestRow": "每 30 分钟最省钱的保温次数",
+        "cell_other": "{{model}}，{{block}}：{{count}} 次间隔（{{lengths}} 分钟），{{best}}最省钱",
+        "close": "",
+        "next": "",
+        "previous": "",
+        "upTo": "截至 {{time}}"
       },
       "headline": {
         "costs_other": "使用{{pings}}时，{{count}} 天内提示花费 {{cost}}：比不发送多 {{extra}}。",
         "noPings_other": "不发送保温请求时，{{count}} 天内提示花费 {{cost}}。",
         "saves_other": "使用{{pings}}时，{{count}} 天内提示花费 {{cost}}：比不发送少 {{saving}}，约每周 {{weekly}}。"
       },
-      "legend": {
-        "cost": "该设置下的提示花费",
-        "saved": "保温请求节省的部分",
-        "wasted": "无效保温请求多付的部分"
-      },
       "lifetime": {
         "automatic": "服务商缓存",
         "fiveMinutes": "5 分钟缓存",
         "thirtyMinutes": "30 分钟缓存"
       },
-      "modelCount_other": "{{count}} 个模型",
+      "models": {
+        "best": "最佳固定次数",
+        "cache": "缓存",
+        "costsMore": "多 {{cost}}",
+        "filter": "图中的模型",
+        "hitRate": "命中率",
+        "label": "曲线",
+        "model": "模型",
+        "noCacheCheaper": "不缓存便宜 {{cost}}",
+        "none": "在上方选择模型以显示其曲线。",
+        "note": "点击模型可添加或移除其曲线。长间隔少于 10 次的模型沿用相同缓存时长模型的次数。",
+        "providerRuns": "由服务商管理",
+        "saves": "该设置每周节省",
+        "title": "按模型",
+        "usesGroup": "使用{{pings}}",
+        "vsNoCache": "缓存每周节省"
+      },
       "noPings": "不保活",
       "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
       "pings_other": "{{count}} 次保活",
