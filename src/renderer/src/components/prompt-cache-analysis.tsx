@@ -21,7 +21,7 @@ import {
 } from '../../../shared/cache-analysis'
 import { CACHE_RULES_CHECKED } from '../../../shared/cache-policy'
 import { importSourceOf, type ImportSource } from '../../../shared/import-sources'
-import { formatPerMillion, priceSheet, type PriceBand } from '../../../shared/list-prices'
+import { formatMultiple, formatPerMillion, priceSheet, type PriceBand } from '../../../shared/list-prices'
 import type { Translate } from '../../../shared/i18n'
 
 const MINUTE = 60_000
@@ -820,13 +820,22 @@ function ModelPrices({ models }: { models: string[] }): React.JSX.Element | null
   // Copilot and imported logs bill the vendor's rates, so one row per model id.
   const ids = [...new Set(models.map(modelName))].sort((a, b) => a.localeCompare(b))
   if (ids.length === 0) return null
+  const multiples = (band: PriceBand | null): React.JSX.Element => (
+    <>
+      {[band?.cacheRead ?? null, band?.writeShort ?? null, band?.writeLong ?? null].map((price, index) => (
+        <td key={index} className={clsx('py-1 pl-2 text-right tabular-nums text-dim', index === 0 && 'border-l border-border pl-3', index === 2 && 'pr-2')}>
+          {band ? formatMultiple(price, band.input) : ''}
+        </td>
+      ))}
+    </>
+  )
   const cells = (band: PriceBand, lifetimes: [string, string] | null): React.JSX.Element => (
     <>
       <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.input)}</td>
       <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.output)}</td>
       <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.cacheRead)}</td>
       <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.writeShort)}{lifetimes && <span className="ml-1 text-[10px] text-faint">{lifetimes[0]}</span>}</td>
-      <td className="py-1 pl-2 pr-2 text-right tabular-nums">{formatPerMillion(band.writeLong)}{lifetimes && <span className="ml-1 text-[10px] text-faint">{lifetimes[1]}</span>}</td>
+      <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.writeLong)}{lifetimes && <span className="ml-1 text-[10px] text-faint">{lifetimes[1]}</span>}</td>
     </>
   )
   return (
@@ -834,7 +843,7 @@ function ModelPrices({ models }: { models: string[] }): React.JSX.Element | null
       <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.prices.title')}</div>
       <p className="mt-0.5 text-[11px] text-dim">{t('analytics.promptCache.prices.note')}</p>
       <div className="mt-1.5 overflow-x-auto">
-        <table className="w-full min-w-[620px] whitespace-nowrap text-xs">
+        <table className="w-full min-w-[860px] whitespace-nowrap text-xs">
           <thead>
             <tr className="text-[10px] text-faint">
               <th className="pb-1 pl-2 text-left font-medium">{t('analytics.promptCache.table.model')}</th>
@@ -842,7 +851,10 @@ function ModelPrices({ models }: { models: string[] }): React.JSX.Element | null
               <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.output')}</th>
               <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.read')}</th>
               <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.writeShort')}</th>
-              <th className="pb-1 pl-2 pr-2 text-right font-medium">{t('analytics.promptCache.prices.writeLong')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.writeLong')}</th>
+              <th className="border-l border-border pb-1 pl-3 text-right font-medium">{t('analytics.promptCache.prices.readMultiple')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.shortMultiple')}</th>
+              <th className="pb-1 pl-2 pr-2 text-right font-medium">{t('analytics.promptCache.prices.longMultiple')}</th>
             </tr>
           </thead>
           <tbody>
@@ -852,14 +864,15 @@ function ModelPrices({ models }: { models: string[] }): React.JSX.Element | null
                 <Fragment key={id}>
                   <tr className="border-t border-border text-secondary">
                     <td className="py-1 pl-2 font-mono text-primary">{id}</td>
-                    {sheet ? cells(sheet.base, sheet.lifetimes) : (
-                      <td colSpan={5} className="py-1 pl-2 text-right text-faint">{t('analytics.promptCache.prices.unknown')}</td>
+                    {sheet ? <>{cells(sheet.base, sheet.lifetimes)}{multiples(sheet.base)}</> : (
+                      <td colSpan={8} className="py-1 pl-2 text-right text-faint">{t('analytics.promptCache.prices.unknown')}</td>
                     )}
                   </tr>
                   {sheet?.longPrompt && (
                     <tr className="text-warning">
                       <td className="pb-1 pl-5 text-[11px]">{t('analytics.promptCache.prices.over', { tokens: `${Math.round(sheet.longPrompt.over / 1000)}K`, multiple: Number((sheet.longPrompt.input / sheet.base.input).toFixed(2)) })}</td>
                       {cells(sheet.longPrompt, sheet.lifetimes)}
+                      {multiples(null)}
                     </tr>
                   )}
                 </Fragment>

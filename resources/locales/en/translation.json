@@ -156,7 +156,10 @@
         "writeLong": "Cache write (long)",
         "over": "over {{tokens}} tokens ({{multiple}}x)",
         "unknown": "Not in the price list; the analysis uses what your sessions were billed",
-        "footnote": "Past its threshold a prompt is billed at the higher row on every token, cached or not. A dash means the cache is automatic and writes cost nothing extra. Your own sessions are analyzed at what they were billed; these list prices fill in where a log has no cost."
+        "footnote": "Multiples are of the input price: they stay the same past a threshold. Past its threshold a prompt is billed at the higher row on every token, cached or not. A dash means the cache is automatic and writes cost nothing extra. Your own sessions are analyzed at what they were billed; these list prices fill in where a log has no cost.",
+        "readMultiple": "Read ×",
+        "shortMultiple": "Short write ×",
+        "longMultiple": "Long write ×"
       }
     },
     "prompts": {

@@ -97,3 +97,8 @@ export function formatPerMillion(price: number | null): string {
   const decimals = text.includes('.') ? text.split('.')[1].length : 0
   return `$${decimals >= 2 ? text : price.toFixed(2)}`
 }
+
+/** A band price as a multiple of the band's input price (`1.25x`, `0.05x`), or `-` where there is none. */
+export function formatMultiple(price: number | null, input: number): string {
+  return price === null || input <= 0 ? '-' : `${Number((price / input).toFixed(3))}x`
+}

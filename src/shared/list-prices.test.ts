@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { formatPerMillion, longPromptTier, priceSheet } from './list-prices'
+import { formatMultiple, formatPerMillion, longPromptTier, priceSheet } from './list-prices'
 
 test('a price sheet gives each write lifetime and the long-prompt band', () => {
   const haiku = priceSheet('anthropic/claude-haiku-5-5')
@@ -31,4 +31,10 @@ test('prices per million show cents, and more digits only when needed', () => {
   assert.equal(formatPerMillion(0.0125), '$0.0125')
   assert.equal(formatPerMillion(20), '$20.00')
   assert.equal(formatPerMillion(null), '-')
+})
+
+test('multiples are of the input price', () => {
+  assert.equal(formatMultiple(0.2, 4), '0.05x')
+  assert.equal(formatMultiple(5, 4), '1.25x')
+  assert.equal(formatMultiple(null, 4), '-')
 })

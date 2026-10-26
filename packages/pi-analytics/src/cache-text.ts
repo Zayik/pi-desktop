@@ -3,7 +3,7 @@
  * `/analytics cache`: the same numbers as the desktop cards and chart.
  */
 import { IMPORT_SOURCE_NAMES, importSourceOf } from '../../../src/shared/import-sources'
-import { formatPerMillion as perMillion, priceSheet, type PriceBand } from '../../../src/shared/list-prices'
+import { formatMultiple, formatPerMillion as perMillion, priceSheet, type PriceBand } from '../../../src/shared/list-prices'
 import { summarize, weekSplit, type CacheAnalysis, type CacheGroupAnalysis, type CacheGroupId, type PingSummary } from '../../../src/shared/cache-analysis'
 
 const GROUP_NAMES: Record<CacheGroupId, string> = {
@@ -98,15 +98,20 @@ export function priceLines(analysis: CacheAnalysis): string[] {
   const ids = [...new Set(analysis.groups.flatMap((group) => group.models.map((model) => model.model.split('/').slice(1).join('/') || model.model)))].sort((a, b) => a.localeCompare(b))
   if (ids.length === 0) return ['No model calls in this range.']
   const width = Math.max(5, ...ids.map((id) => id.length)) + 2
-  const row = (label: string, band: PriceBand, lifetimes: [string, string] | null): string => [
+  const row = (label: string, band: PriceBand, lifetimes: [string, string] | null, multiples = true): string => [
     label.padEnd(width),
     perMillion(band.input).padStart(8),
     perMillion(band.output).padStart(8),
     perMillion(band.cacheRead).padStart(9),
     `${perMillion(band.writeShort)}${lifetimes ? ` ${lifetimes[0]}` : ''}`.padStart(13),
     `${perMillion(band.writeLong)}${lifetimes ? ` ${lifetimes[1]}` : ''}`.padStart(13),
+    ...(multiples ? [
+      formatMultiple(band.cacheRead, band.input).padStart(9),
+      formatMultiple(band.writeShort, band.input).padStart(8),
+      formatMultiple(band.writeLong, band.input).padStart(8),
+    ] : []),
   ].join('')
-  const lines = ['List prices per million tokens (Copilot bills the vendor\'s rates):', '', `${'Model'.padEnd(width)}${'Input'.padStart(8)}${'Output'.padStart(8)}${'Read'.padStart(9)}${'Write short'.padStart(13)}${'Write long'.padStart(13)}`]
+  const lines = ['List prices per million tokens (Copilot bills the vendor\'s rates):', '', `${'Model'.padEnd(width)}${'Input'.padStart(8)}${'Output'.padStart(8)}${'Read'.padStart(9)}${'Write short'.padStart(13)}${'Write long'.padStart(13)}${'Read x'.padStart(9)}${'Short x'.padStart(8)}${'Long x'.padStart(8)}`]
   for (const id of ids) {
     const sheet = priceSheet(id)
     if (!sheet) {
@@ -115,8 +120,8 @@ export function priceLines(analysis: CacheAnalysis): string[] {
     }
     lines.push(row(id, sheet.base, sheet.lifetimes))
     const long = sheet.longPrompt
-    if (long) lines.push(row(`  over ${Math.round(long.over / 1000)}K (${Number((long.input / sheet.base.input).toFixed(2))}x)`, long, sheet.lifetimes))
+    if (long) lines.push(row(`  over ${Math.round(long.over / 1000)}K (${Number((long.input / sheet.base.input).toFixed(2))}x)`, long, sheet.lifetimes, false))
   }
-  lines.push('', 'Past its threshold a prompt is billed at the higher row on every token, cached or not. "-" means the cache is automatic and writes cost nothing extra.')
+  lines.push('', 'Multiples are of the input price and stay the same past a threshold. Past its threshold a prompt is billed at the higher row on every token, cached or not. "-" means the cache is automatic and writes cost nothing extra.')
   return lines
 }
