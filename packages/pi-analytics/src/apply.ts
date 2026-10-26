@@ -17,7 +17,7 @@ import {
 import { readPlan, writeJsonAtomic } from './plan-file'
 import { MAX_IDLE_WARMS } from '../../../resources/context-snapshot'
 import { analyticsDir, piSettingsPath, planPath } from './paths'
-import { describeRecommendation, type CacheRecommendation } from './recommendations'
+import { describeRecommendation, idleWarmMinutes, piMaxIdlePings, shortLifetimeMs, type CacheRecommendation } from './recommendations'
 
 const IDLE = 'idle'
 /** Recorded as the old `cacheWarming` when Pi's settings had none. */
@@ -84,6 +84,32 @@ export async function applyRecommendations(recs: CacheRecommendation[], options:
   return applyEntries(entries, recs.map(describeRecommendation), options)
 }
 
+/**
+ * Keep `model` warm with `pings` idle refreshes, the count picked by hand.
+ * The count is capped at what Pi sends for the model's lifetime before it
+ * stops warming: 6 on a 5-minute cache, 1 on a 30-minute one.
+ */
+export async function setKeepWarmPings(model: string, pings: number, options: ApplyOptions = {}): Promise<ApplyResult> {
+  return setModelCache(model, { mode: 'keep-warm', idlePings: pings }, options)
+}
+
+/** A model's setting picked by hand; null takes its entry out, so Pi decides for it again. */
+export type ManualCacheSetting = { mode: 'focus' | 'long' } | { mode: 'keep-warm'; idlePings: number } | null
+
+/** Set (or with null, clear) one model's entry by hand. Keep warm's count is capped as in `setKeepWarmPings`. */
+export async function setModelCache(model: string, setting: ManualCacheSetting, options: ApplyOptions = {}): Promise<ApplyResult> {
+  if (!setting) return applyEntries({ [model]: null }, [`${model}: Pi's own setting`], options)
+  const appliedAt = options.now ?? Date.now()
+  if (setting.mode !== 'keep-warm') return applyEntries({ [model]: { mode: setting.mode, appliedAt } }, [`${model}: ${setting.mode}, set by hand`], options)
+  const ttl = shortLifetimeMs(model)
+  if (ttl === null) throw new Error(`Pi has no cache lifetime for ${model}, so it never refreshes it.`)
+  const cap = piMaxIdlePings(ttl)
+  const pings = setting.idlePings
+  if (!Number.isInteger(pings) || pings < 0 || pings > cap) throw new Error(`${model} takes 0 to ${cap} idle refreshes.`)
+  const line = `${model}: keep warm ${idleWarmMinutes(ttl, pings)} min after the agent stops (${pings} ${pings === 1 ? 'refresh' : 'refreshes'}), set by hand`
+  return applyEntries({ [model]: { mode: 'keep-warm', idlePings: pings, appliedAt } }, [line], options)
+}
+
 /** Write plan entries (key `*` for the default), turning on idle warming when they need it and the caller agrees. */
 export async function applyEntries(entries: Record<string, ModelCachePlan | null>, lines: string[], options: ApplyOptions = {}): Promise<ApplyResult> {
   const dir = options.dir ?? analyticsDir()
@@ -104,6 +130,20 @@ export async function applyEntries(entries: Record<string, ModelCachePlan | null
   const next = changePlan(plan, entries, summary, now, cacheWarmingBefore)
   writeJsonAtomic(planPath(dir), next)
   return { plan: next, lines, enabledIdleWarming, idleWarmingOff: needsIdle && warming !== IDLE && !enabledIdleWarming }
+}
+
+/**
+ * Turn cache control on or off. Off, the extension changes nothing and Pi
+ * runs with its own settings; the plan's entries stay for when it is back
+ * on, and undo steps back over the switch like any other change.
+ */
+export function setCacheControl(on: boolean, options: { dir?: string; now?: number } = {}): CachePlan {
+  const dir = options.dir ?? analyticsDir()
+  const plan = readPlan(planPath(dir))
+  if (!plan.off === on) return plan
+  const next = changePlan(plan, {}, on ? 'cache control on' : 'cache control off', options.now ?? Date.now(), undefined, on)
+  writeJsonAtomic(planPath(dir), next)
+  return next
 }
 
 /** Step the plan back one change, and Pi's `cacheWarming` with it when that change set it. */
@@ -129,10 +169,12 @@ export function reset(options: { dir?: string; settingsPath?: string; now?: numb
 /** The plan as lines for a terminal. */
 export function describePlan(plan: CachePlan): string[] {
   const line = (key: string, entry: ModelCachePlan): string => {
-    const detail = entry.mode === 'keep-warm' ? ` (${entry.idlePings ?? MAX_IDLE_WARMS} idle refreshes)` : entry.mode === 'auto' && entry.hourly ? ' (by hour)' : ''
+    const pings = entry.idlePings ?? MAX_IDLE_WARMS
+    const detail = entry.mode === 'keep-warm' ? ` (${pings} idle ${pings === 1 ? 'refresh' : 'refreshes'})` : entry.mode === 'auto' && entry.hourly ? ' (by hour)' : ''
     const saving = entry.source ? `, applied ${new Date(entry.appliedAt).toLocaleString()} for $${entry.source.weeklySaving.toFixed(2)} a week` : ''
     return `${key}: ${entry.mode}${detail}${saving}`
   }
+  if (plan.off) return ['Cache control is off: Pi runs with its own settings. The plan below is kept for when it is back on.', ...describePlan({ ...plan, off: false })]
   const lines = Object.entries(plan.models).map(([model, entry]) => line(model, entry))
   if (plan.default) lines.push(line('every other model', plan.default))
   return lines

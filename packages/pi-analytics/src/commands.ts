@@ -3,10 +3,10 @@
  * lines to show; the caller prints them or puts them in a notification.
  */
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
-import { applyRecommendations, describePlan, readCacheWarming, reset, undo } from './apply'
+import { applyRecommendations, describePlan, setCacheControl, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
-import { describeRecommendation } from './recommendations'
+import { describeRecommendation, withAlternative, LONG_MARGIN, type CacheRecommendation } from './recommendations'
 import { buildEnvelope, writeReport } from './report'
 import { openFile } from './open'
 
@@ -15,8 +15,13 @@ export const USAGE = [
   '    Write the HTML report (the same view as Pi Desktop) and open it.',
   'pi-analytics recommend [--range ...]',
   '    List cache settings that would have cost less, numbered.',
-  'pi-analytics apply <number>... | all [--range ...] [--yes]',
-  '    Put recommendations into the cache plan Pi runs with. --yes lets it turn on Pi\'s idle warming when a setting needs it.',
+  'pi-analytics apply <number>... | all [--range ...] [--long] [--yes]',
+  '    Put recommendations into the cache plan Pi runs with. --long takes the long-cache alternative instead.',
+  '    --yes lets it turn on Pi\'s idle warming when a setting needs it.',
+  'pi-analytics pings <provider/model> <count> [--yes]',
+  '    Keep a model warm with this many refreshes after the agent stops (0 to 6 on a 5-minute cache, 0 to 1 on a 30-minute one).',
+  'pi-analytics control on|off',
+  '    Off: the package only reads, and Pi runs with its own cache settings (the plan is kept). On: the plan applies again.',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
   'pi-analytics sessions [--session <id>] [--no-open]',
@@ -85,14 +90,23 @@ export async function runCommand(args: string | string[], options: CommandOption
       const recs = envelope.data.recommendations
       return [
         `Report written to ${path}`,
-        ...(recs.length > 0 ? ['', 'Cheaper cache settings (apply with "apply <number>"):', ...recs.map((rec, i) => `${i + 1}. ${describeRecommendation(rec)}`)] : []),
+        ...(recs.length > 0 ? ['', 'Cheaper cache settings (apply with "apply <number>"):', ...listLines(recs)] : []),
       ]
     }
     case 'recommend': {
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
       const recs = envelope.data.recommendations
-      if (recs.length === 0) return [`No cache setting would have cost noticeably less over the last ${Math.round(envelope.data.days)} days.`]
-      return [`Over the last ${Math.round(envelope.data.days)} days:`, ...recs.map((rec, i) => `${i + 1}. ${describeRecommendation(rec)}`)]
+      const days = Math.round(envelope.data.days)
+      const notes = envelope.data.checks.flatMap((check) => {
+        if (check.status === 'not-enough-data') return [`${check.model}: not enough breaks yet (${check.breaks} of ${check.minBreaks}).`]
+        if (check.status === 'long-only' && check.alternative) return [`${check.model}: no ping count is worth changing to; the ${check.alternative.policy} cache would save $${check.alternative.weeklySaving.toFixed(2)} a week; pick Long for a chat to use it.`]
+        return []
+      })
+      return [
+        recs.length === 0 ? `No cache setting would have cost noticeably less over the last ${days} days.` : `Over the last ${days} days:`,
+        ...listLines(recs),
+        ...(notes.length > 0 ? ['', ...notes] : []),
+      ]
     }
     case 'apply': {
       if (positional.length === 0) return ['Name what to apply: a number from "recommend", or "all".']
@@ -104,6 +118,11 @@ export async function runCommand(args: string | string[], options: CommandOption
         return recs[index]
       })
       if (picked.length === 0) return ['Nothing to apply: no cache setting would have cost noticeably less.']
+      if (flags.has('long')) {
+        const missing = picked.find((rec) => !rec.alternative)
+        if (missing) return [`${missing.model} has no long-cache alternative: it is offered only when it costs ${LONG_MARGIN * 100}% less than the best ping count.`]
+        picked.splice(0, picked.length, ...picked.map((rec) => withAlternative(rec) as CacheRecommendation))
+      }
       const result = await applyRecommendations(picked, {
         dir,
         settingsPath: options.settingsPath,
@@ -123,6 +142,35 @@ export async function runCommand(args: string | string[], options: CommandOption
         'Undo with "undo". New sessions and the next request of running ones use it.',
       ]
     }
+    case 'pings': {
+      const [model, count] = positional
+      if (!model || count === undefined) return ['Name a model and a count, e.g. "pings anthropic/claude-sonnet-5-5 3".']
+      const result = await setKeepWarmPings(model, Number(count), {
+        dir,
+        settingsPath: options.settingsPath,
+        now: options.now,
+        allowIdleWarming: () => flags.has('yes') || (options.confirm?.(
+          'Turn on idle cache warming?',
+          'Refreshing the cache after the agent stops needs Pi\'s cacheWarming setting set to "idle". This applies to every Pi session; undo and reset put the old value back.',
+        ) ?? false),
+      })
+      options.afterPlanChange?.()
+      return [
+        `Set: ${result.lines[0]}`,
+        ...(result.enabledIdleWarming ? ['Pi\'s cacheWarming is now "idle".'] : []),
+        ...(result.idleWarmingOff ? ['Pi\'s cacheWarming is not "idle", so no refreshes go out after the agent stops. Run again with --yes to turn it on.'] : []),
+        'Undo with "undo". Sessions in keep-warm use it from their next request.',
+      ]
+    }
+    case 'control': {
+      const [state] = positional
+      if (state !== 'on' && state !== 'off') return ['Say "control on" or "control off".']
+      setCacheControl(state === 'on', { dir, now: options.now })
+      options.afterPlanChange?.()
+      return [state === 'on'
+        ? 'Cache control is on: the plan and each session\'s mode apply from the next request.'
+        : 'Cache control is off: Pi runs with its own cache settings from the next request. The plan is kept; "control on" brings it back, "reset" clears it.']
+    }
     case 'undo': {
       const result = undo({ dir, settingsPath: options.settingsPath, now: options.now })
       if (!result) return ['Nothing to undo.']
@@ -132,7 +180,7 @@ export async function runCommand(args: string | string[], options: CommandOption
     case 'reset': {
       const result = reset({ dir, settingsPath: options.settingsPath, now: options.now })
       options.afterPlanChange?.()
-      return ['The cache plan is back to before its first change; Pi decides for every model again.', ...(result.restoredCacheWarming ? [`Pi's cacheWarming is back to ${readCacheWarmingLabel(result.restoredCacheWarming)}.`] : [])]
+      return ['The cache plan is back to its defaults and cache control is on; Pi decides for every model again.', ...(result.restoredCacheWarming ? [`Pi's cacheWarming is back to ${readCacheWarmingLabel(result.restoredCacheWarming)}.`] : [])]
     }
     case 'plan': {
       const plan = readPlan(planPath(dir))
@@ -157,6 +205,17 @@ export async function runCommand(args: string | string[], options: CommandOption
     default:
       return [`Unknown command "${command}".`, ...USAGE]
   }
+}
+
+/** Numbered lines, each followed by its long alternative when there is one. */
+function listLines(recs: CacheRecommendation[]): string[] {
+  return recs.flatMap((rec, i) => {
+    const alt = rec.alternative
+    return [
+      `${i + 1}. ${describeRecommendation(rec)}`,
+      ...(alt ? [`   or the ${alt.policy} cache instead: saves $${alt.weeklySaving.toFixed(2)} a week (apply ${i + 1} --long)`] : []),
+    ]
+  })
 }
 
 function readCacheWarmingLabel(value: string | undefined): string {

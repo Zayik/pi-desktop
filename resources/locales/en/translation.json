@@ -10,6 +10,21 @@
   "analytics": {
     "cache": {
       "assumed": "{{policy}} (assumed)",
+      "auto": {
+        "auto": "Auto by hour",
+        "better": "Auto would have saved about {{amount}} over the best fixed count.",
+        "billed": "Billed",
+        "disclaimer_one": "An estimate from {{count}} day of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
+        "disclaimer_other": "An estimate from {{count}} days of sessions with these models: each day is priced with an hourly plan built only from the days before it, as Auto would have run. Prompt cost only, within the 30 minutes Pi keeps warming after a run. It gets closer as more days are recorded.",
+        "fixed": "Best fixed count",
+        "row_one": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} day)",
+        "row_other": "billed {{billed}} · {{pings}} pings {{fixed}} · auto {{auto}} ({{count}} days)",
+        "same": "Changing the count by hour would have cost about the same as the best fixed count.",
+        "span_one": "{{count}} day, {{from}} to {{to}}",
+        "span_other": "{{count}} days, {{from}} to {{to}}",
+        "title": "Auto (experimental) compared",
+        "worse": "Auto would have cost about {{amount}} more than the best fixed count."
+      },
       "current": "now",
       "days": {
         "bar": "{{day}}: {{hit}}% of prompt tokens from the cache, {{cold}} of {{calls}} calls cold",
@@ -164,6 +179,7 @@
       "threeMonths": "90 D"
     },
     "recommend": {
+      "alternative": "or the {{policy}} cache instead: saves {{amount}} a week",
       "applied": "Applied",
       "apply": "Apply",
       "beyondPi_one": "The replay's cheapest is {{count}} refresh ({{minutes}} min), but Pi stops warming 30 minutes after a run.",
@@ -183,6 +199,8 @@
       "planned_one": "The cache plan sets 1 model.",
       "planned_other": "The cache plan sets {{count}} models.",
       "saving": "saves {{amount}} a week",
+      "thin_one": "Not enough breaks yet for a recommendation: {{models}}.",
+      "thin_other": "Not enough breaks yet for a recommendation: {{models}}.",
       "title": "Cache settings to apply",
       "undo": "Undo last change"
     },
@@ -319,7 +337,22 @@
       "unknownMimeType": "unknown",
       "unsupportedImageType": "Unsupported image type ({{mimeType}}). Use PNG, JPEG, GIF, or WebP."
     },
+    "cacheCheck": {
+      "appliesTo": "Applying sets this model's cache setting for every chat, in the app and in the Pi CLI with pi-analytics installed. A mode you pick for one chat still wins in that chat. Undo puts the previous setting back.",
+      "close": "Close",
+      "failed": "Could not read your sessions.",
+      "intro": "{{model}}, from your last 30 days of sessions",
+      "loading": "Replaying your sessions…",
+      "longOnly": "No ping count beats what you run now, but the {{policy}} cache would have cost noticeably less. Pick Long in the cache menu to try it.",
+      "noHistory": "No calls to this model in the last 30 days yet, so there is nothing to recommend.",
+      "noSaving": "What you run now is already about the cheapest setting for this model.",
+      "notCovered": "This model's provider has no cache settings Pi can change, so there is nothing to recommend.",
+      "notEnoughData_one": "Only {{count}} break so far; a recommendation needs {{needed}} to be worth trusting.",
+      "notEnoughData_other": "Only {{count}} breaks so far; a recommendation needs {{needed}} to be worth trusting.",
+      "title": "Cache recommendation"
+    },
     "cacheMode": {
+      "allModels": "Cache settings for all models",
       "appliesNext": "Applies from this chat's next request. New chats start in the mode you pick.",
       "autoHour_one": "{{hour}}:00 · {{count}} ping",
       "autoHour_other": "{{hour}}:00 · {{count}} pings",
@@ -328,6 +361,8 @@
       "autoNow_one": "This hour: {{count}} idle ping, warm about {{minutes}} min past your last turn.",
       "autoNow_other": "This hour: {{count}} idle pings, warm about {{minutes}} min past your last turn.",
       "autoOverride": "Pick another mode to override Auto for this chat.",
+      "checkRecommendation": "Check recommendation",
+      "controlOff": "Cache control is off in Settings, so Pi runs with its own cache settings and this pick waits until it's back on.",
       "enableIdleWarming": "Turn on idle warming",
       "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
       "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
@@ -341,7 +376,7 @@
           "label": "Focus"
         },
         "keepWarm": {
-          "detail": "5-minute cache, refreshed up to 3 times after the agent stops, so it lasts about 15 minutes past your last turn.",
+          "detail": "Short cache, refreshed after the agent stops: 3 times unless you set a count for the model (about 15 minutes on a 5-minute cache).",
           "label": "Keep warm"
         },
         "long": {
@@ -349,6 +384,11 @@
           "label": "Long"
         }
       },
+      "pingsDetail": "Keeps this model's {{lifetime}}-minute cache warm about {{minutes}} min after the agent stops. Up to {{cap}}: Pi stops warming 30 min after a run. Saved for this model.",
+      "pingsFewer": "Fewer pings",
+      "pingsLabel": "Pings after the agent stops",
+      "pingsMore": "More pings",
+      "pingsNotWarmed": "Pi has no cache lifetime for this model, so it never pings it.",
       "title": "Prompt cache",
       "withMode": "Prompt cache: {{mode}}"
     },
@@ -1734,6 +1774,35 @@
       "description": "Automatically scroll to new messages",
       "label": "Auto Scroll"
     },
+    "cache": {
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "control": "Cache control",
+      "controlOff": "Off: Pi runs with its own cache settings. Your settings below are kept for when it's back on.",
+      "controlOn": "On: each model runs with the setting below, and chats with the mode picked for them.",
+      "empty": "No model has a setting yet. Recommend lists the models you've used.",
+      "keepWarmPings_one": "Keep warm · {{count}} ping",
+      "keepWarmPings_other": "Keep warm · {{count}} pings",
+      "lifetime": "Cache",
+      "minutes": "≈{{minutes}} min",
+      "model": "Model",
+      "note": "Saved per model for every chat, in Pi Desktop and the Pi CLI. Not set: Pi Desktop chats use the mode they start in (Keep warm unless you picked another), and the Pi CLI leaves Pi alone. A mode picked in one chat's menu still wins in that chat.",
+      "off": "Off",
+      "on": "On",
+      "or": "or {{setting}}",
+      "piDefault": "Not set",
+      "pingsTitle": "Warm about {{minutes}} min after the agent stops; up to {{cap}} pings",
+      "proposed": "Proposed (last 30 days)",
+      "recommend": "Recommend",
+      "recommendAgain": "Recommend again",
+      "reset": "Reset to defaults",
+      "resetConfirm": "Reset everything",
+      "resetDetail": "Clears every model's setting, turns cache control on and puts Pi's warming setting back to what it was before the first change.",
+      "saves": "saves {{amount}}/wk",
+      "setting": "Setting",
+      "settingFor": "Cache setting for {{model}}",
+      "undo": "Undo"
+    },
     "chatWidth": {
       "description": "How wide messages and the prompt box can grow",
       "fullOption": "Full width",
@@ -1779,6 +1848,10 @@
     "desktopNotifications": {
       "description": "Notify when Pi finishes, fails, or waits for approval in a workspace you are not looking at",
       "label": "Desktop Notifications"
+    },
+    "experimentalAutoCache": {
+      "description": "Experimental. Adds Auto to the cache menu: Keep warm with a different number of idle pings for each hour of the day, re-tuned every 6 hours from your last 30 days. Untested on real usage; Check recommendation is the steadier way to pick a setting.",
+      "label": "Auto cache mode"
     },
     "language": {
       "description": "Language of menus, buttons, and messages",
@@ -1829,6 +1902,7 @@
       "behavior": "Behavior",
       "customModels": "Custom Models",
       "multiAgentCouncilPlanning": "Multi-Agent Council Planning",
+      "promptCache": "Prompt cache",
       "typesafe": "TypeSafe Jev",
       "voiceDictation": "Voice dictation"
     },

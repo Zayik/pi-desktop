@@ -10,6 +10,18 @@
   "analytics": {
     "cache": {
       "assumed": "{{policy}}（推定）",
+      "auto": {
+        "auto": "按小时自动",
+        "better": "自动模式比最佳固定次数约节省 {{amount}}。",
+        "billed": "实际计费",
+        "disclaimer_other": "基于这些模型 {{count}} 天会话的估算：每天都用仅由此前各天构建的小时计划计价，与自动模式的实际运行方式一致。仅计提示成本，且限于 Pi 在运行结束后保持预热的 30 分钟内。记录的天数越多，估算越准确。",
+        "fixed": "最佳固定次数",
+        "row_other": "计费 {{billed}} · {{pings}} 次 {{fixed}} · 自动 {{auto}}（{{count}} 天）",
+        "same": "按小时调整次数与最佳固定次数的花费大致相同。",
+        "span_other": "{{count}} 天，{{from}} 至 {{to}}",
+        "title": "自动模式（实验性）对比",
+        "worse": "自动模式比最佳固定次数约多花 {{amount}}。"
+      },
       "current": "当前",
       "days": {
         "bar": "{{day}}：{{hit}}% 的提示 token 来自缓存，{{calls}} 次调用中 {{cold}} 次未命中",
@@ -154,6 +166,7 @@
       "threeMonths": "90 天"
     },
     "recommend": {
+      "alternative": "或改用 {{policy}} 缓存：每周节省 {{amount}}",
       "applied": "已应用",
       "apply": "应用",
       "beyondPi_other": "回放中最便宜的是刷新 {{count}} 次（{{minutes}} 分钟），但 Pi 在运行结束 30 分钟后停止预热。",
@@ -169,6 +182,7 @@
       "note_other": "每周节省，基于最近 {{count}} 天",
       "planned_other": "缓存计划设置了 {{count}} 个模型。",
       "saving": "每周节省 {{amount}}",
+      "thin_other": "中断次数还不够，暂无建议：{{models}}。",
       "title": "可应用的缓存设置",
       "undo": "撤销上次更改"
     },
@@ -303,13 +317,29 @@
       "unknownMimeType": "未知",
       "unsupportedImageType": "不支持的图片类型（{{mimeType}}）。请使用 PNG、JPEG、GIF 或 WebP。"
     },
+    "cacheCheck": {
+      "appliesTo": "",
+      "close": "",
+      "failed": "",
+      "intro": "",
+      "loading": "",
+      "longOnly": "",
+      "noHistory": "",
+      "noSaving": "",
+      "notCovered": "",
+      "notEnoughData_other": "",
+      "title": ""
+    },
     "cacheMode": {
+      "allModels": "所有模型的缓存设置",
       "appliesNext": "",
       "autoHour_other": "",
       "autoHours": "",
       "autoNoData": "",
       "autoNow_other": "",
       "autoOverride": "",
+      "checkRecommendation": "",
+      "controlOff": "设置中的缓存控制已关闭，Pi 使用自身的缓存设置；此选择会在重新开启后生效。",
       "enableIdleWarming": "",
       "idleWarmingEnabled": "",
       "idleWarmingOff": "",
@@ -323,7 +353,7 @@
           "label": ""
         },
         "keepWarm": {
-          "detail": "",
+          "detail": "短缓存，代理停止后刷新：除非为该模型设置了次数，否则刷新 3 次（5 分钟缓存约可保持 15 分钟）。",
           "label": ""
         },
         "long": {
@@ -331,6 +361,11 @@
           "label": ""
         }
       },
+      "pingsDetail": "让此模型 {{lifetime}} 分钟的缓存在代理停止后保持约 {{minutes}} 分钟。最多 {{cap}} 次：Pi 在运行结束 30 分钟后停止保温。按模型保存。",
+      "pingsFewer": "减少",
+      "pingsLabel": "代理停止后的保温请求",
+      "pingsMore": "增加",
+      "pingsNotWarmed": "Pi 没有此模型的缓存时长，因此不会为它保温。",
       "title": "",
       "withMode": ""
     },
@@ -1680,6 +1715,34 @@
       "description": "自动滚动到新消息",
       "label": "自动滚动"
     },
+    "cache": {
+      "apply": "应用",
+      "cancel": "取消",
+      "control": "缓存控制",
+      "controlOff": "关闭：Pi 使用自身的缓存设置。下方设置会保留，重新开启后生效。",
+      "controlOn": "开启：每个模型使用下方设置，聊天使用为其选择的模式。",
+      "empty": "还没有模型设置。点击“推荐”列出你用过的模型。",
+      "keepWarmPings_other": "保温 · {{count}} 次",
+      "lifetime": "缓存",
+      "minutes": "≈{{minutes}} 分钟",
+      "model": "模型",
+      "note": "按模型保存，适用于 Pi Desktop 和 Pi CLI 中的所有聊天。未设置：Pi Desktop 聊天使用其起始模式（默认为保温），Pi CLI 不做更改。在某个聊天菜单中选择的模式在该聊天中仍优先。",
+      "off": "关",
+      "on": "开",
+      "or": "或 {{setting}}",
+      "piDefault": "未设置",
+      "pingsTitle": "代理停止后保持约 {{minutes}} 分钟；最多 {{cap}} 次",
+      "proposed": "建议（最近 30 天）",
+      "recommend": "推荐",
+      "recommendAgain": "重新推荐",
+      "reset": "恢复默认",
+      "resetConfirm": "全部重置",
+      "resetDetail": "清除每个模型的设置，开启缓存控制，并将 Pi 的保温设置恢复为首次更改前的值。",
+      "saves": "每周节省 {{amount}}",
+      "setting": "设置",
+      "settingFor": "{{model}} 的缓存设置",
+      "undo": "撤销"
+    },
     "chatWidth": {
       "description": "消息和输入框可以扩展的宽度",
       "fullOption": "全宽",
@@ -1725,6 +1788,10 @@
     "desktopNotifications": {
       "description": "当 Pi 在你未查看的工作区中完成、失败或等待批准时通知你",
       "label": "桌面通知"
+    },
+    "experimentalAutoCache": {
+      "description": "",
+      "label": ""
     },
     "language": {
       "description": "菜单、按钮和消息的语言",
@@ -1775,6 +1842,7 @@
       "behavior": "行为",
       "customModels": "自定义模型",
       "multiAgentCouncilPlanning": "多智能体委员会规划",
+      "promptCache": "提示缓存",
       "typesafe": "TypeSafe Jev",
       "voiceDictation": "语音听写"
     },

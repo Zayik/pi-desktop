@@ -43,6 +43,17 @@ export interface OverviewRequest {
 export interface ApplyCacheRecommendationRequest extends OverviewRequest {
   model: string
   allowIdleWarming: boolean
+  /** Apply the long-cache alternative instead of the ping count. */
+  long?: boolean
+}
+
+/** One model's cache setting picked by hand; `default` takes its entry out so Pi decides. */
+export interface SetModelCacheRequest {
+  model: string
+  mode: 'default' | 'focus' | 'keep-warm' | 'long'
+  /** keep-warm: idle refreshes, capped by the model's cache lifetime. */
+  pings?: number
+  allowIdleWarming: boolean
 }
 
 /** The pi-analytics cache plan and Pi's `cacheWarming`, which idle refreshes need set to "idle". */
@@ -229,7 +240,7 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
     subagentCost: 0,
     days: [],
     projects: [],
-    cache: { models: [], days: [], saving: 0 },
+    cache: { models: [], days: [], saving: 0, autoComparison: null },
     signals: [],
   }
   const days = new Map<string, DayPoint>()
