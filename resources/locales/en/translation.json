@@ -64,21 +64,17 @@
     "promptCache": {
       "allModels": "All models",
       "chart": {
-        "aria": "Running prompt cost by model",
+        "aria": "Running prompt cost by ping count",
+        "dayBest": "{{day}}: cheapest with {{pings}}. Click to show it in 30-minute blocks",
+        "dayBestNote": "The number under each day is that day's cheapest ping count, in its line color.",
         "expand": "Show {{day}} in 30-minute blocks",
         "modeLabel": "Chart values",
         "saving": "Compared with no pings",
-        "savingNote": "Each line is what a model paid with this setting, compared with no pings: below $0 saves money. Flat while idle, it steps at each break. Click a day to open it below.",
+        "savingNote": "Each line is what that ping count paid compared with no pings: below $0 saves money. Click a day to open it below.",
+        "title": "Running prompt cost by ping count · {{model}}",
         "total": "Total cost",
-        "totalNote": "Each line is a model's running prompt cost with this setting. Click a day to open it below.",
+        "totalNote": "Each line is the running prompt cost with that many pings after every break. The lowest line at the right edge was cheapest. Click a day to open it below.",
         "upTo": "{{day}}, up to {{time}}"
-      },
-      "choice": {
-        "capped": "Pi sends at most 1 ping on a 30-minute cache, so those models stop at 1.",
-        "fixedNote": "Every model with {{pings}} after each break.",
-        "label": "Pings",
-        "optimal": "Optimal",
-        "optimalNote": "Optimal: each model on its own cheapest fixed count. A model with fewer than 10 long breaks uses the count of models with the same cache lifetime."
       },
       "confidence": {
         "early": "Early",
@@ -90,46 +86,49 @@
         "bestRow": "Cheapest ping count per 30-minute block",
         "cell_one": "{{model}}, {{block}}: {{count}} break ({{lengths}} min), cheapest with {{best}}",
         "cell_other": "{{model}}, {{block}}: {{count}} breaks ({{lengths}} min), cheapest with {{best}}",
-        "close": "",
-        "next": "",
-        "previous": "",
+        "close": "Close day",
+        "next": "Next day",
+        "previous": "Previous day",
         "upTo": "Up to {{time}}"
       },
-      "headline": {
-        "costs_one": "With {{pings}}, prompts cost {{cost}} over {{count}} day: {{extra}} more than no pings.",
-        "costs_other": "With {{pings}}, prompts cost {{cost}} over {{count}} days: {{extra}} more than no pings.",
-        "noPings_one": "With no pings, prompts cost {{cost}} over {{count}} day.",
-        "noPings_other": "With no pings, prompts cost {{cost}} over {{count}} days.",
-        "saves_one": "With {{pings}}, prompts cost {{cost}} over {{count}} day: {{saving}} less than no pings, about {{weekly}} a week.",
-        "saves_other": "With {{pings}}, prompts cost {{cost}} over {{count}} days: {{saving}} less than no pings, about {{weekly}} a week."
+      "legend": {
+        "allHidden": "Every line is hidden. Click one in the list to show it.",
+        "noCache": "No cache (reference)",
+        "note": "Click a line to hide or show it.",
+        "perBreak": "Best count at each break",
+        "perModel": "Each model at its recommended count",
+        "recommended": "Recommended",
+        "title_one": "Total over {{count}} day",
+        "title_other": "Total over {{count}} days"
       },
       "lifetime": {
         "automatic": "Provider cache",
         "fiveMinutes": "5-min cache",
         "thirtyMinutes": "30-min cache"
       },
-      "models": {
-        "cache": "Cache",
-        "filter": "Models in the chart",
-        "footnote": "Best count at each break is hindsight: the cheapest ping count for every break, the most a schedule could save. All three keep the cache on; no cache is shown only to compare cost.",
-        "hitRate": "Hit rate",
-        "label": "Lines",
-        "less": "{{cost}} less",
-        "model": "Model",
-        "noCache": "No cache (reference)",
-        "none": "Pick a model above to draw its line.",
-        "note": "Prompt cost per week. Click a model to add or remove its line. A model with fewer than 10 long breaks uses the count of models with the same cache lifetime.",
-        "now": "Now: no pings",
-        "perBreak": "Best count at each break",
-        "providerRuns": "Provider runs it",
-        "recommended": "Recommended fixed count",
-        "title": "By model"
-      },
       "noPings": "No pings",
       "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
       "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
       "pings_one": "{{count}} ping",
       "pings_other": "{{count}} pings",
+      "summary": {
+        "all": "All models: with each model on its recommended count, prompts cost {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
+        "automatic": "{{model}} uses the provider's cache, which pings can't change: {{cost}} a week.",
+        "noSaving": "{{model}}: pings don't pay off here, so no pings is cheapest at {{cost}} a week. The best count at every break would cost {{best}}.",
+        "saves": "{{model}}: {{pings}} is cheapest, {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
+        "thin_one": "Only {{count}} long break so far, so this uses the count of models with the same cache lifetime.",
+        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime."
+      },
+      "table": {
+        "footnote": "No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
+        "hitRate": "{{rate}}% hits",
+        "model": "Model",
+        "noCache": "No cache",
+        "note": "Prompt cost per week. Green is the cheapest fixed count; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
+        "perBreak": "Best at each break",
+        "providerRuns": "The provider runs this cache; pings can't change it",
+        "title": "Cost per week by ping count"
+      },
       "title": "Prompt cache"
     },
     "prompts": {

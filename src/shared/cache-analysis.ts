@@ -278,9 +278,10 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
 
 /**
  * Prompt cost per 30-minute slot from `from` with `count` pings (capped at
- * what Pi sends for the model) and with none; each array has `slots` entries.
+ * what Pi sends for the model), or with the cheapest count at every break
+ * (`perBreak`, hindsight), and with none; each array has `slots` entries.
  */
-export function slotCosts(model: CacheModelAnalysis, count: number, from: number, slots: number): { cost: number[]; none: number[] } {
+export function slotCosts(model: CacheModelAnalysis, count: number | 'perBreak', from: number, slots: number): { cost: number[]; none: number[] } {
   const cost = new Array<number>(slots).fill(0)
   const none = new Array<number>(slots).fill(0)
   const slotOf = (at: number): number => Math.min(slots - 1, Math.max(0, Math.floor((at - from) / SLOT_MS)))
@@ -291,10 +292,17 @@ export function slotCosts(model: CacheModelAnalysis, count: number, from: number
   }
   for (const gap of model.gaps) {
     const slot = slotOf(gap.at)
-    cost[slot] += gap.costs[Math.min(count, gap.costs.length - 1)]
+    cost[slot] += count === 'perBreak' ? Math.min(...gap.costs) : gap.costs[Math.min(count, gap.costs.length - 1)]
     none[slot] += gap.costs[0]
   }
   return { cost, none }
+}
+
+/** What the same prompts would have cost with no cache at all, per 30-minute slot from `from`. */
+export function slotNoCache(model: CacheModelAnalysis, from: number, slots: number): number[] {
+  const cost = new Array<number>(slots).fill(0)
+  for (const [at, value] of model.noCache) cost[Math.min(slots - 1, Math.max(0, Math.floor((at - from) / SLOT_MS)))] += value
+  return cost
 }
 
 /** The best count for every model across groups: its own once it has enough breaks, else its group's. */

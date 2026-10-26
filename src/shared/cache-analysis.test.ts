@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SLOTS_PER_DAY, buildCacheAnalysis, optimalCounts, slotBest, slotCosts, summarize, weekSplit } from './cache-analysis'
+import { SLOTS_PER_DAY, buildCacheAnalysis, optimalCounts, slotBest, slotCosts, slotNoCache, summarize, weekSplit } from './cache-analysis'
 import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
@@ -83,6 +83,8 @@ test('a break changes the cost of the slot it ends in, and only that slot', () =
   assert.ok(cost.every((value, slot) => slot === 18 || value === none[slot]))
   // A count past what Pi sends is capped.
   assert.deepEqual(slotCosts(group.models[0], 99, DAY_ONE, SLOTS_PER_DAY).cost, slotCosts(group.models[0], group.maxPings, DAY_ONE, SLOTS_PER_DAY).cost)
+  // Hindsight takes the cheapest count at the break, so it matches the best fixed count here.
+  assert.deepEqual(slotCosts(group.models[0], 'perBreak', DAY_ONE, SLOTS_PER_DAY).cost, cost)
   const cells = slotBest(group.models, group.maxPings, DAY_ONE)
   assert.equal(cells[18]?.best, 2)
   assert.equal(cells.filter(Boolean).length, 1)
@@ -132,6 +134,7 @@ test('no cache prices every prompt token at the input price, and caching beats i
   assert.ok(summary.cacheSavingPerWeek > 0)
   const { none } = slotCosts(model, 0, DAY_ONE, SLOTS_PER_DAY)
   assert.ok(Math.abs(none.reduce((sum, value) => sum + value, 0) - summary.baseTotal - summary.totals[0]) < 1e-9)
+  assert.ok(Math.abs(slotNoCache(model, DAY_ONE, SLOTS_PER_DAY).reduce((sum, value) => sum + value, 0) - summary.noCacheTotal) < 1e-9)
 })
 
 test('a prompt sent once after every long break is cheaper with no cache', () => {
