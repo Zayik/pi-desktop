@@ -25,6 +25,7 @@
  *   Anthropic's `ttl: "1h"` (VS Code's extendedTtl setting sends it).
  */
 import { anthropicPrice } from './anthropic-prices'
+import { longPromptTier, tierMultiple, type LongPromptTier } from './list-prices'
 import { openAIBillsCacheWrites } from './openai-prices'
 import { IMPORT_PROVIDERS } from './import-sources'
 import { localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
@@ -363,9 +364,19 @@ export interface CacheReport {
 }
 
 export interface Prices {
+  /** Base input price per token; prompts in a long-prompt tier cost `longPrompt.multiple` times it. */
   inputPrice: number
   readRatio: number
   readRatioMeasured: boolean
+  longPrompt?: LongPromptTier | null
+}
+
+/** The prices a replay needs. */
+export type ReplayPrices = Pick<Prices, 'inputPrice' | 'readRatio' | 'longPrompt'>
+
+/** Input price per token for a prompt of `tokens`, with its long-prompt tier applied. */
+export function tokenPrice(prices: ReplayPrices, tokens: number): number {
+  return prices.inputPrice * tierMultiple(prices.longPrompt, tokens)
 }
 
 export interface CallTotals {
@@ -378,15 +389,17 @@ export interface CallTotals {
   write1h: number
 }
 
-export function callTotals(calls: CacheCall[]): CallTotals {
+/** Token and cost totals; with a long-prompt tier, each call's cost is brought back to base rates first. */
+export function callTotals(calls: CacheCall[], longPrompt: LongPromptTier | null = null): CallTotals {
   const totals: CallTotals = { input: 0, inputCost: 0, read: 0, readCost: 0, write: 0, writeCost: 0, write1h: 0 }
   for (const call of calls) {
+    const multiple = tierMultiple(longPrompt, promptTokens(call))
     totals.input += call[2]
-    totals.inputCost += call[6]
+    totals.inputCost += call[6] / multiple
     totals.read += call[3]
-    totals.readCost += call[7]
+    totals.readCost += call[7] / multiple
     totals.write += call[4]
-    totals.writeCost += call[8]
+    totals.writeCost += call[8] / multiple
     totals.write1h += call[5]
   }
   return totals
@@ -406,6 +419,7 @@ export function measurePrices(totals: CallTotals, profile: CacheProfile, model: 
     inputPrice,
     readRatio: measured ? totals.readCost / totals.read / inputPrice : defaultReadRatio(profile.family, model),
     readRatioMeasured: measured,
+    longPrompt: longPromptTier(model),
   }
 }
 
@@ -432,15 +446,17 @@ export function promptTokens(call: CacheCall): number {
  * prompt starts with the previous call's, so a warm cache serves that much
  * and the rest is written; a cold one writes it all.
  */
-export function replay(calls: CacheCall[], spec: PolicySpec, prices: Pick<Prices, 'inputPrice' | 'readRatio'>): PolicyCost {
+export function replay(calls: CacheCall[], spec: PolicySpec, prices: ReplayPrices): PolicyCost {
   const result: PolicyCost = { policy: spec.id, cost: 0, pings: 0, coldCalls: 0 }
   let cached = 0
   let expiresAt = -Infinity
   for (const call of calls) {
     const prompt = promptTokens(call)
     const at = call[0]
+    // A call in a long-prompt tier pays the higher rate on every token, cached or not.
+    const price = tokenPrice(prices, prompt)
     if (spec.ttlMs === 0) {
-      result.cost += prompt * prices.inputPrice
+      result.cost += prompt * price
       continue
     }
     let warm = false
@@ -455,19 +471,19 @@ export function replay(calls: CacheCall[], spec: PolicySpec, prices: Pick<Prices
         // Warming that gives up before the next call still paid for its pings.
         const pings = Math.min(needed, maxPings)
         result.pings += pings
-        result.cost += pings * cached * prices.inputPrice * prices.readRatio
+        result.cost += pings * cached * tokenPrice(prices, cached) * prices.readRatio
         warm = needed <= maxPings
       }
     }
     if (warm && prompt < cached * PREFIX_BREAK) warm = false
     if (warm) {
       const hit = Math.min(cached, prompt)
-      result.cost += hit * prices.inputPrice * prices.readRatio + (prompt - hit) * prices.inputPrice * spec.write
+      result.cost += hit * price * prices.readRatio + (prompt - hit) * price * spec.write
       // A read keeps the prefix written earlier: its clock restarts, or with a fixed lifetime only stretches.
       expiresAt = spec.hitKeepsMs !== undefined ? Math.max(expiresAt, at + spec.hitKeepsMs) : at + spec.ttlMs
     } else {
       result.coldCalls++
-      result.cost += prompt * prices.inputPrice * spec.write
+      result.cost += prompt * price * spec.write
       expiresAt = at + spec.ttlMs
     }
     cached = prompt
@@ -496,16 +512,15 @@ export interface GapRow {
   sent: number[]
 }
 
-export function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: Pick<Prices, 'inputPrice' | 'readRatio'>): { first: number; firstByDay: Map<string, number>; openings: Array<[at: number, cost: number]>; gaps: GapRow[] } {
+export function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: ReplayPrices): { first: number; firstByDay: Map<string, number>; openings: Array<[at: number, cost: number]>; gaps: GapRow[] } {
   const maxPings = sweepMaxPings(sweep)
-  const read = prices.inputPrice * prices.readRatio
   let first = 0
   const firstByDay = new Map<string, number>()
   const gaps: GapRow[] = []
   const openings: Array<[number, number]> = []
   for (const run of runs) {
     if (run.length === 0) continue
-    const opening = promptTokens(run[0]) * prices.inputPrice * sweep.write
+    const opening = promptTokens(run[0]) * tokenPrice(prices, promptTokens(run[0])) * sweep.write
     first += opening
     openings.push([run[0][0], opening])
     const day = localDayKey(run[0][0])
@@ -514,6 +529,9 @@ export function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: P
       const cached = promptTokens(run[index - 1])
       const prompt = promptTokens(run[index])
       const gap = run[index][0] - run[index - 1][0]
+      // A ping re-sends the cached prompt, so it is billed at that prompt's tier; the call at its own.
+      const pingRead = tokenPrice(prices, cached) * prices.readRatio
+      const price = tokenPrice(prices, prompt)
       const needed = gap <= sweep.ttlMs ? 0 : Math.ceil((gap - sweep.ttlMs) / sweep.everyMs)
       const sameRoot = cached > 0 && prompt >= cached * PREFIX_BREAK
       const costs: number[] = []
@@ -522,9 +540,9 @@ export function gapCostsByPings(runs: CacheCall[][], sweep: SweepSpec, prices: P
         const pings = Math.min(needed, limit)
         const hit = Math.min(cached, prompt)
         const call = needed <= limit && sameRoot
-          ? hit * read + (prompt - hit) * prices.inputPrice * sweep.write
-          : prompt * prices.inputPrice * sweep.write
-        costs.push(pings * cached * read + call)
+          ? hit * price * prices.readRatio + (prompt - hit) * price * sweep.write
+          : prompt * price * sweep.write
+        costs.push(pings * cached * pingRead + call)
         sent.push(pings)
       }
       gaps.push({ hour: new Date(run[index - 1][0]).getHours(), day: localDayKey(run[index - 1][0]), at: run[index][0], gapMs: gap, costs, sent })
@@ -684,7 +702,7 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
     const gaps: number[] = []
     for (const run of runs) for (let index = 1; index < run.length; index++) gaps.push(run[index][0] - run[index - 1][0])
     const measuredCost = events.flat().reduce((sum, call) => sum + call[6] + call[7] + call[8], 0)
-    const totals = callTotals(all)
+    const totals = callTotals(all, longPromptTier(model))
     const prices = measurePrices(totals, profile, model)
     const measuredPolicy = currentPolicy(profile, totals, prices)
     const report: ModelCacheReport = {

@@ -261,3 +261,31 @@ test('a provider without settings to compare reports its cost only', () => {
   assert.ok(model.measuredCost > 0)
 })
 
+
+test('a long prompt pays its tier on the read, the write and the pings that keep it', () => {
+  // Haiku 5.5: prompts over 100K tokens cost 5x.
+  const prices = { inputPrice: 0.1e-6, readRatio: 0.1, longPrompt: { over: 100_000, multiple: 5 } }
+  const long = 0.5e-6
+  const calls = [call(0, 150_000, true), call(14 * MINUTE, 151_000)]
+  const cold = replay(calls, { id: '5m', ttlMs: 5 * MINUTE, write: 1.25 }, prices)
+  assert.ok(Math.abs(cold.cost - (150_000 + 151_000) * long * 1.25) < 1e-12)
+  const warm = replay(calls, { id: '5m-warm-60m', ttlMs: 5 * MINUTE, write: 1.25, warm: { everyMs: KEEP_WARM_EVERY_MS, forMs: 60 * MINUTE } }, prices)
+  const expected = 150_000 * long * 1.25 + 3 * 150_000 * long * 0.1 + 150_000 * long * 0.1 + 1_000 * long * 1.25
+  assert.ok(Math.abs(warm.cost - expected) < 1e-12)
+  // Under the threshold the base price holds.
+  const small = replay([call(0, 50_000, true)], { id: '5m', ttlMs: 5 * MINUTE, write: 1.25 }, prices)
+  assert.ok(Math.abs(small.cost - 50_000 * 0.1e-6 * 1.25) < 1e-15)
+})
+
+test('the measured price is brought back to base rates before the tier is applied again', () => {
+  const base = 0.1e-6
+  const billed = (at: number, prompt: number, first = false): CacheCall => {
+    const multiple = prompt > 100_000 ? 5 : 1
+    const read = first ? 0 : prompt - 1000
+    const write = prompt - read
+    return [time(at), 0, 0, read, write, 0, 0, read * base * multiple * 0.1, write * base * multiple * 1.25]
+  }
+  const calls = [billed(0, 50_000, true), billed(MINUTE, 60_000), billed(2 * MINUTE, 150_000), billed(3 * MINUTE, 160_000)]
+  const report = buildCacheReport([session(calls, ['anthropic/claude-haiku-5-5'])])
+  assert.ok(Math.abs(report.models[0].inputPrice - base) < 1e-15)
+})

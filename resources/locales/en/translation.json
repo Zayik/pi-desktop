@@ -126,6 +126,8 @@
       "table": {
         "estimated": "estimated",
         "estimatedTitle": "Copilot logs only totals per run, so each call's prompt size is estimated from how the conversation grew; its timing is measured.",
+        "longPrompt": "{{share}}% over {{tokens}} ({{multiple}}x)",
+        "longPromptTitle": "Prompts over {{tokens}} tokens are billed at {{multiple}}x on every token, cached or not. Each call and ping is priced at its own size, so a miss on a long prompt costs {{multiple}}x more.",
         "footnote": "Long is Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it. 30-minute models have no longer lifetime Pi can pick. No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
         "fromClaudeCode": "from Claude Code",
         "fromCodex": "from Codex",

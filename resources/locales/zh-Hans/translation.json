@@ -119,6 +119,8 @@
       "table": {
         "estimated": "估算",
         "estimatedTitle": "Copilot 只记录每次运行的总量，因此每次调用的提示大小是根据对话增长估算的；时间是实测的。",
+        "longPrompt": "{{share}}% 超过 {{tokens}}（{{multiple}} 倍）",
+        "longPromptTitle": "超过 {{tokens}} 令牌的提示，每个令牌（无论是否缓存）都按 {{multiple}} 倍计费。每次调用和 ping 都按其自身大小计价，因此长提示的一次未命中要贵 {{multiple}} 倍。",
         "footnote": "长缓存即 Anthropic 的 1 小时缓存：写入按输入价的 2 倍计费（而非 1.25 倍），读取价格不变，Pi 不会为其发送保温请求。30 分钟缓存的模型在 Pi 中没有更长的时长可选。不缓存仅用于对比花费，从不推荐。每次间隔的最佳次数是事后计算：每次间隔都取最省钱的次数，即按时段安排最多能节省的金额。",
         "fromClaudeCode": "来自 Claude Code",
         "fromCodex": "来自 Codex",

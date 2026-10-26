@@ -539,6 +539,11 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
                 <SourceTag model={entry.model.model} />
                 <span>{t(LIFETIME_KEYS[entry.group.id])}</span>
                 {entry.model.writeMultiple !== null && <span>{t('analytics.promptCache.table.writeMultiple', { multiple: entry.model.writeMultiple })}</span>}
+                {entry.model.longPrompt && entry.model.longPrompt.calls > 0 && (
+                  <span title={t('analytics.promptCache.table.longPromptTitle', { tokens: `${Math.round(entry.model.longPrompt.over / 1000)}K`, multiple: entry.model.longPrompt.multiple })}>
+                    {t('analytics.promptCache.table.longPrompt', { share: Math.max(1, Math.round((entry.model.longPrompt.calls / entry.model.calls) * 100)), tokens: `${Math.round(entry.model.longPrompt.over / 1000)}K`, multiple: entry.model.longPrompt.multiple })}
+                  </span>
+                )}
                 {entry.model.estimatedCalls > 0 && <span title={t('analytics.promptCache.table.estimatedTitle')}>{t('analytics.promptCache.table.estimated')}</span>}
                 {entry.summary.hitRate !== null && <span>{t('analytics.promptCache.table.hitRate', { rate: Math.round(entry.summary.hitRate * 100) })}</span>}
                 {entry.group.id !== 'automatic' && entry.summary.confidence !== 'solid' && (

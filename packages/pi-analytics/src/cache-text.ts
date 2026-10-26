@@ -51,6 +51,12 @@ export function cacheLines(analysis: CacheAnalysis, details: CacheGroupId | null
     lines.push(`  ${groupHeadline(group, summary)}`)
     if (group.id === 'automatic') continue
     lines.push(`  Hit rate ${percent(summary.hitRate)} · ${summary.longBreaks} breaks over ${group.lifetimeMinutes} min (${CONFIDENCE_LABELS[summary.confidence]}) · pings cover breaks up to ${Math.round(group.reachMinutes ?? 0)} min`)
+    for (const model of group.models) {
+      const long = model.longPrompt
+      if (long && long.calls > 0) {
+        lines.push(`  ${modelName(model.model)}: ${percent(long.calls / model.calls)} of calls over ${Math.round(long.over / 1000)}K tokens, billed ${long.multiple}x; each call and ping is priced at its own size`)
+      }
+    }
     if (summary.noCacheTotal > 0) {
       lines.push(summary.cacheSavingPerWeek < 0
         ? `  Sending with no cache at all would have been about ${money(summary.cacheSavingPerWeek)} a week cheaper: most prompts were not reread before the cache expired.`
