@@ -71,7 +71,7 @@ test('gaps inside the lifetime and session openings land in the base cost, not t
   assert.equal(model.longBreaks, 0)
   assert.ok(model.base.length > 0)
   const saving = pingSeries(group.models, group.maxPings, new Map(), DAY_ONE, SLOTS_PER_DAY, 'saving')
-  assert.ok(saving.every((line) => line.every((value) => value === 0)))
+  assert.ok(saving.slice(0, group.maxPings + 3).every((line) => line.every((value) => value === 0)))
   const total = pingSeries(group.models, group.maxPings, new Map(), DAY_ONE, SLOTS_PER_DAY, 'total')
   assert.ok(total[0][SLOTS_PER_DAY] > 0)
   assert.equal(total[0][SLOTS_PER_DAY], total[group.maxPings][SLOTS_PER_DAY])
@@ -120,4 +120,24 @@ test('a model with no lifetime to warm only reports its hit rate', () => {
   const summary = summarize(analysis.groups[0].models, 0, 1)
   assert.ok(summary.hitRate !== null && summary.hitRate > 0.7)
   assert.equal(analysis.groups[0].models[0].gaps.length, 0)
+})
+
+test('no cache prices every prompt token at the input price, and caching beats it when prompts are reread', () => {
+  const group = buildCacheAnalysis([session(day(DAY_ONE, [12, 3, 3]))], DAY_ONE, DAY_ONE, DAY_ONE).groups[0]
+  const model = group.models[0]
+  const summary = summarize(group.models, group.maxPings, 7)
+  assert.ok(Math.abs(summary.noCacheTotal - model.promptTokens * PRICE) < 1e-9)
+  assert.ok(summary.cacheSavingPerWeek > 0)
+  // The no-cache line ends at the same total in both modes, once the 0-ping line is added back.
+  const total = pingSeries(group.models, group.maxPings, summary.modelBest, DAY_ONE, SLOTS_PER_DAY, 'total')
+  const saving = pingSeries(group.models, group.maxPings, summary.modelBest, DAY_ONE, SLOTS_PER_DAY, 'saving')
+  const noCache = group.maxPings + 3
+  assert.ok(Math.abs(total[noCache][SLOTS_PER_DAY] - summary.noCacheTotal) < 1e-9)
+  assert.ok(Math.abs(saving[noCache][SLOTS_PER_DAY] + total[0][SLOTS_PER_DAY] - summary.noCacheTotal) < 1e-9)
+})
+
+test('a prompt sent once after every long break is cheaper with no cache', () => {
+  const calls = [0, 1, 2, 3].map((index) => call(DAY_ONE + 9 * 60 * MINUTE + index * 90 * MINUTE, 40_000, true))
+  const group = buildCacheAnalysis([session(calls)], DAY_ONE, DAY_ONE, DAY_ONE).groups[0]
+  assert.ok(summarize(group.models, group.maxPings, 7).cacheSavingPerWeek < 0)
 })

@@ -47,6 +47,11 @@ export function cacheLines(analysis: CacheAnalysis, details: CacheGroupId | null
     lines.push(`  ${groupHeadline(group, summary)}`)
     if (group.id === 'automatic') continue
     lines.push(`  Hit rate ${percent(summary.hitRate)} · ${summary.longBreaks} breaks over ${group.lifetimeMinutes} min (${CONFIDENCE_LABELS[summary.confidence]}) · pings cover breaks up to ${Math.round(group.reachMinutes ?? 0)} min`)
+    if (summary.noCacheTotal > 0) {
+      lines.push(summary.cacheSavingPerWeek < 0
+        ? `  Sending with no cache at all would have been about ${money(summary.cacheSavingPerWeek)} a week cheaper: most prompts were not reread before the cache expired.`
+        : `  Caching itself saves about ${money(summary.cacheSavingPerWeek)} a week compared with sending with no cache.`)
+    }
     if (group.models.length > 1) {
       lines.push('  By model:')
       for (const model of group.models) {

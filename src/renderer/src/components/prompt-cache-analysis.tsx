@@ -136,6 +136,13 @@ function GroupCard({ group, summary, days, selected, onOpen }: { group: CacheGro
           ? t('analytics.promptCache.automaticBasis')
           : t('analytics.promptCache.basis', { count: days, breaks: summary.longBreaks, minutes: group.lifetimeMinutes, reach: Math.round(group.reachMinutes ?? 0) })}
       </p>
+      {!automatic && summary.noCacheTotal > 0 && (
+        <p className={clsx('text-[11px]', summary.cacheSavingPerWeek < 0 ? 'rounded bg-warning-bg px-2 py-1 text-warning' : 'text-secondary')}>
+          {summary.cacheSavingPerWeek < 0
+            ? t('analytics.promptCache.noCache.cheaper', { cost: money(-summary.cacheSavingPerWeek) })
+            : t('analytics.promptCache.noCache.saves', { cost: money(summary.cacheSavingPerWeek) })}
+        </p>
+      )}
       {onOpen && (
         <button
           type="button"
@@ -159,7 +166,7 @@ function Stat({ label, value }: { label: string; value: string }): React.JSX.Ele
   )
 }
 
-type LineKind = 'count' | 'perBreak' | 'perModel'
+type LineKind = 'count' | 'perBreak' | 'perModel' | 'noCache'
 interface LineSpec {
   index: number
   kind: LineKind
@@ -189,10 +196,13 @@ function GroupDetails({ analysis, group }: { analysis: CacheAnalysis; group: Cac
 
   const perBreak = group.maxPings + 1
   const perModel = group.maxPings + 2
+  const noCache = group.maxPings + 3
   const specs: LineSpec[] = [
     ...Array.from({ length: group.maxPings + 1 }, (_, count): LineSpec => ({ index: count, kind: 'count', count })),
     ...(multi ? [{ index: perModel, kind: 'perModel' as const, count: 0 }] : []),
     { index: perBreak, kind: 'perBreak', count: 0 },
+    // Only against the total: next to the gaps alone it would flatten every ping line.
+    ...(mode === 'total' && summary.noCacheTotal > 0 ? [{ index: noCache, kind: 'noCache' as const, count: 0 }] : []),
   ]
 
   let low = 0
@@ -224,17 +234,26 @@ function GroupDetails({ analysis, group }: { analysis: CacheAnalysis; group: Cac
     const faded = focus !== null && focus !== spec.index
     if (spec.kind === 'perBreak') return clsx('stroke-special', faded && 'opacity-25')
     if (spec.kind === 'perModel') return clsx('stroke-success', faded && 'opacity-25')
+    if (spec.kind === 'noCache') return clsx('stroke-warning', faded && 'opacity-25')
     if (spec.count === summary.best) return clsx('stroke-accent', faded && 'opacity-25')
     if (focus === spec.index) return 'stroke-primary'
     return clsx(spec.count === 0 ? 'stroke-dim' : 'stroke-border-strong', faded && 'opacity-25')
   }
   const lineWidth = (spec: LineSpec): number => (spec.kind !== 'count' || spec.count === summary.best || focus === spec.index ? 2.25 : 1.25)
-  const lineLabel = (spec: LineSpec): string => spec.kind === 'perBreak' ? t('analytics.promptCache.line.perBreak') : spec.kind === 'perModel' ? t('analytics.promptCache.line.perModel') : pingsLabel(spec.count, t)
+  const lineLabel = (spec: LineSpec): string => {
+    switch (spec.kind) {
+      case 'perBreak': return t('analytics.promptCache.line.perBreak')
+      case 'perModel': return t('analytics.promptCache.line.perModel')
+      case 'noCache': return t('analytics.promptCache.line.noCache')
+      case 'count': return pingsLabel(spec.count, t)
+    }
+  }
+  const dashes = (spec: LineSpec, legend = false): string | undefined => spec.kind === 'perBreak' ? (legend ? '4 3' : '6 4') : spec.kind === 'noCache' ? (legend ? '2 2' : '2 3') : undefined
   const signed = mode === 'saving'
   const order = [...specs].sort((a, b) => rank(a) - rank(b))
   function rank(spec: LineSpec): number {
     if (focus === spec.index) return 4
-    if (spec.kind === 'perBreak') return 3
+    if (spec.kind === 'perBreak' || spec.kind === 'noCache') return 3
     if (spec.kind === 'perModel') return 2
     return spec.count === summary.best ? 1 : 0
   }
@@ -362,7 +381,7 @@ function GroupDetails({ analysis, group }: { analysis: CacheAnalysis; group: Cac
                     fill="none"
                     className={lineClass(spec)}
                     strokeWidth={lineWidth(spec)}
-                    strokeDasharray={spec.kind === 'perBreak' ? '6 4' : undefined}
+                    strokeDasharray={dashes(spec)}
                     strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
                   />
@@ -460,7 +479,7 @@ function GroupDetails({ analysis, group }: { analysis: CacheAnalysis; group: Cac
               >
                 <span className="flex min-w-0 items-center gap-1.5">
                   <svg width="16" height="6" aria-hidden="true" className="shrink-0">
-                    <line x1="0" x2="16" y1="3" y2="3" className={lineClass({ ...spec })} strokeWidth={lineWidth(spec) + 0.5} strokeDasharray={spec.kind === 'perBreak' ? '4 3' : undefined} />
+                    <line x1="0" x2="16" y1="3" y2="3" className={lineClass({ ...spec })} strokeWidth={lineWidth(spec) + 0.5} strokeDasharray={dashes(spec, true)} />
                   </svg>
                   <span className={clsx('truncate', best || spec.kind !== 'count' ? 'font-medium text-primary' : 'text-secondary')}>{lineLabel(spec)}</span>
                   {best && <span className="shrink-0 rounded-full bg-accent px-1.5 text-[9px] font-semibold text-white">{t('analytics.promptCache.legend.bestFixed')}</span>}

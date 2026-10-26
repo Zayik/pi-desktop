@@ -46,6 +46,8 @@ export interface CacheModelAnalysis {
   /** Prompt cost no ping count changes (each session's first call, calls inside the lifetime), per 30-minute slot start. */
   base: Array<[at: number, cost: number]>
   gaps: CacheGap[]
+  /** What the same prompts would have cost with no cache at all (every token at the input price), per 30-minute slot start. */
+  noCache: Array<[at: number, cost: number]>
 }
 
 export interface CacheGroupAnalysis {
@@ -144,6 +146,7 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       shortBreaks: 0,
       base: [],
       gaps: [],
+      noCache: [],
     }
     if (profile.sweep && prices && id !== 'automatic') {
       const everyMs = ttlMs * PI_REFRESH_AT
@@ -161,6 +164,12 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
         else entry.gaps.push({ at: gap.at, gapMs: gap.gapMs, costs: gap.costs })
       }
       entry.base = [...base.entries()].sort((a, b) => a[0] - b[0])
+      const uncached = new Map<number, number>()
+      for (const call of all) {
+        const slot = slotStart(call[0], start)
+        uncached.set(slot, (uncached.get(slot) ?? 0) + promptTokens(call) * prices.inputPrice)
+      }
+      entry.noCache = [...uncached.entries()].sort((a, b) => a[0] - b[0])
     }
     group.models.push(entry)
     groups.set(id, group)
@@ -212,6 +221,11 @@ export interface PingSummary {
   /** Gap cost with every model on its own count, and with the cheapest count at every gap (hindsight). */
   perModelTotal: number
   perBreakTotal: number
+  /** Prompt cost no count changes, and the whole prompt cost with no cache at all. */
+  baseTotal: number
+  noCacheTotal: number
+  /** What caching with the best count saves over no cache, per week; below 0 when no cache would have been cheaper. */
+  cacheSavingPerWeek: number
 }
 
 export function summarize(models: CacheModelAnalysis[], maxPings: number, days: number): PingSummary {
@@ -225,7 +239,11 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
   const modelBest = new Map<string, number>()
   let perModelTotal = 0
   let perBreakTotal = 0
+  let baseTotal = 0
+  let noCacheTotal = 0
   for (const model of models) {
+    for (const [, cost] of model.base) baseTotal += cost
+    for (const [, cost] of model.noCache) noCacheTotal += cost
     const own = confidenceOf(model.longBreaks) === 'none' ? best : cheapest(countTotals([model], maxPings))
     modelBest.set(model.model, own)
     for (const gap of model.gaps) {
@@ -244,6 +262,9 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
     modelBest,
     perModelTotal,
     perBreakTotal,
+    baseTotal,
+    noCacheTotal,
+    cacheSavingPerWeek: (noCacheTotal - baseTotal - totals[best]) / weeks,
   }
 }
 
@@ -252,11 +273,13 @@ export type PingSeriesMode = 'saving' | 'total'
 /**
  * Running cost per 30-minute slot from `from`: one line per count (0 to
  * `maxPings`), then the cheapest count at every gap, then every model on its
- * own best count. `saving` subtracts no pings, so the 0 line stays flat at 0;
- * `total` adds the cost no count changes. Each line has `slots + 1` points.
+ * own best count, then no cache at all. `saving` subtracts no pings, so the
+ * 0 line stays flat at 0; `total` adds the cost no count changes. Each line
+ * has `slots + 1` points.
  */
 export function pingSeries(models: CacheModelAnalysis[], maxPings: number, modelBest: Map<string, number>, from: number, slots: number, mode: PingSeriesMode): number[][] {
-  const lines = maxPings + 3
+  const lines = maxPings + 4
+  const noCache = maxPings + 3
   const steps = Array.from({ length: lines }, () => new Array<number>(slots).fill(0))
   const slotOf = (at: number): number => Math.min(slots - 1, Math.max(0, Math.floor((at - from) / SLOT_MS)))
   for (const model of models) {
@@ -264,15 +287,19 @@ export function pingSeries(models: CacheModelAnalysis[], maxPings: number, model
     if (mode === 'total') {
       for (const [at, cost] of model.base) {
         const slot = slotOf(at)
-        for (let line = 0; line < lines; line++) steps[line][slot] += cost
+        for (let line = 0; line < noCache; line++) steps[line][slot] += cost
       }
+    } else {
+      for (const [at, cost] of model.base) steps[noCache][slotOf(at)] -= cost
     }
+    for (const [at, cost] of model.noCache) steps[noCache][slotOf(at)] += cost
     for (const gap of model.gaps) {
       const slot = slotOf(gap.at)
       const zero = mode === 'saving' ? gap.costs[0] : 0
       for (let count = 0; count <= maxPings; count++) steps[count][slot] += gap.costs[count] - zero
       steps[maxPings + 1][slot] += Math.min(...gap.costs) - zero
       steps[maxPings + 2][slot] += gap.costs[own] - zero
+      if (mode === 'saving') steps[noCache][slot] -= gap.costs[0]
     }
   }
   return steps.map((step) => {

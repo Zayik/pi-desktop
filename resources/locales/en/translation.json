@@ -98,7 +98,7 @@
         "savingNote": "Each line is what you would have paid with that many pings, compared with no pings. Lower is cheaper. Flat while you were away, it steps at each break. Click a day to expand it.",
         "title": "Cost by ping count",
         "total": "Total cost",
-        "totalNote": "Each line is your running prompt cost with that many pings. The lines sit close because usage outweighs what pings change. Click a day to expand it.",
+        "totalNote": "Each line is your running prompt cost with that many pings. The dotted line is the same prompts with no cache at all. Click a day to expand it.",
         "upTo": "{{day}}, up to {{time}}",
         "zoomNote": "The same lines for one day, in 30-minute blocks. Hover a block for its breaks."
       },
@@ -140,6 +140,7 @@
         "totalNote": "Running prompt cost. Switch to “compared with no pings” to see the gaps."
       },
       "line": {
+        "noCache": "No cache",
         "perBreak": "Best at each break",
         "perModel": "Each model at its best"
       },
@@ -153,6 +154,10 @@
         "note": "Each model on its own. A model with fewer than 10 long breaks borrows the group's count. Click a model to chart just that one.",
         "title": "By model",
         "useGroup": "Uses group: {{pings}}"
+      },
+      "noCache": {
+        "cheaper": "Sending with no cache at all would have been about {{cost}} a week cheaper: most prompts were not reread before the cache expired.",
+        "saves": "Caching itself saves about {{cost}} a week compared with sending with no cache."
       },
       "noPings": "No pings",
       "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",

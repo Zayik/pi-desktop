@@ -130,6 +130,7 @@
         "totalNote": "累计提示费用。切换到“与不保活相比”可看清差异。"
       },
       "line": {
+        "noCache": "",
         "perBreak": "每次间隔取最优",
         "perModel": "每个模型取各自最优"
       },
@@ -143,6 +144,10 @@
         "note": "逐个模型单独计算。长间隔少于 10 次的模型沿用分组的次数。点击模型可只看该模型。",
         "title": "按模型",
         "useGroup": "沿用分组：{{pings}}"
+      },
+      "noCache": {
+        "cheaper": "",
+        "saves": ""
       },
       "noPings": "不保活",
       "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
