@@ -504,32 +504,52 @@ function DayView({ entries, lines, mode, dayStart, firstSlot, title, onPrevious,
   )
 }
 
+/** Weekly prompt cost three ways: as run with no pings, at the recommended fixed count, and at the cheapest count for every break. */
+interface CostRow {
+  now: number
+  recommended: number | null
+  best: number | null
+  noCache: number | null
+}
+
+function costRow(entry: ModelEntry, days: number, weeks: number): CostRow {
+  const own = summarize([entry.model], entry.group.maxPings, days)
+  if (entry.group.id === 'automatic') return { now: own.baseTotal / weeks, recommended: null, best: null, noCache: null }
+  return {
+    now: (own.baseTotal + own.totals[0]) / weeks,
+    recommended: (own.baseTotal + own.totals[entry.optimal]) / weeks,
+    best: (own.baseTotal + own.perBreakTotal) / weeks,
+    noCache: own.noCacheTotal > 0 ? own.noCacheTotal / weeks : null,
+  }
+}
+
 function ModelTable({ entries, analysis, weeks, shown, onToggle }: { entries: ModelEntry[]; analysis: CacheAnalysis; weeks: number; shown: string[]; onToggle: (model: string) => void }): React.JSX.Element {
   const { t } = useTranslation()
+  const rows = entries.map((entry) => ({ entry, own: summarize([entry.model], entry.group.maxPings, analysis.days), cost: costRow(entry, analysis.days, weeks) }))
+  const total = (pick: (row: CostRow) => number | null): number => sum(rows.map(({ cost }) => pick(cost) ?? cost.now))
+  const totals: CostRow = { now: total((row) => row.now), recommended: total((row) => row.recommended), best: total((row) => row.best), noCache: null }
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2.5">
       <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.models.title')}</div>
       <p className="mt-0.5 text-[11px] text-dim">{t('analytics.promptCache.models.note')}</p>
       <div className="mt-1.5 overflow-x-auto">
-        <table className="w-full min-w-[640px] whitespace-nowrap text-xs">
+        <table className="w-full min-w-[760px] whitespace-nowrap text-xs">
           <thead>
             <tr className="text-[10px] text-faint">
               <th className="pb-1 text-left font-medium">{t('analytics.promptCache.models.model')}</th>
               <th className="pb-1 pl-3 text-left font-medium">{t('analytics.promptCache.models.cache')}</th>
               <th className="pb-1 text-right font-medium">{t('analytics.promptCache.models.hitRate')}</th>
-              <th className="pb-1 pl-3 text-left font-medium">{t('analytics.promptCache.models.best')}</th>
-              <th className="pb-1 text-right font-medium">{t('analytics.promptCache.models.saves')}</th>
-              <th className="pb-1 text-right font-medium">{t('analytics.promptCache.models.vsNoCache')}</th>
+              <th className="pb-1 text-right font-medium">{t('analytics.promptCache.models.now')}</th>
+              <th className="pb-1 text-right font-medium">{t('analytics.promptCache.models.recommended')}</th>
+              <th className="pb-1 text-right font-medium">{t('analytics.promptCache.models.perBreak')}</th>
+              <th className="pb-1 pl-4 text-right font-medium text-faint">{t('analytics.promptCache.models.noCache')}</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => {
-              const own = summarize([entry.model], entry.group.maxPings, analysis.days)
-              const automatic = entry.group.id === 'automatic'
-              const saving = (sum(entry.none) - sum(entry.cost)) / weeks
+            {rows.map(({ entry, own, cost }) => {
               const on = shown.includes(entry.model.model)
               return (
-                <tr key={entry.model.model} className="border-t border-border/60">
+                <tr key={entry.model.model} className="border-t border-border/60 align-top">
                   <td className="py-1 pr-2">
                     <button type="button" onClick={() => onToggle(entry.model.model)} aria-pressed={on} title={entry.model.model} className="flex items-center gap-1.5 font-mono text-primary hover:underline">
                       <span className={clsx('h-2 w-2 shrink-0 rounded-full', on ? entry.color.fill : 'bg-faint')} />
@@ -538,29 +558,45 @@ function ModelTable({ entries, analysis, weeks, shown, onToggle }: { entries: Mo
                   </td>
                   <td className="py-1 pl-3 text-secondary">{t(LIFETIME_KEYS[entry.group.id])}</td>
                   <td className="py-1 text-right tabular-nums text-secondary">{own.hitRate === null ? '–' : `${Math.round(own.hitRate * 100)}%`}</td>
-                  <td className="py-1 pl-3">
-                    {automatic
+                  <td className="py-1 text-right tabular-nums text-primary">{money(cost.now)}</td>
+                  <td className="py-1 text-right">
+                    {cost.recommended === null
                       ? <span className="text-dim">{t('analytics.promptCache.models.providerRuns')}</span>
-                      : (
-                        <span className="flex items-center gap-1.5">
-                          <span className="text-secondary">{own.confidence === 'none' ? t('analytics.promptCache.models.usesGroup', { pings: pingsLabel(entry.optimal, t) }) : pingsLabel(own.best, t)}</span>
-                          <span className={clsx('rounded-full px-1.5 text-[10px] font-medium', CONFIDENCE_CLASSES[own.confidence])}>{t(CONFIDENCE_KEYS[own.confidence])}</span>
-                        </span>
-                      )}
+                      : <CostCell value={cost.recommended} now={cost.now} detail={pingsLabel(entry.optimal, t)} confidence={own.confidence} />}
                   </td>
-                  <td className={clsx('py-1 text-right tabular-nums', saving <= -0.005 ? 'text-error' : 'text-success')}>
-                    {automatic || entry.count === 0 ? '–' : saving <= -0.005 ? t('analytics.promptCache.models.costsMore', { cost: money(-saving) }) : money(saving)}
-                  </td>
-                  <td className={clsx('py-1 text-right tabular-nums', own.cacheSavingPerWeek < 0 ? 'text-warning' : 'text-secondary')}>
-                    {own.noCacheTotal > 0 ? own.cacheSavingPerWeek < 0 ? t('analytics.promptCache.models.noCacheCheaper', { cost: money(-own.cacheSavingPerWeek) }) : money(own.cacheSavingPerWeek) : '–'}
-                  </td>
+                  <td className="py-1 text-right">{cost.best === null ? <span className="text-dim">–</span> : <CostCell value={cost.best} now={cost.now} />}</td>
+                  <td className={clsx('py-1 pl-4 text-right tabular-nums', cost.noCache !== null && cost.noCache < cost.now ? 'text-warning' : 'text-dim')}>{cost.noCache === null ? '–' : money(cost.noCache)}</td>
                 </tr>
               )
             })}
+            {rows.length > 1 && (
+              <tr className="border-t border-border-strong font-medium">
+                <td className="py-1 pr-2 text-primary" colSpan={3}>{t('analytics.promptCache.allModels')}</td>
+                <td className="py-1 text-right tabular-nums text-primary">{money(totals.now)}</td>
+                <td className="py-1 text-right"><CostCell value={totals.recommended ?? totals.now} now={totals.now} /></td>
+                <td className="py-1 text-right"><CostCell value={totals.best ?? totals.now} now={totals.now} /></td>
+                <td />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+      <p className="mt-1.5 text-[10px] text-faint">{t('analytics.promptCache.models.footnote')}</p>
     </div>
   )
 }
 
+function CostCell({ value, now, detail, confidence }: { value: number; now: number; detail?: string; confidence?: CacheConfidence }): React.JSX.Element {
+  const { t } = useTranslation()
+  const saving = now - value
+  return (
+    <span className="inline-flex flex-col items-end">
+      <span className="tabular-nums text-primary">{money(value)}</span>
+      <span className="flex items-center gap-1.5 text-[10px]">
+        {detail && <span className="text-dim">{detail}</span>}
+        {confidence && confidence !== 'solid' && <span className={clsx('rounded-full px-1.5 font-medium', CONFIDENCE_CLASSES[confidence])}>{t(CONFIDENCE_KEYS[confidence])}</span>}
+        {saving >= 0.005 && <span className="text-success tabular-nums">{t('analytics.promptCache.models.less', { cost: money(saving) })}</span>}
+      </span>
+    </span>
+  )
+}
