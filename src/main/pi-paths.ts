@@ -72,3 +72,16 @@ export function engineForBoundSession(
 export function isWithinSessionRoots(candidate: string): boolean {
   return engineForSessionPath(candidate) !== null
 }
+
+/** Turns off reading Claude Code's transcripts into the analytics when set to `0`. */
+export const CLAUDE_CODE_ANALYTICS_ENV = 'PI_ANALYTICS_CLAUDE_CODE'
+
+/**
+ * Claude Code's transcripts (`~/.claude/projects`, or under `CLAUDE_CONFIG_DIR`),
+ * which the analytics reads beside Pi's own sessions. Empty when turned off.
+ */
+export function getClaudeCodeRoots(env: NodeJS.ProcessEnv = process.env): string[] {
+  if (env[CLAUDE_CODE_ANALYTICS_ENV] === '0') return []
+  const configDir = env.CLAUDE_CONFIG_DIR || join(env.HOME ?? env.USERPROFILE ?? '', '.claude')
+  return [join(configDir, 'projects')]
+}

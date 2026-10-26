@@ -6,6 +6,7 @@
  */
 import type { AnalyticsReport } from '../../../src/shared/analytics-report'
 import { PI_REFRESH_AT, piMaxIdlePings, type ModelCacheReport, type PingSweepPoint } from '../../../src/shared/cache-policy'
+import { isImportedModel } from '../../../src/shared/claude-code-session'
 
 export { PI_IDLE_WARMING_MS, piMaxIdlePings } from '../../../src/shared/cache-policy'
 import type { ModelCachePlan } from './cache-plan'
@@ -137,10 +138,10 @@ export function recommendFor(model: ModelCacheReport, days: number): CacheRecomm
   return checkModel(model, days).recommendation
 }
 
-/** Every model the report covers, checked. */
+/** Every model the report covers that Pi runs, checked; models imported from other tools have nothing to apply. */
 export function cacheChecks(report: AnalyticsReport, now = Date.now()): CacheCheck[] {
   const days = reportDays(report, now)
-  return report.cache.models.map((model) => checkModel(model, days))
+  return report.cache.models.filter((model) => !isImportedModel(model.model)).map((model) => checkModel(model, days))
 }
 
 /** A recommendation with its long alternative as the setting, to apply that instead. */
@@ -152,6 +153,7 @@ export function withAlternative(rec: CacheRecommendation): CacheRecommendation |
 export function recommendations(report: AnalyticsReport, now = Date.now()): CacheRecommendation[] {
   const days = reportDays(report, now)
   return report.cache.models
+    .filter((model) => !isImportedModel(model.model))
     .map((model) => recommendFor(model, days))
     .filter((rec): rec is CacheRecommendation => rec !== null)
     .sort((a, b) => b.weeklySaving - a.weeklySaving)

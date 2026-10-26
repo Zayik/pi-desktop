@@ -15,6 +15,7 @@ import {
   type CacheOption,
 } from '../../../../packages/pi-analytics/src/recommendations'
 import type { Translate } from '../../../shared/i18n'
+import { isImportedModel } from '../../../shared/claude-code-session'
 import { checkText } from './cache-check-dialog'
 import { formatUsd } from './analytics-report-view'
 
@@ -101,7 +102,8 @@ export function CacheSettings(): React.JSX.Element {
   // Every model in the plan, then every model the report saw.
   const models = useMemo(() => {
     const names = new Set(Object.keys(plan?.models ?? {}))
-    for (const model of report?.cache.models ?? []) names.add(model.model)
+    // Other tools' models have no Pi setting.
+    for (const model of report?.cache.models ?? []) if (!isImportedModel(model.model)) names.add(model.model)
     return [...names]
   }, [plan, report])
   const keepsWarm = Object.values(plan?.models ?? {}).some((entry) => entry.mode === 'keep-warm' && (entry.idlePings ?? MAX_IDLE_WARMS) > 0)

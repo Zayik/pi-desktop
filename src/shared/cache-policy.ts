@@ -10,8 +10,8 @@
  *
  * Provider rules (checked 2026-10-25):
  * - Anthropic (API, Bedrock, Vertex, OpenRouter): 5 minutes (write 1.25x) or
- *   1 hour (write 2x), read 0.1x (0.05x Opus/Sonnet 5.5, 0.025x Fable and
- *   Mythos 5.1). A hit restarts the lifetime.
+ *   1 hour (write 2x), read 0.1x (0.05x Opus 5.5, 0.025x Fable and
+ *   Mythos 5.1; see anthropic-prices.ts). A hit restarts the lifetime.
  * - OpenAI GPT-5.6 and later: 30 minutes (write 1.25x) or 12 hours (write
  *   2.5x), read 0.1x (0.05x GPT-6.1 Sol). A hit keeps an entry at least 30
  *   minutes past the read but does not restart the 12 hour clock.
@@ -24,6 +24,7 @@
  *   Its price list shows only the short lifetime, though its backend takes
  *   Anthropic's `ttl: "1h"` (VS Code's extendedTtl setting sends it).
  */
+import { anthropicPrice } from './anthropic-prices'
 import { localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 export type CacheProvider = 'anthropic' | 'openai' | 'other'
@@ -235,9 +236,7 @@ function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
 function defaultReadRatio(family: CacheFamily, model: string): number {
   const id = model.toLowerCase()
   if (family === 'anthropic') {
-    if (/(fable|mythos)-5[-.]1/.test(id)) return 0.025
-    if (/(opus|sonnet)-5[-.]5/.test(id)) return 0.05
-    return 0.1
+    return anthropicPrice(id)?.readRatio ?? 0.1
   }
   if (family === 'openai-ttl') return /gpt-6[-.]1-sol/.test(id) ? 0.05 : 0.1
   if (family === 'openai-implicit') {

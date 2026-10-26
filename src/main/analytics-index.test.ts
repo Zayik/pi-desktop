@@ -32,7 +32,7 @@ async function fixture(): Promise<{ root: string; sessions: string; delegates: s
   const archive = join(root, 'archive')
   await mkdir(join(sessions, '--repo--'), { recursive: true })
   await mkdir(delegates, { recursive: true })
-  const index = new AnalyticsIndex({ dbPath: join(root, 'analytics.sqlite'), sessionRoots: [sessions], delegateDir: delegates, archiveDir: archive })
+  const index = new AnalyticsIndex({ dbPath: join(root, 'analytics.sqlite'), sessionRoots: [sessions], claudeCodeRoots: [], delegateDir: delegates, archiveDir: archive })
   return { root, sessions, delegates, archive, index }
 }
 
@@ -112,6 +112,35 @@ test('the overview keeps a deleted session and filters by range and project', as
     // A rebuild keeps what can no longer be read again.
     await index.rebuild()
     assert.equal((await index.overview({ range: 'all', projectPath: null }, NOW)).sessions, 3)
+  } finally {
+    index.close()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('reads Claude Code transcripts beside Pi sessions, with their subagents', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'analytics-index-cc-')))
+  const sessions = join(root, 'sessions')
+  const claude = join(root, 'claude', 'projects')
+  await mkdir(join(sessions, '--repo--'), { recursive: true })
+  await mkdir(join(claude, '-repo', 'cc1', 'subagents'), { recursive: true })
+  const line = (sessionId: string, uuid: string, seconds: number, extra: Record<string, unknown> = {}): string => JSON.stringify({
+    type: 'assistant', sessionId, uuid, parentUuid: null, cwd: '/repo', timestamp: new Date(NOW - 60_000 + seconds * 1000).toISOString(),
+    message: { id: `msg_${uuid}`, model: 'claude-opus-5-5', role: 'assistant', content: [], usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 1000 } },
+    ...extra,
+  })
+  await writeFile(join(sessions, '--repo--', 'pi.jsonl'), session('pi1', '/repo', NOW - 60_000, 0.5))
+  await writeFile(join(claude, '-repo', 'cc1.jsonl'), line('cc1', 'a1', 1) + '\n')
+  await writeFile(join(claude, '-repo', 'cc1', 'subagents', 'agent-x.jsonl'), line('cc1', 'b1', 2, { isSidechain: true }) + '\n')
+  const index = new AnalyticsIndex({ dbPath: join(root, 'analytics.sqlite'), sessionRoots: [sessions], claudeCodeRoots: [claude], delegateDir: join(root, 'none'), archiveDir: join(root, 'archive') })
+  try {
+    await index.refresh(true)
+    const counts = index.sources()
+    assert.deepEqual(counts.map((count) => [count.source, count.sessions]), [['claude-code', 2], ['pi', 1]])
+    assert.ok(counts[0].cost > 0)
+    const report = await index.sessionReport(join(claude, '-repo', 'cc1.jsonl'))
+    assert.ok(report)
+    assert.deepEqual(report.sessionRows.map((row) => row.kind).sort(), ['main', 'subagent'])
   } finally {
     index.close()
     await rm(root, { recursive: true, force: true })

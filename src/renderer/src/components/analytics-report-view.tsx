@@ -7,6 +7,7 @@ import type { WorkCategory } from '../../../shared/session-analytics'
 import { CACHE_RULES_CHECKED, GAP_BUCKET_MINUTES, OBSERVED_GAP_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport, type ObservedCache } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
+import { isImportedModel } from '../../../shared/claude-code-session'
 
 const CATEGORY_LABEL_KEYS = {
   test: 'analytics.category.test',
@@ -403,6 +404,7 @@ export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.El
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate font-mono text-secondary" title={model.model}>{name}</span>
           {model.route === 'copilot' && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.viaCopilot')}</span>}
+          {isImportedModel(model.model) && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.fromClaudeCode')}</span>}
         </span>
         <span className="shrink-0 text-[11px] text-dim tabular-nums">
           {t('analytics.cache.measured', { cost: formatUsd(model.measuredCost), calls: model.calls })}
@@ -417,6 +419,7 @@ export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.El
         })}
       </div>
       {model.notes.map((note) => <p key={note} className="mt-0.5 text-[11px] text-dim">{t(CACHE_NOTE_KEYS[note])}</p>)}
+      {isImportedModel(model.model) && <p className="mt-0.5 text-[11px] text-dim">{t('analytics.cache.importedNote')}</p>}
       <GapHistogram buckets={model.gapBuckets} warmMinutes={model.shortTtlMs / 60_000} />
       {model.observed && <ObservedHits observed={model.observed} />}
       {model.policies.length === 0 ? (

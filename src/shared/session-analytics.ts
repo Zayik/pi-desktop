@@ -118,8 +118,14 @@ export interface DayFact {
   activeMs: number
 }
 
+/** The tool that wrote a session: Pi, or one imported from another tool's logs. */
+export const ANALYTICS_SOURCES = ['pi', 'claude-code'] as const
+export type AnalyticsSource = typeof ANALYTICS_SOURCES[number]
+
 export interface SessionAnalytics {
   version: typeof SESSION_ANALYTICS_VERSION
+  /** Missing for Pi's own sessions. */
+  source?: AnalyticsSource
   sessionId: string
   sessionFile: string
   cwd: string | null
@@ -223,8 +229,8 @@ export function classifyCommand(command: string): WorkCategory {
 const SHELL_TOOLS = new Set(['bash', 'shell', 'exec', 'run_command'])
 const READ_TOOLS = new Set(['read', 'read_file', 'view'])
 const SEARCH_TOOLS = new Set(['grep', 'find', 'ls', 'glob', 'search'])
-const EDIT_TOOLS = new Set(['edit', 'write', 'multi_edit', 'apply_patch', 'notebook_edit'])
-const SUBAGENT_TOOLS = new Set(['acp_delegate', 'subagent', 'subagent_wait', 'task', 'hub'])
+const EDIT_TOOLS = new Set(['edit', 'write', 'multi_edit', 'multiedit', 'apply_patch', 'notebook_edit', 'notebookedit'])
+const SUBAGENT_TOOLS = new Set(['acp_delegate', 'subagent', 'subagent_wait', 'task', 'agent', 'hub'])
 const WEB_TOOLS = new Set(['web_search', 'web_fetch', 'fetch', 'websearch', 'webfetch'])
 
 export function classifyToolCall(tool: string, args: UnknownRecord): WorkCategory {

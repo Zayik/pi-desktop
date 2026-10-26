@@ -4,11 +4,12 @@
  */
 import { spawn } from 'child_process'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
+import type { AnalyticsSource } from '../../../src/shared/session-analytics'
 import { applyRecommendations, describePlan, setCacheControl, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
 import { describeRecommendation, withAlternative, LONG_MARGIN, type CacheRecommendation } from './recommendations'
-import { buildEnvelope, writeReport } from './report'
+import { buildEnvelope, listSources, writeReport } from './report'
 
 export const USAGE = [
   'pi-analytics report [--range 7|30|90|365|all] [--out <file>] [--no-open] [--rebuild]',
@@ -22,9 +23,13 @@ export const USAGE = [
   '    Keep a model warm with this many refreshes after the agent stops (0 to 6 on a 5-minute cache, 0 to 1 on a 30-minute one).',
   'pi-analytics control on|off',
   '    Off: the package only reads, and Pi runs with its own cache settings (the plan is kept). On: the plan applies again.',
+  'pi-analytics sources [--rebuild]',
+    '    List the tools whose sessions are read (Pi, Claude Code), with how many sessions and the days they cover.',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
 ]
+
+const SOURCE_LABELS: Record<AnalyticsSource, string> = { pi: 'Pi', 'claude-code': 'Claude Code' }
 
 export interface CommandOptions {
   dir?: string
@@ -196,6 +201,21 @@ export async function runCommand(args: string | string[], options: CommandOption
         ...(lines.length > 0 ? lines : ['The cache plan is empty: Pi decides for every model.']),
         `Pi's cacheWarming: ${warming ?? 'not set (refreshes only while the agent works)'}`,
         ...(plan.history.length > 0 ? [`${plan.history.length} change${plan.history.length === 1 ? '' : 's'} on record; the last: ${plan.history.at(-1)?.summary}`] : []),
+      ]
+    }
+    case 'sources': {
+      const sources = await listSources({ dir, rebuild: flags.has('rebuild') })
+      const day = (at: number | null): string => (at === null ? '?' : new Date(at).toISOString().slice(0, 10))
+      return [
+        ...sources.roots.map(({ source, root }) => {
+          const found = sources.counts.find((count) => count.source === source)
+          const label = SOURCE_LABELS[source]
+          return found
+            ? `${label}: ${found.sessions} session${found.sessions === 1 ? '' : 's'}, ${day(found.firstAt)} to ${day(found.lastAt)}, $${found.cost.toFixed(2)} at list prices (${root})`
+            : `${label}: no sessions found in ${root}`
+        }),
+        ...(sources.roots.some((root) => root.source === 'claude-code') ? [] : ['Claude Code: off (PI_ANALYTICS_CLAUDE_CODE=0)']),
+        'Claude Code sessions are priced at Anthropic\'s API list prices, also when they ran on a subscription. Pi cannot change their cache settings, so they get no recommendations.',
       ]
     }
     case 'help':
