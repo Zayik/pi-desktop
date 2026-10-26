@@ -12,8 +12,8 @@ import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../shared/agent
 import { i18n } from '../../shared/i18n'
 import { typeSafeKeyEnv, typeSafeKeyStore } from '../typesafe-key-store'
 import { agentResourcePath, piAnalyticsPath } from '../agent-resources'
-import { piAnalyticsInstalled } from '../cache-modes'
-import { CACHE_MODE_ENV, CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
+import { piAnalyticsInstalled } from '../pi-analytics-install'
+import { CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
 import { getContextSnapshotDir } from '../context-snapshots'
 import { RETRO_SKILL_NAME } from '../../shared/retro-digest'
 
@@ -106,8 +106,7 @@ export function applyPermissionModeToStartOptions(
     args.push('-e', PERMISSIONS_EXTENSION_PATH)
   }
   if (suggestsNextSteps) args.push('-e', NEXT_STEPS_EXTENSION_PATH)
-  // Applies the cache mode (the pick for the chat, else the cache plan). A copy the user installed in Pi already loads.
-  // It also records what fills the context, for the Context panel.
+  // Only observes: records what fills the context, for the Context panel. A copy the user installed in Pi already loads.
   const installedAnalytics = engine === 'pi' && piAnalyticsInstalled()
   const bundledAnalytics = engine === 'pi' && !installedAnalytics && existsSync(ANALYTICS_EXTENSION_PATH)
   if (bundledAnalytics) args.push('-e', ANALYTICS_EXTENSION_PATH)
@@ -143,8 +142,7 @@ export function applyPermissionModeToStartOptions(
       // ask for it. A key already in the app's own environment wins.
       ...typeSafeKeyEnv(typeSafeKeyStore.getSavedKey(), process.env),
       // A chat started here is a root, even when the app itself was launched from a Pi session.
-      // New chats start in the cache mode last picked in the app.
-      ...(recordsContext ? { [CONTEXT_DIR_ENV]: getContextSnapshotDir(), [PARENT_SESSION_ENV]: '', [CACHE_MODE_ENV]: settings.cacheMode } : {}),
+      ...(recordsContext ? { [CONTEXT_DIR_ENV]: getContextSnapshotDir(), [PARENT_SESSION_ENV]: '' } : {}),
     },
   }
 }

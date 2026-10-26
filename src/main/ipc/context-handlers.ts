@@ -1,7 +1,6 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
-import { isCacheMode, type CacheModeChoice, type ContextSnapshot } from '../../../resources/context-snapshot'
-import { enableIdleCacheWarming, readCacheMode, readPiCacheWarming, writeCacheMode } from '../cache-modes'
+import type { ContextSnapshot } from '../../../resources/context-snapshot'
 import { getContextSnapshotDir, legacyContextSnapshotDir, pruneContextSnapshots, readContextSnapshot } from '../context-snapshots'
 import { readAgentBoard } from '../agent-board'
 import { clearDesktopFocus, openSessionPage, setDesktopFocus } from '../session-page'
@@ -27,27 +26,6 @@ export function registerContextHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_AGENT_BOARD, async (event: IpcMainInvokeEvent, request: unknown): Promise<AgentBoard> => {
     assertTrustedSender(event)
     return readAgentBoard(parseBoardRequest(request))
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_MODE, async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<CacheModeChoice | null> => {
-    assertTrustedSender(event)
-    return readCacheMode(parseSessionId(sessionId))
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, async (event: IpcMainInvokeEvent, sessionId: unknown, mode: unknown): Promise<CacheModeChoice> => {
-    assertTrustedSender(event)
-    if (!isCacheMode(mode)) throw new Error('mode must be a cache mode')
-    return writeCacheMode(parseSessionId(sessionId), mode)
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<string | null> => {
-    assertTrustedSender(event)
-    return readPiCacheWarming()
-  })
-
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<void> => {
-    assertTrustedSender(event)
-    await enableIdleCacheWarming()
   })
 
   app.on('will-quit', clearDesktopFocus)

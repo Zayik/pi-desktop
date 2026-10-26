@@ -278,29 +278,6 @@
       "unknownMimeType": "未知",
       "unsupportedImageType": "不支持的图片类型（{{mimeType}}）。请使用 PNG、JPEG、GIF 或 WebP。"
     },
-    "cacheMode": {
-      "appliesNext": "",
-      "enableIdleWarming": "",
-      "idleWarmingEnabled": "",
-      "idleWarmingOff": "",
-      "modes": {
-        "focus": {
-          "detail": "",
-          "label": ""
-        },
-        "keepWarm": {
-          "detail": "5 分钟缓存，代理停止后最多刷新 3 次，因此在你最后一次对话后约可保持 15 分钟。",
-          "label": ""
-        },
-        "long": {
-          "detail": "",
-          "label": ""
-        }
-      },
-      "openAnalysis": "提示缓存分析",
-      "title": "",
-      "withMode": ""
-    },
     "closeFileTree": "关闭文件树",
     "commandPopup": {
       "selectHint": "↑↓ 选择 · Enter/Tab 确认 · Esc 关闭"
@@ -395,16 +372,12 @@
       "cache": {
         "cold": "",
         "hitRate": "",
-        "mode": "",
         "modelChanged": "",
         "nextCold": "",
         "nextColdDetail": "",
         "nextWarm": "",
         "nextWarmDetail": "",
         "none": "",
-        "switchFirstCall": "",
-        "switchPending": "",
-        "switchReadWrite": "",
         "thisTurn": "",
         "title": "",
         "titleWithLifetime": "",

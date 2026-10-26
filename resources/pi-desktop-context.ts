@@ -2,20 +2,16 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { mkdirSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import {
-  CACHE_MODE_ENV,
-  CACHE_STATUS_EVENT,
   CONTEXT_DIR_ENV,
   CONTEXT_SNAPSHOT_VERSION,
   MAX_CATALOG_MODELS,
   PARENT_SESSION_ENV,
   buildBreakdown,
   callFromMessage,
-  cacheStatusFromEvent,
   emptyTotals,
   recordCall,
   snapshotFileName,
   snapshotModel,
-  type CacheStatusEvent,
   type ContextSnapshot,
   type SnapshotModel,
   type ToolDefinitionInput,
@@ -39,44 +35,14 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
  * call cost, for Pi Desktop's Context panel and pi-analytics' session page.
  * Adds nothing to the context and changes nothing about the requests. The
  * snapshot is written to `<dir>/<session id>.json`.
- *
- * The cache mode is applied by the pi-analytics package's extension, which
- * owns Pi's cache-warming decisions; this one only copies the status it
- * sends on `pi.events` into the snapshot.
  */
 export function recordContext(pi: ExtensionAPI, dir: string): void {
   // Read once at load: start() then overwrites it for the processes this one spawns.
   const parentSessionId = process.env[PARENT_SESSION_ENV] || null
-  const startMode = process.env[CACHE_MODE_ENV] ?? null
   const processStartedAt = Math.round(Date.now() - process.uptime() * 1000)
 
   let snapshot: ContextSnapshot | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
-  // The package may report before this session's snapshot exists.
-  let cacheStatus: CacheStatusEvent | null = null
-
-  /** Copy the package's cache status into the snapshot. */
-  const applyStatus = (): void => {
-    if (!snapshot || !cacheStatus || cacheStatus.sessionId !== snapshot.sessionId) return
-    const status = cacheStatus
-    const mode = status.cacheMode ?? undefined
-    if (mode !== snapshot.cacheMode) {
-      // A switch from the mode the session started in; the first mode is not a switch.
-      if (snapshot.cacheMode) snapshot.cacheModeChangedAt = status.cacheModeChangedAt ?? Date.now()
-      snapshot.cacheMode = mode
-    }
-    if (status.lastWarmAt !== null && status.lastWarmAt !== snapshot.lastWarmAt) snapshot.lastWarmAt = status.lastWarmAt
-    // Until a request goes out, the tier the mode asks for is the one shown.
-    if (snapshot.lastRequestAt === null && status.cacheRetention) snapshot.cacheRetention = status.cacheRetention
-    scheduleWrite()
-  }
-
-  pi.events.on(CACHE_STATUS_EVENT, (data) => {
-    const status = cacheStatusFromEvent(data)
-    if (!status) return
-    cacheStatus = status
-    applyStatus()
-  })
 
   const activeTools = (): ToolDefinitionInput[] => {
     const active = new Set(pi.getActiveTools())
@@ -137,10 +103,8 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
       parentSessionId: parentSessionId !== sessionId ? parentSessionId : null,
       updatedAt: Date.now(),
       model: null,
-      cacheRetention: startMode === 'long' || process.env.PI_CACHE_RETENTION === 'long' ? 'long' : 'short',
+      cacheRetention: process.env.PI_CACHE_RETENTION === 'long' ? 'long' : 'short',
       cacheWarming: typeof settings.cacheWarming === 'string' ? settings.cacheWarming : null,
-      cacheMode: undefined,
-      cacheModeChangedAt: null,
       breakdown: null,
       reportedTokens: null,
       calls: [],
@@ -182,7 +146,6 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
     })
     refreshModel(ctx)
     snapshot.catalog = modelCatalog(ctx)
-    applyStatus()
     scheduleWrite()
   }
 
@@ -215,6 +178,12 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
     if (!snapshot) return
     snapshot.lastRequestAt = Date.now()
     snapshot.cacheRetention = process.env.PI_CACHE_RETENTION === 'long' ? 'long' : 'short'
+    scheduleWrite()
+  })
+
+  pi.on('cache_warming_decision', (event) => {
+    if (!snapshot || event.action !== 'warm') return
+    snapshot.lastWarmAt = Date.now()
     scheduleWrite()
   })
 

@@ -2,7 +2,7 @@ import { readdir, readFile, rm, stat } from 'fs/promises'
 import { join } from 'path'
 import { getGuiDataPath } from './app-data-paths'
 import { CONTEXT_DIR, analyticsDir } from '../../packages/pi-analytics/src/paths'
-import { isCacheModeFileName, isContextSnapshot, snapshotFileName, type ContextSnapshot } from '../../resources/context-snapshot'
+import { isContextSnapshot, snapshotFileName, type ContextSnapshot } from '../../resources/context-snapshot'
 
 /** Where snapshots were written before they moved to pi-analytics' folder; still read for older chats. */
 const LEGACY_CONTEXT_DIR_NAME = 'context-snapshots'
@@ -91,7 +91,7 @@ export async function listContextSnapshots(dir = getContextSnapshotDir(), since 
   return snapshots.filter((snapshot): snapshot is ContextSnapshot => snapshot !== null)
 }
 
-/** Remove snapshots, cache mode files (and temp files a crash left behind) older than the retention window. */
+/** Remove snapshots (and temp files a crash left behind) older than the retention window. */
 export async function pruneContextSnapshots(dir = getContextSnapshotDir(), now = Date.now()): Promise<void> {
   let names: string[]
   try {
@@ -100,7 +100,7 @@ export async function pruneContextSnapshots(dir = getContextSnapshotDir(), now =
     return
   }
   await Promise.all(names.map(async (name) => {
-    if (!name.endsWith('.json') && !name.endsWith('.tmp') && !isCacheModeFileName(name)) return
+    if (!name.endsWith('.json') && !name.endsWith('.tmp')) return
     const path = join(dir, name)
     try {
       const info = await stat(path)

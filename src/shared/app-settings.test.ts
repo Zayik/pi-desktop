@@ -75,11 +75,3 @@ test('normalizeStoredSettings resets an invalid voice device', () => {
   const settings = normalizeStoredSettings({ voiceDevice: 'npu' }, LANGUAGES)
   assert.equal(settings.voiceDevice, DEFAULT_SETTINGS.voiceDevice)
 })
-
-test('the cache mode defaults to keep warm and keeps a known mode', () => {
-  assert.equal(normalizeStoredSettings({}, LANGUAGES).cacheMode, 'keep-warm')
-  assert.equal(normalizeStoredSettings({ cacheMode: 'long' }, LANGUAGES).cacheMode, 'long')
-  assert.equal(normalizeStoredSettings({ cacheMode: 'forever' }, LANGUAGES).cacheMode, 'keep-warm')
-  // Auto mode was removed: a chat saved in it starts in the default.
-  assert.equal(normalizeStoredSettings({ cacheMode: 'auto' }, LANGUAGES).cacheMode, 'keep-warm')
-})

@@ -19,7 +19,6 @@ import type { SubagentQuestion } from '../../../shared/subagent-questions'
 import {
   billingTable,
   cacheHitRate,
-  cacheModeSwitch,
   cacheState,
   contextIsHigh,
   contextTokens,
@@ -27,12 +26,10 @@ import {
   lastCall,
   nextCallEstimate,
   type BillingRow,
-  type CacheModeSwitch,
   type CacheState,
   type TokenKind,
 } from '../../../shared/context-view'
 import type { Translate } from '../../../shared/i18n'
-import { cacheModeLabel } from './cache-mode-label'
 import { formatCompact } from '../utils/format-compact'
 
 const CATEGORY_LABEL_KEYS = {
@@ -678,7 +675,6 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
     ? cache.remainingMs / (cache.lifetimeSeconds * 1000)
     : 0
   const live = cache.status === 'warm' || cache.status === 'expiring'
-  const modeSwitch = cacheModeSwitch(snapshot)
 
   if (!showCache) {
     return (
@@ -741,43 +737,13 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
         {hitRate !== null && (
           <span>{t('chat.contextPanel.cache.hitRate', { percent: Math.round(hitRate * 100) })}</span>
         )}
-        {snapshot.cacheMode && (
-          <span>{t('chat.contextPanel.cache.mode', { mode: cacheModeLabel(snapshot.cacheMode, t) })}</span>
-        )}
         {snapshot.cacheWarming && (
           <span>{t('chat.contextPanel.cache.warming', { mode: snapshot.cacheWarming })}</span>
         )}
       </div>
-      {modeSwitch && <ModeSwitchNote change={modeSwitch} />}
 
       <BillingTableView rows={billing.rows} lastTotal={billing.lastTotal} turnTotal={billing.turnTotal} subagents={subagents} />
     </section>
-  )
-}
-
-/** The first request after a cache mode switch: whether it read the old cache or wrote a new one. */
-function ModeSwitchNote({ change }: { change: CacheModeSwitch }): React.JSX.Element {
-  const { t } = useTranslation()
-  const mode = cacheModeLabel(change.mode, t)
-  const call = change.firstCall
-  return (
-    <div className="mt-2 rounded-md bg-accent-bg px-2.5 py-1.5 text-[11px] text-secondary">
-      {call ? (
-        <>
-          <span className="font-medium text-primary">{t('chat.contextPanel.cache.switchFirstCall', { mode })}</span>{' '}
-          <span className="tabular-nums">
-            {t('chat.contextPanel.cache.switchReadWrite', {
-              read: formatCompact(call.cacheRead),
-              write: formatCompact(call.cacheWrite),
-              readCost: formatUsd(call.cost.cacheRead),
-              writeCost: formatUsd(call.cost.cacheWrite),
-            })}
-          </span>
-        </>
-      ) : (
-        <span>{t('chat.contextPanel.cache.switchPending', { mode })}</span>
-      )}
-    </div>
   )
 }
 

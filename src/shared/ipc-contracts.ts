@@ -7,7 +7,6 @@
 import type { PermissionRule } from '../../resources/permission-rules'
 import type { LinkedTaskMode, RepoRole } from '../../resources/repo-set-map'
 import type { TokenUsage } from './token-usage'
-import type { CacheMode } from '../../resources/context-snapshot'
 
 // ─── IPC Channel Names ──────────────────────────────────────────────────────
 
@@ -114,10 +113,6 @@ export const IPC_CHANNELS = {
   // Context panel
   CONTEXT_GET_SNAPSHOT: 'context:get-snapshot',
   CONTEXT_GET_AGENT_BOARD: 'context:get-agent-board',
-  CONTEXT_GET_CACHE_MODE: 'context:get-cache-mode',
-  CONTEXT_SET_CACHE_MODE: 'context:set-cache-mode',
-  CONTEXT_GET_CACHE_WARMING: 'context:get-cache-warming',
-  CONTEXT_ENABLE_IDLE_CACHE_WARMING: 'context:enable-idle-cache-warming',
   CONTEXT_OPEN_SESSION_PAGE: 'context:open-session-page',
   CONTEXT_SET_DESKTOP_FOCUS: 'context:set-desktop-focus',
 
@@ -1344,8 +1339,6 @@ export interface AppSettings {
   defaultModel: string | null
   defaultProvider: string | null
   defaultThinkingLevel: string | null
-  // Prompt cache mode new chats start in; the composer's cache picker sets it.
-  cacheMode: CacheMode
   defaultCwd: string | null
   // UI font size in px (chat, panels, sidebar). Applied to the document root.
   fontSize: number

@@ -9,7 +9,7 @@ The package is built from Pi Desktop's sources:
 ```bash
 npm install
 npm run build:pi-analytics
-pi install ./packages/pi-analytics      # /analytics, /start-session-analyzer and cache modes in every Pi session
+pi install ./packages/pi-analytics      # /analytics and /start-session-analyzer in every Pi session
 npm link ./packages/pi-analytics        # optional: the pi-analytics command on your PATH
 ```
 
@@ -44,10 +44,8 @@ A small helper serves the page. The first `/start-session-analyzer` (or `pi-anal
 
 Everything lives in `~/.pi/agent/pi-analytics/` (`PI_ANALYTICS_DIR` overrides it; `PI_CODING_AGENT_DIR` moves Pi's agent folder):
 
-- `sessions/<session id>.mode`: `{ "mode": "keep-warm", "changedAt": 1792947193283 }`, a mode picked for one session.
-- `sessions/<session id>.status.json`: what the extension is doing for the session (mode and where it came from, retention, idle refresh limit and count, last request and refresh). The same object is sent as `pi-analytics:status` on `pi.events`.
 - `context/<session id>.json`: the session's context snapshot (Pi Desktop names the same folder for its chats).
 - `server.json`, `server-token`: where the page's helper listens, and its token. `desktop-focus.json`: the chat Pi Desktop has open, while its page follows it.
 - `analytics.sqlite`, `archive/`: the session index and copies of delegate sessions from the temp folder.
 
-A session's mode is its `.mode` file, else `PI_ANALYTICS_CACHE_MODE` (or Pi Desktop's `PI_DESKTOP_CACHE_MODE`). With none of those, the extension leaves Pi alone. When a mode applies, it sets `PI_CACHE_RETENTION` before each request, fills in the vendor's cache lifetime for models Pi's catalog has none for (so Pi's warmer covers Copilot and OpenAI models), and answers Pi's idle `cache_warming_decision` events. It is meant to be the only extension answering those.
+The extension only observes. It changes no request and leaves Pi's cache settings and warming as they are.

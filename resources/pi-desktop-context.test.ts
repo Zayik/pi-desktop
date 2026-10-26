@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { CACHE_MODE_ENV, CACHE_STATUS_EVENT, CONTEXT_DIR_ENV, snapshotFileName, type ContextSnapshot } from './context-snapshot'
+import { CONTEXT_DIR_ENV, snapshotFileName, type ContextSnapshot } from './context-snapshot'
 
 const EXTENSION_URL = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'pi-desktop-context.ts')).href
 const SESSION_ID = 'sess-cache'
@@ -14,13 +14,11 @@ let loadedCopies = 0
 type Handler = (event: Record<string, unknown>, ctx: unknown) => unknown
 
 /** Load a fresh copy of the extension (it reads its environment at load) against a fake Pi. */
-async function loadExtension(env: Record<string, string>, model: Record<string, unknown> | null = null): Promise<{ emit: (name: string, event?: Record<string, unknown>) => unknown; send: (channel: string, data: unknown) => void }> {
+async function loadExtension(env: Record<string, string>, model: Record<string, unknown> | null = null): Promise<{ emit: (name: string, event?: Record<string, unknown>) => unknown }> {
   for (const [name, value] of Object.entries(env)) process.env[name] = value
   const extension = await import(`${EXTENSION_URL}?copy=${++loadedCopies}`) as { default: (pi: ExtensionAPI) => void }
   const handlers = new Map<string, Handler>()
-  const listeners = new Map<string, (data: unknown) => void>()
   const pi = {
-    events: { on: (channel: string, handler: (data: unknown) => void) => { listeners.set(channel, handler); return () => undefined } },
     on: (name: string, handler: Handler) => { handlers.set(name, handler) },
     getActiveTools: () => [],
     getAllTools: () => [],
@@ -34,16 +32,16 @@ async function loadExtension(env: Record<string, string>, model: Record<string, 
     getContextUsage: () => null,
   }
   extension.default(pi as unknown as ExtensionAPI)
-  return { emit: (name, event = {}) => handlers.get(name)?.(event, ctx), send: (channel, data) => listeners.get(channel)?.(data) }
+  return { emit: (name, event = {}) => handlers.get(name)?.(event, ctx) }
 }
 
 async function withDir(run: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), 'context-ext-'))
-  const saved = { dir: process.env[CONTEXT_DIR_ENV], mode: process.env[CACHE_MODE_ENV], retention: process.env.PI_CACHE_RETENTION }
+  const saved = { dir: process.env[CONTEXT_DIR_ENV], retention: process.env.PI_CACHE_RETENTION }
   try {
     await run(dir)
   } finally {
-    for (const [name, value] of [[CONTEXT_DIR_ENV, saved.dir], [CACHE_MODE_ENV, saved.mode], ['PI_CACHE_RETENTION', saved.retention]] as const) {
+    for (const [name, value] of [[CONTEXT_DIR_ENV, saved.dir], ['PI_CACHE_RETENTION', saved.retention]] as const) {
       if (value === undefined) delete process.env[name]
       else process.env[name] = value
     }
@@ -56,42 +54,19 @@ async function readSnapshot(dir: string, emit: (name: string) => unknown): Promi
   return JSON.parse(await readFile(join(dir, snapshotFileName(SESSION_ID)), 'utf8')) as ContextSnapshot
 }
 
-function status(change: Record<string, unknown>): Record<string, unknown> {
-  return { version: 1, sessionId: SESSION_ID, updatedAt: 1, model: null, cacheMode: 'keep-warm', cacheModeSource: 'start', cacheModeChangedAt: null, cacheRetention: 'short', idleLimit: 2, idleWarms: 0, lastRequestAt: null, lastWarmAt: null, ...change }
-}
-
-test('leaves Pi\'s requests and warming decisions to pi-analytics', async () => {
+test('only observes Pi\'s requests and warming decisions', async () => {
   await withDir(async (dir) => {
     delete process.env.PI_CACHE_RETENTION
     const model: Record<string, unknown> = { provider: 'github-copilot', id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }
-    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'long' }, model)
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir }, model)
     emit('session_start')
     emit('context_with_system', { messages: [] })
     assert.equal(emit('cache_warming_decision', { action: 'warm', continuationProbability: 0.15, warmCost: 0, missCost: 0 }), undefined)
     assert.equal(process.env.PI_CACHE_RETENTION, undefined)
     assert.equal(model.promptCache, undefined)
     const snapshot = await readSnapshot(dir, emit)
-    assert.equal(snapshot.cacheRetention, 'long', 'the tier the start mode asks for, until a request shows one')
-  })
-})
-
-test('copies the cache status pi-analytics reports into the snapshot', async () => {
-  await withDir(async (dir) => {
-    const { emit, send } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'keep-warm' })
-    // The package can report before this extension's session starts.
-    send(CACHE_STATUS_EVENT, status({}))
-    emit('session_start')
-    let snapshot = await readSnapshot(dir, emit)
-    assert.equal(snapshot.cacheMode, 'keep-warm')
-    assert.equal(snapshot.cacheModeChangedAt, null, 'the first mode is not a switch')
-
-    emit('session_start')
-    send(CACHE_STATUS_EVENT, status({ cacheMode: 'focus', cacheModeSource: 'session', cacheModeChangedAt: 5678, idleLimit: null, lastWarmAt: 900 }))
-    send(CACHE_STATUS_EVENT, status({ sessionId: 'another' , cacheMode: 'long' }))
-    snapshot = await readSnapshot(dir, emit)
-    assert.equal(snapshot.cacheMode, 'focus')
-    assert.equal(snapshot.cacheModeChangedAt, 5678)
-    assert.equal(snapshot.lastWarmAt, 900)
+    assert.equal(snapshot.cacheRetention, 'short')
+    assert.ok(typeof snapshot.lastWarmAt === 'number', 'a refresh Pi sends is noted')
   })
 })
 

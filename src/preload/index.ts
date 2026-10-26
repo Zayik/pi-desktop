@@ -96,7 +96,7 @@ import type {
 } from '../shared/ipc-contracts'
 import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
-import type { CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
+import type { ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
 import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
@@ -417,14 +417,6 @@ interface PiDesktopAPI {
     getSnapshot(sessionId: string): Promise<ContextSnapshot | null>
     /** The chat and the subagent and worktree sessions that belong to it. */
     getAgentBoard(request: AgentBoardRequest): Promise<AgentBoard>
-    /** Null while the session runs in the mode it started with. */
-    getCacheMode(sessionId: string): Promise<CacheModeChoice | null>
-    /** Applies from the session's next request. */
-    setCacheMode(sessionId: string, mode: CacheMode): Promise<CacheModeChoice>
-    /** Pi's global `cacheWarming` setting, null when unset. */
-    getCacheWarming(): Promise<string | null>
-    /** Sets Pi's global `cacheWarming` to "idle", which keep-warm needs. */
-    enableIdleCacheWarming(): Promise<void>
     /** Opens pi-analytics' live session page in the browser, following the chat open here. */
     openSessionPage(sessionId: string | null): Promise<void>
     /** The chat open now, for the session page to follow once it has been opened. */
@@ -768,10 +760,6 @@ const api: PiDesktopAPI = {
   context: {
     getSnapshot: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, sessionId),
     getAgentBoard: (request) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AGENT_BOARD, request),
-    getCacheMode: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_MODE, sessionId),
-    setCacheMode: (sessionId, mode) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_CACHE_MODE, sessionId, mode),
-    getCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING),
-    enableIdleCacheWarming: () => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_ENABLE_IDLE_CACHE_WARMING),
     openSessionPage: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_OPEN_SESSION_PAGE, sessionId),
     setDesktopFocus: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_DESKTOP_FOCUS, sessionId),
   },

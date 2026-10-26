@@ -288,29 +288,6 @@
       "unknownMimeType": "unknown",
       "unsupportedImageType": "Unsupported image type ({{mimeType}}). Use PNG, JPEG, GIF, or WebP."
     },
-    "cacheMode": {
-      "appliesNext": "Applies from this chat's next request. New chats start in the mode you pick.",
-      "enableIdleWarming": "Turn on idle warming",
-      "idleWarmingEnabled": "Idle warming is on. Restart agents that are already running to pick it up.",
-      "idleWarmingOff": "Keep warm and Auto need Pi's idle cache warming, which is off. Turning it on changes Pi's global setting, so Pi may also refresh idle sessions outside the app when it expects that to save money.",
-      "modes": {
-        "focus": {
-          "detail": "5-minute cache, refreshed only while the agent works. Nothing is paid while idle.",
-          "label": "Focus"
-        },
-        "keepWarm": {
-          "detail": "5-minute cache, refreshed up to 3 times after the agent stops, so it lasts about 15 minutes past your last turn.",
-          "label": "Keep warm"
-        },
-        "long": {
-          "detail": "1-hour cache. Writing it costs 2× input instead of 1.25×, with nothing paid while idle.",
-          "label": "Long"
-        }
-      },
-      "openAnalysis": "Prompt cache analysis",
-      "title": "Prompt cache",
-      "withMode": "Prompt cache: {{mode}}"
-    },
     "closeFileTree": "Close file tree",
     "commandPopup": {
       "selectHint": "↑↓ navigate · Enter/Tab select · Esc close"
@@ -413,16 +390,12 @@
       "cache": {
         "cold": "Cold",
         "hitRate": "Last call {{percent}}% from cache",
-        "mode": "Mode: {{mode}}",
         "modelChanged": "Cold · model changed",
         "nextCold": "Next if expired",
         "nextColdDetail": "rewrites context",
         "nextWarm": "Next if warm",
         "nextWarmDetail": "reads context",
         "none": "No calls yet",
-        "switchFirstCall": "First request in {{mode}}:",
-        "switchPending": "Switched to {{mode}}. The next request shows whether it read the old cache or wrote a new one.",
-        "switchReadWrite": "read {{read}} ({{readCost}}) · wrote {{write}} ({{writeCost}})",
         "thisTurn": "This turn",
         "title": "Prompt cache",
         "titleWithLifetime": "Prompt cache · {{lifetime}}",

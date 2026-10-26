@@ -4,7 +4,6 @@ import { DEFAULT_SIDEBAR_WIDTH } from './sidebar-width'
 import { DEFAULT_CHAT_WIDTH } from './chat-width'
 import { SYSTEM_LANGUAGE } from './i18n/languages'
 import { DEFAULT_KEYBOARD_SHORTCUTS } from './keyboard-shortcuts'
-import { DEFAULT_CACHE_MODE } from '../../resources/context-snapshot'
 
 export const GIT_COMMIT_MESSAGE_CONFIG = {
   maxMessageLength: 10_000,
@@ -35,7 +34,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultModel: null,
   defaultProvider: null,
   defaultThinkingLevel: null,
-  cacheMode: DEFAULT_CACHE_MODE,
   defaultCwd: null,
   fontSize: 16,
   uiFontFamily: '',

@@ -6,7 +6,6 @@ import { getVoiceModel, type VoicePrecision } from './voice-models'
 import { isVoiceDevice } from './voice-device'
 import { isChatWidth } from './chat-width'
 import { normalizeKeyboardShortcuts } from './keyboard-shortcuts'
-import { isCacheMode } from '../../resources/context-snapshot'
 
 const ENGINE_SETTINGS: readonly AgentEngine[] = ['auto', 'pi', 'omp']
 const VOICE_PRECISIONS: readonly VoicePrecision[] = ['int8', 'fp16']
@@ -35,8 +34,6 @@ export function normalizeStoredSettings(stored: Record<string, unknown>, languag
   if (typeof merged.defaultThinkingLevel !== 'string' || !merged.defaultThinkingLevel.trim()) {
     merged.defaultThinkingLevel = DEFAULT_SETTINGS.defaultThinkingLevel
   }
-  // A mode this version no longer has (such as Auto) starts new chats in the default.
-  if (!isCacheMode(merged.cacheMode)) merged.cacheMode = DEFAULT_SETTINGS.cacheMode
   merged.language = normalizeLanguageSetting(merged.language, languages)
   merged.shortcuts = normalizeKeyboardShortcuts(merged.shortcuts)
   if (typeof merged.voiceModel !== 'string' || !getVoiceModel(merged.voiceModel)) {
