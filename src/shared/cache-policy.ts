@@ -10,7 +10,7 @@
  *
  * Provider rules (checked 2026-10-25):
  * - Anthropic (API, Bedrock, Vertex, OpenRouter): 5 minutes (write 1.25x) or
- *   1 hour (write 2x), read 0.1x (0.05x Opus 5.5, 0.025x Fable and
+ *   1 hour (write 2x), read 0.1x (0.05x Opus and Sonnet 5.5, 0.025x Fable and
  *   Mythos 5.1; see anthropic-prices.ts). A hit restarts the lifetime.
  * - OpenAI GPT-5.6 and later: 30 minutes (write 1.25x) or 12 hours (write
  *   2.5x), read 0.1x (0.05x GPT-6.1 Sol). A hit keeps an entry at least 30

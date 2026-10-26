@@ -29,6 +29,7 @@ const PRICES: Array<[RegExp, AnthropicPrice]> = [
   [/opus-5/, { input: 5, output: 25, readRatio: 0.1 }],
   [/opus-4[-.][5-9]/, { input: 5, output: 25, readRatio: 0.1 }],
   [/opus-4|3-opus/, { input: 15, output: 75, readRatio: 0.1 }],
+  [/sonnet-5[-.]5/, { input: 2, output: 10, readRatio: 0.05 }],
   [/sonnet-5/, { input: 2, output: 10, readRatio: 0.1 }],
   [/sonnet-4|3-[57]-sonnet/, { input: 3, output: 15, readRatio: 0.1 }],
   [/haiku-5[-.]5/, { input: 0.1, output: 0.5, readRatio: 0.1, longPrompt: { over: 100_000, input: 0.5, output: 2.5 } }],
