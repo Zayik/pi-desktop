@@ -138,7 +138,19 @@
         "writeMultiple": "写入 {{multiple}} 倍",
         "writes": "写入 +{{cost}}"
       },
-      "title": "提示缓存"
+      "title": "提示缓存",
+      "prices": {
+        "title": "模型价格",
+        "note": "上方模型每百万令牌的标价。Copilot 按这些厂商价格对 Claude 和 GPT 模型计费。",
+        "input": "输入",
+        "output": "输出",
+        "read": "缓存读取",
+        "writeShort": "缓存写入（短）",
+        "writeLong": "缓存写入（长）",
+        "over": "超过 {{tokens}} 令牌（{{multiple}} 倍）",
+        "unknown": "不在价格表中；分析使用会话实际计费",
+        "footnote": "超过阈值后，提示的每个令牌（无论是否缓存）都按较高一行计费。短横线表示缓存是自动的，写入不额外收费。你自己的会话按实际计费分析；这些标价用于日志中没有费用的情况。"
+      }
     },
     "prompts": {
       "cost": "费用",

@@ -145,7 +145,19 @@
         "writeMultiple": "writes {{multiple}}x",
         "writes": "writes +{{cost}}"
       },
-      "title": "Prompt cache"
+      "title": "Prompt cache",
+      "prices": {
+        "title": "Model prices",
+        "note": "List prices per million tokens for the models above. Copilot bills Claude and GPT models at these vendor rates.",
+        "input": "Input",
+        "output": "Output",
+        "read": "Cache read",
+        "writeShort": "Cache write (short)",
+        "writeLong": "Cache write (long)",
+        "over": "over {{tokens}} tokens ({{multiple}}x)",
+        "unknown": "Not in the price list; the analysis uses what your sessions were billed",
+        "footnote": "Past its threshold a prompt is billed at the higher row on every token, cached or not. A dash means the cache is automatic and writes cost nothing extra. Your own sessions are analyzed at what they were billed; these list prices fill in where a log has no cost."
+      }
     },
     "prompts": {
       "cost": "Cost",

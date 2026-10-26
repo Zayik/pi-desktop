@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
@@ -21,6 +21,7 @@ import {
 } from '../../../shared/cache-analysis'
 import { CACHE_RULES_CHECKED } from '../../../shared/cache-policy'
 import { importSourceOf, type ImportSource } from '../../../shared/import-sources'
+import { formatPerMillion, priceSheet, type PriceBand } from '../../../shared/list-prices'
 import type { Translate } from '../../../shared/i18n'
 
 const MINUTE = 60_000
@@ -376,6 +377,8 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
           onClose={() => setSelectedDay(null)}
         />
       )}
+
+      <ModelPrices models={analysis.groups.flatMap((group) => group.models.map((model) => model.model))} />
 
       <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
     </section>
@@ -806,6 +809,66 @@ function DayView({ entries, lines, mode, dayStart, firstSlot, title, onPrevious,
         />
       )}
       {warmable.length > 0 && <p className="text-[10px] text-faint">{t('analytics.promptCache.day.bestNote')}</p>}
+    </div>
+  )
+}
+
+
+/** The list prices of the models in the analysis, with the rates past each long-prompt threshold. */
+function ModelPrices({ models }: { models: string[] }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  // Copilot and imported logs bill the vendor's rates, so one row per model id.
+  const ids = [...new Set(models.map(modelName))].sort((a, b) => a.localeCompare(b))
+  if (ids.length === 0) return null
+  const cells = (band: PriceBand, lifetimes: [string, string] | null): React.JSX.Element => (
+    <>
+      <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.input)}</td>
+      <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.output)}</td>
+      <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.cacheRead)}</td>
+      <td className="py-1 pl-2 text-right tabular-nums">{formatPerMillion(band.writeShort)}{lifetimes && <span className="ml-1 text-[10px] text-faint">{lifetimes[0]}</span>}</td>
+      <td className="py-1 pl-2 pr-2 text-right tabular-nums">{formatPerMillion(band.writeLong)}{lifetimes && <span className="ml-1 text-[10px] text-faint">{lifetimes[1]}</span>}</td>
+    </>
+  )
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.prices.title')}</div>
+      <p className="mt-0.5 text-[11px] text-dim">{t('analytics.promptCache.prices.note')}</p>
+      <div className="mt-1.5 overflow-x-auto">
+        <table className="w-full min-w-[620px] whitespace-nowrap text-xs">
+          <thead>
+            <tr className="text-[10px] text-faint">
+              <th className="pb-1 pl-2 text-left font-medium">{t('analytics.promptCache.table.model')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.input')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.output')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.read')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.prices.writeShort')}</th>
+              <th className="pb-1 pl-2 pr-2 text-right font-medium">{t('analytics.promptCache.prices.writeLong')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ids.map((id) => {
+              const sheet = priceSheet(id)
+              return (
+                <Fragment key={id}>
+                  <tr className="border-t border-border text-secondary">
+                    <td className="py-1 pl-2 font-mono text-primary">{id}</td>
+                    {sheet ? cells(sheet.base, sheet.lifetimes) : (
+                      <td colSpan={5} className="py-1 pl-2 text-right text-faint">{t('analytics.promptCache.prices.unknown')}</td>
+                    )}
+                  </tr>
+                  {sheet?.longPrompt && (
+                    <tr className="text-warning">
+                      <td className="pb-1 pl-5 text-[11px]">{t('analytics.promptCache.prices.over', { tokens: `${Math.round(sheet.longPrompt.over / 1000)}K`, multiple: Number((sheet.longPrompt.input / sheet.base.input).toFixed(2)) })}</td>
+                      {cells(sheet.longPrompt, sheet.lifetimes)}
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-1 text-[10px] text-faint">{t('analytics.promptCache.prices.footnote')}</p>
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/an
 import type { AnalyticsSource } from '../../../src/shared/session-analytics'
 import { IMPORT_SOURCE_NAMES, type ImportSource } from '../../../src/shared/import-sources'
 import { IMPORT_ENV } from '../../../src/main/pi-paths'
-import { cacheLines } from './cache-text'
+import { cacheLines, priceLines } from './cache-text'
 import { analyticsDir } from './paths'
 import { buildEnvelope, listSources, writeReport } from './report'
 import { openFile } from './open'
@@ -16,6 +16,8 @@ export const USAGE = [
   '    Write the HTML report (the same view as Pi Desktop) and open it.',
   'pi-analytics cache [--range ...] [--details 5m|30m]',
   '    Whether keep-warm pings would have saved money, and how many, per cache lifetime and model. Read only.',
+  'pi-analytics prices [--range ...]',
+  '    List prices per million tokens (input, output, cache read and writes) of the models you used, with the long-prompt rates.',
   'pi-analytics sessions [--session <id>] [--no-open]',
   '    Open the live page of every Pi session on this machine (the same view as Pi Desktop\'s Context panel).',
   'pi-analytics serve [--port <port>]',
@@ -85,6 +87,10 @@ export async function runCommand(args: string | string[], options: CommandOption
       if (details !== undefined && details !== '5m' && details !== '30m') return ['--details takes 5m or 30m.']
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
       return cacheLines(envelope.data.report.cacheAnalysis, details ?? null)
+    }
+    case 'prices': {
+      const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
+      return priceLines(envelope.data.report.cacheAnalysis)
     }
     case 'sessions': {
       const { sessionPageUrl } = await import('./live/launch')
