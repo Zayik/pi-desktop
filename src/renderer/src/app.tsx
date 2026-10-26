@@ -47,6 +47,12 @@ export function App(): React.JSX.Element {
   const workflowPanelOpen = useAppStore((state) => state.workflowPanelOpen)
   const workflowPanelFilter = useAppStore((state) => state.workflowPanelFilter)
   const workflowPanelWorkspaceId = useAppStore((state) => state.workflowPanelWorkspaceId)
+  const openSessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
+
+  // The live session page, once popped out, follows the chat open here.
+  useEffect(() => {
+    void window.piDesktop.context.setDesktopFocus(openSessionId).catch(() => {})
+  }, [openSessionId])
 
   // Global context menu
   const { show, ContextMenuComponent } = useContextMenu()

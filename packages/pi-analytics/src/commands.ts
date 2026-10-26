@@ -2,13 +2,13 @@
  * The commands `pi-analytics` and Pi's `/analytics` share. Each returns the
  * lines to show; the caller prints them or puts them in a notification.
  */
-import { spawn } from 'child_process'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
 import { applyRecommendations, describePlan, setCacheControl, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
 import { describeRecommendation, withAlternative, LONG_MARGIN, type CacheRecommendation } from './recommendations'
 import { buildEnvelope, writeReport } from './report'
+import { openFile } from './open'
 
 export const USAGE = [
   'pi-analytics report [--range 7|30|90|365|all] [--out <file>] [--no-open] [--rebuild]',
@@ -24,6 +24,10 @@ export const USAGE = [
   '    Off: the package only reads, and Pi runs with its own cache settings (the plan is kept). On: the plan applies again.',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
+  'pi-analytics sessions [--session <id>] [--no-open]',
+  '    Open the live page of every Pi session on this machine (the same view as Pi Desktop\'s Context panel).',
+  'pi-analytics serve [--port <port>]',
+  '    Run the page\'s helper in this terminal instead of in the background.',
 ]
 
 export interface CommandOptions {
@@ -55,7 +59,7 @@ function parse(argv: string[]): Parsed {
       continue
     }
     const [name, inline] = arg.slice(2).split('=', 2)
-    const valued = name === 'range' || name === 'out' || name === 'project'
+    const valued = name === 'range' || name === 'out' || name === 'project' || name === 'session'
     if (inline !== undefined) flags.set(name, inline)
     else if (valued && rest[i + 1] !== undefined) flags.set(name, rest[++i])
     else flags.set(name, true)
@@ -71,16 +75,6 @@ function rangeOf(flags: Parsed['flags']): AnalyticsRangeKey {
   return key
 }
 
-export function openFile(path: string): void {
-  const [command, args] = process.platform === 'darwin' ? ['open', [path]]
-    : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', path]]
-      : ['xdg-open', [path]]
-  try {
-    spawn(command, args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref()
-  } catch {
-    // No opener: the path is printed.
-  }
-}
 
 /** Run one command line (`args` as typed after `/analytics` or `pi-analytics`). */
 export async function runCommand(args: string | string[], options: CommandOptions = {}): Promise<string[]> {
@@ -197,6 +191,13 @@ export async function runCommand(args: string | string[], options: CommandOption
         `Pi's cacheWarming: ${warming ?? 'not set (refreshes only while the agent works)'}`,
         ...(plan.history.length > 0 ? [`${plan.history.length} change${plan.history.length === 1 ? '' : 's'} on record; the last: ${plan.history.at(-1)?.summary}`] : []),
       ]
+    }
+    case 'sessions': {
+      const { sessionPageUrl } = await import('./live/launch')
+      const session = flags.get('session')
+      const url = await sessionPageUrl(typeof session === 'string' ? session : null, { dir })
+      if (!flags.has('no-open')) (options.open ?? openFile)(url)
+      return [`Session page: ${url}`]
     }
     case 'help':
     case '--help':

@@ -1,0 +1,3 @@
+/* The same theme and font as the report page. */
+@import '../report/report.css';
+@source './';

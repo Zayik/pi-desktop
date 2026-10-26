@@ -331,6 +331,7 @@
       "title": ""
     },
     "cacheMode": {
+      "allModels": "所有模型的缓存设置",
       "appliesNext": "",
       "autoHour_other": "",
       "autoHours": "",
@@ -338,6 +339,7 @@
       "autoNow_other": "",
       "autoOverride": "",
       "checkRecommendation": "",
+      "controlOff": "设置中的缓存控制已关闭，Pi 使用自身的缓存设置；此选择会在重新开启后生效。",
       "enableIdleWarming": "",
       "idleWarmingEnabled": "",
       "idleWarmingOff": "",
@@ -359,15 +361,13 @@
           "label": ""
         }
       },
-      "title": "",
-      "withMode": "",
-      "pingsLabel": "代理停止后的保温请求",
-      "pingsFewer": "减少",
-      "pingsMore": "增加",
       "pingsDetail": "让此模型 {{lifetime}} 分钟的缓存在代理停止后保持约 {{minutes}} 分钟。最多 {{cap}} 次：Pi 在运行结束 30 分钟后停止保温。按模型保存。",
+      "pingsFewer": "减少",
+      "pingsLabel": "代理停止后的保温请求",
+      "pingsMore": "增加",
       "pingsNotWarmed": "Pi 没有此模型的缓存时长，因此不会为它保温。",
-      "controlOff": "设置中的缓存控制已关闭，Pi 使用自身的缓存设置；此选择会在重新开启后生效。",
-      "allModels": "所有模型的缓存设置"
+      "title": "",
+      "withMode": ""
     },
     "closeFileTree": "关闭文件树",
     "commandPopup": {
@@ -495,6 +495,7 @@
       "loading": "",
       "noSession": "",
       "noSnapshot": "",
+      "openInBrowser": "",
       "tiles": {
         "calls_other": "",
         "context": "",
@@ -1605,6 +1606,28 @@
     "sessionStatusHeading": "会话状态",
     "subtitle": "在更改推进前，控制 {{agent}} 可以执行的操作。"
   },
+  "sessionPage": {
+    "followDesktop": "",
+    "historyNote": "",
+    "live": "",
+    "loading": "",
+    "noData": "",
+    "none": "",
+    "pick": "",
+    "recent": "",
+    "reconnecting": "",
+    "running": "",
+    "state": {
+      "ended": "",
+      "history": "",
+      "idle": "",
+      "stopped": "",
+      "working": ""
+    },
+    "stoppedNote": "",
+    "title": "",
+    "untitled": ""
+  },
   "sessions": {
     "activeBadge": "进行中",
     "archivedBadge": "已归档",
@@ -1691,6 +1714,34 @@
     "autoScroll": {
       "description": "自动滚动到新消息",
       "label": "自动滚动"
+    },
+    "cache": {
+      "apply": "应用",
+      "cancel": "取消",
+      "control": "缓存控制",
+      "controlOff": "关闭：Pi 使用自身的缓存设置。下方设置会保留，重新开启后生效。",
+      "controlOn": "开启：每个模型使用下方设置，聊天使用为其选择的模式。",
+      "empty": "还没有模型设置。点击“推荐”列出你用过的模型。",
+      "keepWarmPings_other": "保温 · {{count}} 次",
+      "lifetime": "缓存",
+      "minutes": "≈{{minutes}} 分钟",
+      "model": "模型",
+      "note": "按模型保存，适用于 Pi Desktop 和 Pi CLI 中的所有聊天。未设置：Pi Desktop 聊天使用其起始模式（默认为保温），Pi CLI 不做更改。在某个聊天菜单中选择的模式在该聊天中仍优先。",
+      "off": "关",
+      "on": "开",
+      "or": "或 {{setting}}",
+      "piDefault": "未设置",
+      "pingsTitle": "代理停止后保持约 {{minutes}} 分钟；最多 {{cap}} 次",
+      "proposed": "建议（最近 30 天）",
+      "recommend": "推荐",
+      "recommendAgain": "重新推荐",
+      "reset": "恢复默认",
+      "resetConfirm": "全部重置",
+      "resetDetail": "清除每个模型的设置，开启缓存控制，并将 Pi 的保温设置恢复为首次更改前的值。",
+      "saves": "每周节省 {{amount}}",
+      "setting": "设置",
+      "settingFor": "{{model}} 的缓存设置",
+      "undo": "撤销"
     },
     "chatWidth": {
       "description": "消息和输入框可以扩展的宽度",
@@ -1791,9 +1842,9 @@
       "behavior": "行为",
       "customModels": "自定义模型",
       "multiAgentCouncilPlanning": "多智能体委员会规划",
+      "promptCache": "提示缓存",
       "typesafe": "TypeSafe Jev",
-      "voiceDictation": "语音听写",
-      "promptCache": "提示缓存"
+      "voiceDictation": "语音听写"
     },
     "shortcuts": {
       "actionWithShortcut": "{{action}}（{{shortcut}}）",
@@ -1909,34 +1960,6 @@
       "selected": "使用中",
       "sizeMb": "约 {{mb}} MB",
       "use": "使用"
-    },
-    "cache": {
-      "control": "缓存控制",
-      "controlOn": "开启：每个模型使用下方设置，聊天使用为其选择的模式。",
-      "controlOff": "关闭：Pi 使用自身的缓存设置。下方设置会保留，重新开启后生效。",
-      "on": "开",
-      "off": "关",
-      "undo": "撤销",
-      "reset": "恢复默认",
-      "resetConfirm": "全部重置",
-      "cancel": "取消",
-      "resetDetail": "清除每个模型的设置，开启缓存控制，并将 Pi 的保温设置恢复为首次更改前的值。",
-      "model": "模型",
-      "lifetime": "缓存",
-      "setting": "设置",
-      "proposed": "建议（最近 30 天）",
-      "empty": "还没有模型设置。点击“推荐”列出你用过的模型。",
-      "piDefault": "未设置",
-      "settingFor": "{{model}} 的缓存设置",
-      "pingsTitle": "代理停止后保持约 {{minutes}} 分钟；最多 {{cap}} 次",
-      "minutes": "≈{{minutes}} 分钟",
-      "keepWarmPings_other": "保温 · {{count}} 次",
-      "saves": "每周节省 {{amount}}",
-      "apply": "应用",
-      "or": "或 {{setting}}",
-      "note": "按模型保存，适用于 Pi Desktop 和 Pi CLI 中的所有聊天。未设置：Pi Desktop 聊天使用其起始模式（默认为保温），Pi CLI 不做更改。在某个聊天菜单中选择的模式在该聊天中仍优先。",
-      "recommend": "推荐",
-      "recommendAgain": "重新推荐"
     }
   },
   "sidebar": {
