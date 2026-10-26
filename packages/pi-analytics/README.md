@@ -21,6 +21,7 @@ The same commands run as `pi-analytics <command>` in a terminal or `/analytics <
 |---|---|
 | `report [--range 7\|30\|90\|365\|all] [--out file] [--no-open] [--rebuild]` | Writes the HTML report to `~/.pi/agent/pi-analytics/reports/` and opens it. Default range: 30 days. |
 | `cache [--range ...] [--details 5m\|30m]` | Per cache lifetime and model: the hit rate, the ping count that would have cost least, and what it saves a week. `--details` adds every count's cost, the per-model and per-break comparisons, and the last two weeks side by side. |
+| `sources [--rebuild]` | Which tools' sessions are read, with how many sessions, the days they cover and their list-price cost. |
 
 | `sessions [--session <id>] [--no-open]` | Opens the live session page (below). |
 | `serve [--port <port>]` | Runs the page's helper in the foreground, to see its log. |
@@ -39,6 +40,18 @@ A small helper serves the page. The first `/start-session-analyzer` (or `pi-anal
 - The address carries a token kept in `server-token`, readable only by you; a request without it gets nothing. The page keeps working across helper restarts, and an open page reconnects by itself.
 - A session's state comes from its process: the snapshot names the process and when it started, so a Pi that was killed shows as stopped within a couple of seconds, and a later process given the same id is not mistaken for it.
 - Opened from Pi Desktop, the page follows the chat open in the app until you pick another session.
+
+## Other tools' sessions
+
+The report also reads other tools' local logs, so the cache replay can check warming against more than Pi's own history. Their models show as `<tool>/<model>` with a "from ..." label, analyzed like Pi's own for reference.
+
+| Tool | Folder | Per call | Turn off |
+|---|---|---|---|
+| Claude Code | `~/.claude/projects` (`CLAUDE_CONFIG_DIR`) | Measured, including the 5-minute and 1-hour write split | `PI_ANALYTICS_CLAUDE_CODE=0` |
+| Codex CLI | `~/.codex/sessions`, `archived_sessions` (`CODEX_HOME`) | Measured; writes derived (input minus cached) for GPT-5.6 and later | `PI_ANALYTICS_CODEX=0` |
+| Copilot app and CLI | `~/.copilot/session-state` (`COPILOT_HOME`) | Timing measured; prompt sizes estimated from each run's totals | `PI_ANALYTICS_COPILOT=0` |
+
+All three are priced at the vendors' API list prices, so subscription sessions show what the API would have charged. ChatGPT's data export has no token counts, so it cannot be read.
 
 ## Files
 

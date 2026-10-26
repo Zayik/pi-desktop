@@ -2,6 +2,7 @@
  * The Prompt cache section as text, for `pi-analytics cache` and Pi's
  * `/analytics cache`: the same numbers as the desktop cards and chart.
  */
+import { IMPORT_SOURCE_NAMES, importSourceOf } from '../../../src/shared/import-sources'
 import { summarize, weekSplit, type CacheAnalysis, type CacheGroupAnalysis, type CacheGroupId, type PingSummary } from '../../../src/shared/cache-analysis'
 
 const GROUP_NAMES: Record<CacheGroupId, string> = {
@@ -20,8 +21,11 @@ function pings(count: number): string {
   return count === 0 ? 'no pings' : `${count} ping${count === 1 ? '' : 's'}`
 }
 
+/** The model without its provider, with the tool it came from when another tool ran it. */
 function modelName(model: string): string {
-  return model.split('/').slice(1).join('/') || model
+  const name = model.split('/').slice(1).join('/') || model
+  const source = importSourceOf(model)
+  return source ? `${name} (${IMPORT_SOURCE_NAMES[source]}${source === 'copilot' ? ', estimated' : ''})` : name
 }
 
 function percent(share: number | null): string {

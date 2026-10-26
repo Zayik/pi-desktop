@@ -20,6 +20,7 @@ import {
   type PingSummary,
 } from '../../../shared/cache-analysis'
 import { CACHE_RULES_CHECKED } from '../../../shared/cache-policy'
+import { importSourceOf, type ImportSource } from '../../../shared/import-sources'
 import type { Translate } from '../../../shared/i18n'
 
 const MINUTE = 60_000
@@ -34,6 +35,13 @@ const LIFETIME_KEYS = {
   '30m': 'analytics.promptCache.lifetime.thirtyMinutes',
   automatic: 'analytics.promptCache.lifetime.automatic',
 } as const satisfies Record<CacheGroupId, string>
+
+/** Models from other tools' logs: shown for reference beside Pi's own. */
+const IMPORT_KEYS = {
+  'claude-code': 'analytics.promptCache.table.fromClaudeCode',
+  codex: 'analytics.promptCache.table.fromCodex',
+  copilot: 'analytics.promptCache.table.fromCopilot',
+} as const satisfies Record<ImportSource, string>
 
 const CONFIDENCE_KEYS = {
   none: 'analytics.promptCache.confidence.none',
@@ -407,6 +415,13 @@ function Summary({ entry, entries, weeks }: { entry: ModelEntry | null; entries:
   return <p className="text-[13px] font-medium leading-snug text-primary">{text}</p>
 }
 
+/** Which tool ran a model, when it was not Pi. */
+function SourceTag({ model }: { model: string }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const source = importSourceOf(model)
+  return source ? <span className="rounded-full bg-card px-1.5 font-medium">{t(IMPORT_KEYS[source])}</span> : null
+}
+
 function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
   entries: ModelEntry[]
   maxPings: number
@@ -521,8 +536,10 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
               modelName(entry.model.model),
               cost,
               <div className="flex items-center gap-1.5 text-[10px] text-dim" title={entry.model.model}>
+                <SourceTag model={entry.model.model} />
                 <span>{t(LIFETIME_KEYS[entry.group.id])}</span>
                 {entry.model.writeMultiple !== null && <span>{t('analytics.promptCache.table.writeMultiple', { multiple: entry.model.writeMultiple })}</span>}
+                {entry.model.estimatedCalls > 0 && <span title={t('analytics.promptCache.table.estimatedTitle')}>{t('analytics.promptCache.table.estimated')}</span>}
                 {entry.summary.hitRate !== null && <span>{t('analytics.promptCache.table.hitRate', { rate: Math.round(entry.summary.hitRate * 100) })}</span>}
                 {entry.group.id !== 'automatic' && entry.summary.confidence !== 'solid' && (
                   <span className={clsx('rounded-full px-1.5 font-medium', CONFIDENCE_CLASSES[entry.summary.confidence])}>{t(CONFIDENCE_KEYS[entry.summary.confidence])}</span>

@@ -6,7 +6,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { AnalyticsIndex } from '../../../src/main/analytics-index'
+import { AnalyticsIndex, type SourceSummary } from '../../../src/main/analytics-index'
+import type { AnalyticsSource } from '../../../src/shared/session-analytics'
 import type { AnalyticsRangeKey } from '../../../src/shared/analytics-report'
 import { REPORT_DATA_MARKER, REPORT_ENVELOPE_VERSION, type ReportEnvelope } from './envelope'
 import { ARCHIVE_DIR, INDEX_FILE, REPORTS_DIR, analyticsDir } from './paths'
@@ -43,6 +44,20 @@ export async function buildEnvelope(options: BuildOptions = {}): Promise<ReportE
         language: options.language ?? 'en',
       },
     }
+  } finally {
+    index.close()
+  }
+}
+
+/** The folders each tool's sessions are read from, and what the index holds from each. */
+export async function listSources(options: { dir?: string; rebuild?: boolean } = {}): Promise<{ roots: { source: AnalyticsSource; root: string }[]; counts: SourceSummary[] }> {
+  const dir = options.dir ?? analyticsDir()
+  mkdirSync(dir, { recursive: true })
+  const index = new AnalyticsIndex({ dbPath: join(dir, INDEX_FILE), archiveDir: join(dir, ARCHIVE_DIR) })
+  try {
+    if (options.rebuild) await index.rebuild()
+    else await index.refresh(true)
+    return { roots: index.roots(), counts: index.sources() }
   } finally {
     index.close()
   }

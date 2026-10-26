@@ -36,6 +36,8 @@ export interface CacheModelAnalysis {
   route: CacheRoute
   group: CacheGroupId
   calls: number
+  /** Calls whose input, reads and writes were spread from session totals (Copilot logs no per-call usage). */
+  estimatedCalls: number
   /** Measured prompt tokens, and the part of them read from the cache. */
   promptTokens: number
   readTokens: number
@@ -151,6 +153,7 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       route: profile.route,
       group: id,
       calls: all.length,
+      estimatedCalls: all.filter((call) => call[10] === 1).length,
       promptTokens: all.reduce((sum, call) => sum + promptTokens(call), 0),
       readTokens: all.reduce((sum, call) => sum + call[3], 0),
       longBreaks: 0,

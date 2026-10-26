@@ -1,6 +1,7 @@
 import { join } from 'path'
 import { isPathWithin } from '../../resources/path-within'
 import type { AgentEngineKind } from '../shared/ipc-contracts'
+import type { ImportSource } from '../shared/import-sources'
 
 /**
  * Absolute path to Pi's on-disk session store (`~/.pi/agent/sessions`).
@@ -71,4 +72,38 @@ export function engineForBoundSession(
  */
 export function isWithinSessionRoots(candidate: string): boolean {
   return engineForSessionPath(candidate) !== null
+}
+
+/** Another tool's session folder the analytics reads, and how deep its files sit. */
+export interface ImportRoot {
+  source: ImportSource
+  root: string
+  depth: number
+}
+
+/** Setting one of these to `0` leaves that tool's sessions out of the analytics. */
+export const IMPORT_ENV: Record<ImportSource, string> = {
+  'claude-code': 'PI_ANALYTICS_CLAUDE_CODE',
+  codex: 'PI_ANALYTICS_CODEX',
+  copilot: 'PI_ANALYTICS_COPILOT',
+}
+
+/**
+ * Other tools' session folders, read beside Pi's own:
+ * - Claude Code: `~/.claude/projects` (or `CLAUDE_CONFIG_DIR`), `<project>/<session>.jsonl`
+ *   with subagents in `<project>/<session>/subagents/`.
+ * - Codex: `~/.codex` (or `CODEX_HOME`), `sessions/YYYY/MM/DD/rollout-*.jsonl` and `archived_sessions/`.
+ * - The Copilot app and CLI: `~/.copilot` (or `COPILOT_HOME`), `session-state/<session>/events.jsonl`.
+ */
+export function getImportRoots(env: NodeJS.ProcessEnv = process.env): ImportRoot[] {
+  const home = env.HOME ?? env.USERPROFILE ?? ''
+  const codexHome = env.CODEX_HOME || join(home, '.codex')
+  const copilotHome = env.COPILOT_HOME || join(home, '.copilot')
+  const roots: ImportRoot[] = [
+    { source: 'claude-code', root: join(env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'projects'), depth: 3 },
+    { source: 'codex', root: join(codexHome, 'sessions'), depth: 3 },
+    { source: 'codex', root: join(codexHome, 'archived_sessions'), depth: 0 },
+    { source: 'copilot', root: join(copilotHome, 'session-state'), depth: 1 },
+  ]
+  return roots.filter((root) => env[IMPORT_ENV[root.source]] !== '0')
 }

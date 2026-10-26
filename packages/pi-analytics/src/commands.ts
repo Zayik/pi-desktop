@@ -3,9 +3,12 @@
  * lines to show; the caller prints them or puts them in a notification.
  */
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
+import type { AnalyticsSource } from '../../../src/shared/session-analytics'
+import { IMPORT_SOURCE_NAMES, type ImportSource } from '../../../src/shared/import-sources'
+import { IMPORT_ENV } from '../../../src/main/pi-paths'
 import { cacheLines } from './cache-text'
 import { analyticsDir } from './paths'
-import { buildEnvelope, writeReport } from './report'
+import { buildEnvelope, listSources, writeReport } from './report'
 import { openFile } from './open'
 
 export const USAGE = [
@@ -17,7 +20,11 @@ export const USAGE = [
   '    Open the live page of every Pi session on this machine (the same view as Pi Desktop\'s Context panel).',
   'pi-analytics serve [--port <port>]',
   '    Run the page\'s helper in this terminal instead of in the background.',
+  'pi-analytics sources [--rebuild]',
+  '    List the tools whose sessions are read (Pi, Claude Code, Codex, the Copilot app and CLI), with how many sessions and the days they cover.',
 ]
+
+const SOURCE_LABELS: Record<AnalyticsSource, string> = { pi: 'Pi', ...IMPORT_SOURCE_NAMES }
 
 export interface CommandOptions {
   dir?: string
@@ -85,6 +92,24 @@ export async function runCommand(args: string | string[], options: CommandOption
       const url = await sessionPageUrl(typeof session === 'string' ? session : null, { dir })
       if (!flags.has('no-open')) (options.open ?? openFile)(url)
       return [`Session page: ${url}`]
+    }
+    case 'sources': {
+      const sources = await listSources({ dir, rebuild: flags.has('rebuild') })
+      const day = (at: number | null): string => (at === null ? '?' : new Date(at).toISOString().slice(0, 10))
+      return [
+        ...sources.roots.map(({ source, root }) => {
+          const found = sources.counts.find((count) => count.source === source)
+          const label = SOURCE_LABELS[source]
+          return found
+            ? `${label}: ${found.sessions} session${found.sessions === 1 ? '' : 's'}, ${day(found.firstAt)} to ${day(found.lastAt)}, $${found.cost.toFixed(2)} at list prices (${root})`
+            : `${label}: no sessions found in ${root}`
+        }),
+        ...(Object.keys(IMPORT_ENV) as ImportSource[])
+          .filter((source) => !sources.roots.some((root) => root.source === source))
+          .map((source) => `${SOURCE_LABELS[source]}: off (${IMPORT_ENV[source]}=0)`),
+        'Other tools\' sessions are priced at the vendors\' list prices, also when they ran on a subscription. Their caches are analyzed the same way, for reference.',
+        'Copilot logs only totals per run, so each Copilot call\'s prompt size is estimated; its timing is measured.',
+      ]
     }
     case 'help':
     case '--help':

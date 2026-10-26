@@ -117,7 +117,12 @@
         "vsNoCache": "与不缓存（每周 {{noCache}}）相比，{{multiple}} 倍的缓存写入多花 {{writes}}，更便宜的读取省下 {{reads}}（未计保温请求）。"
       },
       "table": {
+        "estimated": "估算",
+        "estimatedTitle": "Copilot 只记录每次运行的总量，因此每次调用的提示大小是根据对话增长估算的；时间是实测的。",
         "footnote": "长缓存即 Anthropic 的 1 小时缓存：写入按输入价的 2 倍计费（而非 1.25 倍），读取价格不变，Pi 不会为其发送保温请求。30 分钟缓存的模型在 Pi 中没有更长的时长可选。不缓存仅用于对比花费，从不推荐。每次间隔的最佳次数是事后计算：每次间隔都取最省钱的次数，即按时段安排最多能节省的金额。",
+        "fromClaudeCode": "来自 Claude Code",
+        "fromCodex": "来自 Codex",
+        "fromCopilot": "来自 Copilot",
         "hitRate": "命中 {{rate}}%",
         "long": "长（1 小时）",
         "longTitle": "Anthropic 的 1 小时缓存：写入按输入价的 2 倍计费（而非 1.25 倍），读取价格不变，Pi 不会为其发送保温请求",

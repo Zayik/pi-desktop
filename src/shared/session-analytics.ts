@@ -110,6 +110,8 @@ export type CacheCall = [
   cacheWriteCost: number,
   /** 1 for a cache-warming ping Pi sent while idle; missing or 0 for a real call (rows from before version 3 have none). */
   ping?: number,
+  /** 1 when the tool logged only session totals, so this call's split into input, reads and writes is estimated. */
+  estimated?: number,
 ]
 
 export interface DayFact {
@@ -118,8 +120,14 @@ export interface DayFact {
   activeMs: number
 }
 
+/** The tool that wrote a session: Pi, or one imported from another tool's logs. */
+export const ANALYTICS_SOURCES = ['pi', 'claude-code', 'codex', 'copilot'] as const
+export type AnalyticsSource = typeof ANALYTICS_SOURCES[number]
+
 export interface SessionAnalytics {
   version: typeof SESSION_ANALYTICS_VERSION
+  /** Missing for Pi's own sessions. */
+  source?: AnalyticsSource
   sessionId: string
   sessionFile: string
   cwd: string | null
@@ -223,8 +231,8 @@ export function classifyCommand(command: string): WorkCategory {
 const SHELL_TOOLS = new Set(['bash', 'shell', 'exec', 'run_command'])
 const READ_TOOLS = new Set(['read', 'read_file', 'view'])
 const SEARCH_TOOLS = new Set(['grep', 'find', 'ls', 'glob', 'search'])
-const EDIT_TOOLS = new Set(['edit', 'write', 'multi_edit', 'apply_patch', 'notebook_edit'])
-const SUBAGENT_TOOLS = new Set(['acp_delegate', 'subagent', 'subagent_wait', 'task', 'hub'])
+const EDIT_TOOLS = new Set(['edit', 'write', 'multi_edit', 'multiedit', 'apply_patch', 'notebook_edit', 'notebookedit'])
+const SUBAGENT_TOOLS = new Set(['acp_delegate', 'subagent', 'subagent_wait', 'task', 'agent', 'hub'])
 const WEB_TOOLS = new Set(['web_search', 'web_fetch', 'fetch', 'websearch', 'webfetch'])
 
 export function classifyToolCall(tool: string, args: UnknownRecord): WorkCategory {
@@ -473,7 +481,7 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
         addCall(facts, call, turn, day)
         addModelUsage(facts.models, call, callCost(call))
         priceOf.set(id, promptPrice(call))
-        recordCacheCall(facts, call, isRecord(message.usage) ? message.usage.cacheWrite1h : 0)
+        recordCacheCall(facts, call, isRecord(message.usage) ? message.usage.cacheWrite1h : 0, false, isRecord(message.usage) && message.usage.estimated === true)
       }
       continue
     }
@@ -555,7 +563,7 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
   return facts
 }
 
-function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown, ping = false): void {
+function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown, ping = false, estimated = false): void {
   if (call.at <= 0) return
   let model: number
   const last = facts.cacheCalls[facts.cacheCalls.length - 1]
@@ -568,7 +576,8 @@ function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h:
   }
   const oneHour = typeof cacheWrite1h === 'number' && Number.isFinite(cacheWrite1h) ? Math.min(cacheWrite1h, call.cacheWrite) : 0
   const row: CacheCall = [call.at, model, call.input, call.cacheRead, call.cacheWrite, oneHour, call.cost.input, call.cost.cacheRead, call.cost.cacheWrite]
-  if (ping) row.push(1)
+  if (ping || estimated) row.push(ping ? 1 : 0)
+  if (estimated) row.push(1)
   facts.cacheCalls.push(row)
   if (facts.cacheCalls.length > MAX_CACHE_CALLS) facts.cacheCalls.shift()
 }

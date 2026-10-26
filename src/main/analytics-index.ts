@@ -3,7 +3,10 @@ import { copyFile, mkdir, readdir, readFile, stat } from 'fs/promises'
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, join, relative, sep } from 'path'
-import { analyzeSession, SESSION_ANALYTICS_VERSION, type SessionAnalytics } from '../shared/session-analytics'
+import { analyzeSession, SESSION_ANALYTICS_VERSION, type AnalyticsSource, type SessionAnalytics } from '../shared/session-analytics'
+import { analyzeClaudeCodeSession } from '../shared/claude-code-session'
+import { analyzeCodexSession } from '../shared/codex-session'
+import { analyzeCopilotSession } from '../shared/copilot-session'
 import {
   buildReport,
   rangeStart,
@@ -13,7 +16,7 @@ import {
   type OverviewRequest,
 } from '../shared/analytics-report'
 import { getGuiDataPath } from './app-data-paths'
-import { getSessionRoots } from './pi-paths'
+import { getImportRoots, getSessionRoots, type ImportRoot } from './pi-paths'
 import { JSONL_EXTENSION } from './session-paths'
 import { parseSessionLines } from './session-jsonl'
 import { mapWithConcurrency } from './map-concurrent'
@@ -49,12 +52,23 @@ interface Row {
   last_at: number | null
   cost: number
   file_exists: number
+  source: string
   facts: string
+}
+
+export interface SourceSummary {
+  source: AnalyticsSource
+  sessions: number
+  firstAt: number | null
+  lastAt: number | null
+  cost: number
 }
 
 export interface AnalyticsIndexOptions {
   dbPath?: string
   sessionRoots?: string[]
+  /** Other tools' session folders, read beside Pi's; empty to leave them out. */
+  importRoots?: ImportRoot[]
   /** Where billion-context writes delegate sessions (the OS temp folder clears them). */
   delegateDir?: string
   /** Where delegate sessions are kept once copied out of the temp folder. */
@@ -71,6 +85,7 @@ export interface AnalyticsIndexOptions {
 export class AnalyticsIndex {
   private readonly db: DatabaseSync
   private readonly sessionRoots: string[]
+  private readonly importRoots: ImportRoot[]
   private readonly delegateDir: string
   private readonly archiveDir: string
   private lastScanAt = 0
@@ -78,6 +93,7 @@ export class AnalyticsIndex {
 
   constructor(options: AnalyticsIndexOptions = {}) {
     this.sessionRoots = options.sessionRoots ?? getSessionRoots()
+    this.importRoots = options.importRoots ?? getImportRoots()
     this.delegateDir = options.delegateDir ?? join(tmpdir(), DELEGATE_DIR_NAME)
     this.archiveDir = options.archiveDir ?? join(getGuiDataPath(ARCHIVE_DIR_NAME), DELEGATE_DIR_NAME)
     this.db = new DatabaseSync(options.dbPath ?? getGuiDataPath(DB_FILE_NAME))
@@ -111,6 +127,8 @@ export class AnalyticsIndex {
       CREATE INDEX IF NOT EXISTS sessions_parent ON sessions (parent_file);
       CREATE INDEX IF NOT EXISTS sessions_run ON sessions (run_id);
     `)
+    const columns = this.db.prepare('PRAGMA table_info(sessions)').all() as unknown as { name: string }[]
+    if (!columns.some((column) => column.name === 'source')) this.db.exec(`ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'pi'`)
     this.db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run('schema', SCHEMA_VERSION)
   }
 
@@ -129,6 +147,7 @@ export class AnalyticsIndex {
     await this.archiveDelegates()
     const files: string[] = []
     for (const root of this.sessionRoots) files.push(...await jsonlFilesUnder(root, MAX_SCAN_DEPTH))
+    for (const { root, depth } of this.importRoots) files.push(...await jsonlFilesUnder(root, depth))
     files.push(...await jsonlFilesUnder(this.archiveDir, 0))
     const seen = new Set(files)
     await mapWithConcurrency(files, SCAN_CONCURRENCY, (file) => this.indexFile(file))
@@ -186,9 +205,14 @@ export class AnalyticsIndex {
       if (!known.file_exists) this.db.prepare('UPDATE sessions SET file_exists = 1 WHERE file = ?').run(file)
       return
     }
+    const source = this.sourceOf(file)
     let facts: SessionAnalytics | null
     try {
-      facts = analyzeSession(parseSessionLines(await readFile(file, 'utf8')), file)
+      const lines = parseSessionLines(await readFile(file, 'utf8'))
+      facts = source === 'claude-code' ? analyzeClaudeCodeSession(lines, file)
+        : source === 'codex' ? analyzeCodexSession(lines, file)
+          : source === 'copilot' ? analyzeCopilotSession(lines, file)
+            : analyzeSession(lines, file)
     } catch {
       return
     }
@@ -196,12 +220,34 @@ export class AnalyticsIndex {
     const { kind, parentFile, runId } = this.placeSession(file, facts)
     this.db.prepare(`
       INSERT OR REPLACE INTO sessions
-        (file, session_id, mtime_ms, size, version, kind, parent_file, run_id, cwd, started_at, last_at, cost, file_exists, facts)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+        (file, session_id, mtime_ms, size, version, kind, parent_file, run_id, cwd, started_at, last_at, cost, file_exists, source, facts)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `).run(
       file, facts.sessionId, info.mtimeMs, info.size, SESSION_ANALYTICS_VERSION, kind, parentFile, runId,
-      facts.cwd, facts.startedAt, facts.lastActivityAt, facts.cost, JSON.stringify(facts)
+      facts.cwd, facts.startedAt, facts.lastActivityAt, facts.cost, source, JSON.stringify(facts)
     )
+  }
+
+  /** The tool that wrote a file, by the folder it is in. */
+  private sourceOf(file: string): AnalyticsSource {
+    return this.importRoots.find(({ root }) => isInside(file, root))?.source ?? 'pi'
+  }
+
+  /** Sessions read from each tool, with the time they span, for `pi-analytics sources`. */
+  sources(): SourceSummary[] {
+    const rows = this.db.prepare(`
+      SELECT source, COUNT(*) AS sessions, MIN(started_at) AS first_at, MAX(last_at) AS last_at, SUM(cost) AS cost
+      FROM sessions GROUP BY source ORDER BY source
+    `).all() as unknown as { source: AnalyticsSource; sessions: number; first_at: number | null; last_at: number | null; cost: number | null }[]
+    return rows.map((row) => ({ source: row.source, sessions: row.sessions, firstAt: row.first_at, lastAt: row.last_at, cost: row.cost ?? 0 }))
+  }
+
+  /** The folders each tool's sessions are read from. */
+  roots(): { source: AnalyticsSource; root: string }[] {
+    return [
+      ...this.sessionRoots.map((root) => ({ source: 'pi' as const, root })),
+      ...this.importRoots.map(({ source, root }) => ({ source, root })),
+    ]
   }
 
   /**
@@ -213,7 +259,8 @@ export class AnalyticsIndex {
     if (pathsEqual(dirname(file), this.archiveDir) && basename(file).endsWith(DELEGATE_SESSION_SUFFIX)) {
       return { kind: 'delegate', parentFile: null, runId: basename(file, DELEGATE_SESSION_SUFFIX) }
     }
-    const chat = subagentParentFile(file, this.sessionRoots)
+    // Claude Code keeps subagents beside their session the way pi-subagents does.
+    const chat = subagentParentFile(file, [...this.sessionRoots, ...this.importRoots.filter((root) => root.source === 'claude-code').map(({ root }) => root)])
     if (chat) return { kind: 'subagent', parentFile: chat, runId: null }
     if (facts.parentSession) return { kind: 'child', parentFile: facts.parentSession, runId: null }
     return { kind: 'main', parentFile: null, runId: null }
