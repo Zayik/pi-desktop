@@ -134,7 +134,6 @@ export function SettingsPanel(): React.JSX.Element {
   const [autoScroll, setAutoScroll] = useState(draft0.autoScroll ?? settings?.autoScroll ?? DEFAULT_SETTINGS.autoScroll)
   const [desktopNotifications, setDesktopNotifications] = useState(draft0.desktopNotifications ?? settings?.desktopNotifications ?? DEFAULT_SETTINGS.desktopNotifications)
   const [suggestNextSteps, setSuggestNextSteps] = useState(draft0.suggestNextSteps ?? settings?.suggestNextSteps ?? DEFAULT_SETTINGS.suggestNextSteps)
-  const [experimentalAutoCache, setExperimentalAutoCache] = useState(draft0.experimentalAutoCache ?? settings?.experimentalAutoCache ?? DEFAULT_SETTINGS.experimentalAutoCache)
   const [resumeLastSession, setResumeLastSession] = useState(draft0.resumeLastSession ?? settings?.resumeLastSession ?? DEFAULT_SETTINGS.resumeLastSession)
   const [openToHomeOnLaunch, setOpenToHomeOnLaunch] = useState(draft0.openToHomeOnLaunch ?? settings?.openToHomeOnLaunch ?? DEFAULT_SETTINGS.openToHomeOnLaunch)
   const [runOnStartup, setRunOnStartup] = useState(draft0.runOnStartup ?? settings?.runOnStartup ?? DEFAULT_SETTINGS.runOnStartup)
@@ -321,7 +320,6 @@ export function SettingsPanel(): React.JSX.Element {
     setAutoScroll(draft.autoScroll ?? settings.autoScroll)
     setDesktopNotifications(draft.desktopNotifications ?? settings.desktopNotifications)
     setSuggestNextSteps(draft.suggestNextSteps ?? settings.suggestNextSteps)
-    setExperimentalAutoCache(draft.experimentalAutoCache ?? settings.experimentalAutoCache)
     setResumeLastSession(draft.resumeLastSession ?? settings.resumeLastSession)
     setOpenToHomeOnLaunch(draft.openToHomeOnLaunch ?? settings.openToHomeOnLaunch)
     setRunOnStartup(draft.runOnStartup ?? settings.runOnStartup)
@@ -580,7 +578,6 @@ export function SettingsPanel(): React.JSX.Element {
       autoScroll,
       desktopNotifications,
       suggestNextSteps,
-      experimentalAutoCache,
       resumeLastSession,
       openToHomeOnLaunch,
       runOnStartup,
@@ -654,7 +651,6 @@ export function SettingsPanel(): React.JSX.Element {
       autoScroll: DEFAULT_SETTINGS.autoScroll,
       desktopNotifications: DEFAULT_SETTINGS.desktopNotifications,
       suggestNextSteps: DEFAULT_SETTINGS.suggestNextSteps,
-      experimentalAutoCache: DEFAULT_SETTINGS.experimentalAutoCache,
       resumeLastSession: DEFAULT_SETTINGS.resumeLastSession,
       openToHomeOnLaunch: DEFAULT_SETTINGS.openToHomeOnLaunch,
       runOnStartup: DEFAULT_SETTINGS.runOnStartup,
@@ -679,7 +675,6 @@ export function SettingsPanel(): React.JSX.Element {
     setAutoScroll(defaults.autoScroll!)
     setDesktopNotifications(defaults.desktopNotifications!)
     setSuggestNextSteps(defaults.suggestNextSteps!)
-    setExperimentalAutoCache(defaults.experimentalAutoCache!)
     setResumeLastSession(defaults.resumeLastSession!)
     setOpenToHomeOnLaunch(defaults.openToHomeOnLaunch!)
     setRunOnStartup(defaults.runOnStartup!)

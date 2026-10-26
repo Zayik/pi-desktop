@@ -57,7 +57,7 @@ async function readSnapshot(dir: string, emit: (name: string) => unknown): Promi
 }
 
 function status(change: Record<string, unknown>): Record<string, unknown> {
-  return { version: 1, sessionId: SESSION_ID, updatedAt: 1, model: null, cacheMode: 'auto', cacheModeSource: 'start', cacheModeChangedAt: null, cacheRetention: 'short', idleLimit: 2, idleWarms: 0, lastRequestAt: null, lastWarmAt: null, ...change }
+  return { version: 1, sessionId: SESSION_ID, updatedAt: 1, model: null, cacheMode: 'keep-warm', cacheModeSource: 'start', cacheModeChangedAt: null, cacheRetention: 'short', idleLimit: 2, idleWarms: 0, lastRequestAt: null, lastWarmAt: null, ...change }
 }
 
 test('leaves Pi\'s requests and warming decisions to pi-analytics', async () => {
@@ -77,13 +77,12 @@ test('leaves Pi\'s requests and warming decisions to pi-analytics', async () => 
 
 test('copies the cache status pi-analytics reports into the snapshot', async () => {
   await withDir(async (dir) => {
-    const { emit, send } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'auto' })
+    const { emit, send } = await loadExtension({ [CONTEXT_DIR_ENV]: dir, [CACHE_MODE_ENV]: 'keep-warm' })
     // The package can report before this extension's session starts.
     send(CACHE_STATUS_EVENT, status({}))
     emit('session_start')
     let snapshot = await readSnapshot(dir, emit)
-    assert.equal(snapshot.cacheMode, 'auto')
-    assert.equal(snapshot.autoWarmLimit, 2)
+    assert.equal(snapshot.cacheMode, 'keep-warm')
     assert.equal(snapshot.cacheModeChangedAt, null, 'the first mode is not a switch')
 
     emit('session_start')
@@ -92,7 +91,6 @@ test('copies the cache status pi-analytics reports into the snapshot', async () 
     snapshot = await readSnapshot(dir, emit)
     assert.equal(snapshot.cacheMode, 'focus')
     assert.equal(snapshot.cacheModeChangedAt, 5678)
-    assert.equal(snapshot.autoWarmLimit, null)
     assert.equal(snapshot.lastWarmAt, 900)
   })
 })

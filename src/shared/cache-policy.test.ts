@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildCacheReport, cacheProvider, replay, KEEP_WARM_EVERY_MS, MAX_SWEEP_PINGS } from './cache-policy'
-import { SESSION_ANALYTICS_VERSION, localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
+import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
 const PRICE = 3e-6
@@ -115,24 +115,6 @@ test('a fixed count matches the replay of the same keep-warm limit', () => {
   const none = model.policies.find((policy) => policy.policy === '5m')
   assert.ok(Math.abs((warm60?.cost ?? 0) - model.pingSweep[MAX_SWEEP_PINGS].cost) < 1e-12)
   assert.ok(Math.abs((none?.cost ?? 0) - model.pingSweep[0].cost) < 1e-12)
-})
-
-test('plans a ping count per hour of the day', () => {
-  // Five days of: a 70 minute lunch from 13:30 (no ping count saves it), a 20 minute
-  // gap from 14:40 (4 pings) and 12 minute gaps through 15:00-16:00 (2 pings).
-  const sessions = [0, 1, 2, 3, 4].map((day) => {
-    const at = (hour: number, minute: number) => new Date(2026, 9, 20 + day, hour, minute).getTime()
-    const times = [at(13, 30), at(14, 40), at(15, 0), at(15, 12), at(15, 24), at(15, 36), at(15, 48), at(16, 0)]
-    return session(times.map((time, index) => call(time, 40_000 + index * 500, index === 0)))
-  })
-  const model = buildCacheReport(sessions).models[0]
-  const hour = (h: number) => model.hourly.find((entry) => entry.hour === h)?.pings
-  assert.equal(hour(13), 0)
-  assert.equal(hour(14), 4)
-  assert.equal(hour(15), 2)
-  assert.equal(model.bestPings?.pings, 4)
-  assert.ok(model.autoSaving > 0)
-  assert.ok((model.autoCost ?? Infinity) < (model.bestPings?.cost ?? 0))
 })
 
 test('back-to-back calls keep the 5 minute default', () => {
@@ -279,28 +261,3 @@ test('a provider without settings to compare reports its cost only', () => {
   assert.ok(model.measuredCost > 0)
 })
 
-test('Auto is compared walk-forward only once a model has 7 days of calls', () => {
-  const DAY = 24 * 60 * MINUTE
-  const daysOf = (count: number): CacheCall[] => {
-    const calls: CacheCall[] = []
-    for (let day = 0; day < count; day++) {
-      // Mornings: 12-minute breaks, which a few pings bridge. Afternoons: 3-hour breaks, which no count Pi sends covers.
-      const morning = T0 + day * DAY + 9 * 60 * MINUTE
-      for (let i = 0; i < 6; i++) calls.push(call(morning + i * 12 * MINUTE, 20_000 + i * 100, i === 0))
-      const afternoon = T0 + day * DAY + 13 * 60 * MINUTE
-      for (let i = 0; i < 3; i++) calls.push(call(afternoon + i * 180 * MINUTE, 20_000 + i * 100, i === 0))
-    }
-    return calls
-  }
-  assert.equal(buildCacheReport([session(daysOf(6))]).models[0].autoComparison, null)
-  const report = buildCacheReport([session(daysOf(8))])
-  const auto = report.models[0].autoComparison
-  assert.ok(auto)
-  // The first day has no history to plan from.
-  assert.equal(auto.days, 7)
-  assert.equal(auto.daily[0].day, localDayKey(T0 + DAY))
-  assert.ok(auto.fixedPings <= 6)
-  assert.ok(auto.auto <= auto.fixed + 1e-12)
-  assert.equal(report.autoComparison?.models, 1)
-  assert.ok(Math.abs((report.autoComparison?.billed ?? 0) - auto.daily.reduce((sum, day) => sum + day.billed, 0)) < 1e-12)
-})

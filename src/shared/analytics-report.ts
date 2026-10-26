@@ -220,7 +220,7 @@ export function buildReport(scope: AnalyticsReport['scope'], sessions: IndexedSe
     subagentCost: 0,
     days: [],
     projects: [],
-    cache: { models: [], days: [], saving: 0, autoComparison: null },
+    cache: { models: [], days: [], saving: 0 },
     cacheAnalysis: { from: 0, to: 0, days: 0, groups: [] },
     signals: [],
   }

@@ -3,13 +3,7 @@
  * extension reports for it. A session with no mode of its own, in a process
  * started without one, is left entirely to Pi.
  */
-import {
-  MAX_IDLE_WARMS,
-  autoWarmLimit,
-  type AutoWarmSchedule,
-  type CacheMode,
-  type CacheModeChoice,
-} from '../../../resources/context-snapshot'
+import { MAX_IDLE_WARMS, type CacheMode, type CacheModeChoice } from '../../../resources/context-snapshot'
 
 export type ModeSource = 'session' | 'start'
 
@@ -26,15 +20,9 @@ export function effectiveMode(input: { session: CacheModeChoice | null; start: C
   return start ? { mode: start, source: 'start', changedAt: null } : null
 }
 
-/**
- * Idle refreshes allowed for a break that starts at `at`: keep-warm's fixed
- * count, auto's count for the hour from the schedule file, or null in the
- * modes that never refresh idle.
- */
-export function idleLimit(mode: EffectiveMode, schedule: AutoWarmSchedule | null, model: string | null, at: number): number | null {
-  if (mode.mode === 'keep-warm') return MAX_IDLE_WARMS
-  if (mode.mode !== 'auto') return null
-  return autoWarmLimit(schedule, model, at)
+/** Idle refreshes allowed for a break: keep-warm's fixed count, or null in the modes that never refresh idle. */
+export function idleLimit(mode: EffectiveMode): number | null {
+  return mode.mode === 'keep-warm' ? MAX_IDLE_WARMS : null
 }
 
 export const SESSION_STATUS_VERSION = 1

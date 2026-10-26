@@ -20,8 +20,6 @@ export const CONTEXT_DIR = 'context'
 export const REPORTS_DIR = 'reports'
 export const INDEX_FILE = 'analytics.sqlite'
 export const ARCHIVE_DIR = 'archive'
-/** Auto mode's per-hour schedule (same format Pi Desktop builds). */
-export const AUTO_SCHEDULE_FILE = 'auto-warm.json'
 
 /** The cache mode picked for one session: `{ mode, changedAt }`. */
 export function sessionModePath(sessionId: string, dir = analyticsDir()): string {

@@ -3,59 +3,16 @@ import { useTranslation } from 'react-i18next'
 import { Check, ChevronUp, LineChart, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAppStore } from '../store'
-import {
-  CACHE_MODES,
-  DEFAULT_CACHE_MODE,
-  autoWarmLimit,
-  type AutoWarmSchedule,
-  type CacheMode,
-} from '../../../../resources/context-snapshot'
+import { CACHE_MODES, DEFAULT_CACHE_MODE, type CacheMode } from '../../../../resources/context-snapshot'
 import type { Translate } from '../../../shared/i18n'
 import { cacheModeLabel } from './cache-mode-label'
 
-
 function cacheModeDetail(mode: CacheMode, t: Translate): string {
   switch (mode) {
-    case 'auto': return t('chat.cacheMode.modes.auto.detail')
     case 'focus': return t('chat.cacheMode.modes.focus.detail')
     case 'keep-warm': return t('chat.cacheMode.modes.keepWarm.detail')
     case 'long': return t('chat.cacheMode.modes.long.detail')
   }
-}
-
-/** Minutes a 5-minute cache stays warm past the last turn with this many refreshes 4 minutes apart. */
-function warmMinutes(pings: number): number {
-  return 5 + pings * 4
-}
-
-/** Auto's plan for the chat's model: idle pings per hour, with the current hour marked. */
-function AutoWarmPlan({ schedule, model }: { schedule: AutoWarmSchedule | null; model: string | null }): React.JSX.Element {
-  const { t } = useTranslation()
-  const plan = (model ? schedule?.models[model] : undefined) ?? schedule?.fallback ?? null
-  const now = Date.now()
-  const hour = new Date(now).getHours()
-  const pings = autoWarmLimit(schedule, model, now)
-  const top = plan ? Math.max(1, ...plan) : 1
-  return (
-    <div className="mx-2 mb-1 mt-1 rounded-lg bg-card px-2.5 py-2 text-[11px] text-secondary">
-      <p className="tabular-nums">{t('chat.cacheMode.autoNow', { count: pings, minutes: warmMinutes(pings) })}</p>
-      {plan ? (
-        <div className="mt-1.5 flex h-6 items-end gap-px" role="img" aria-label={t('chat.cacheMode.autoHours')}>
-          {plan.map((count, index) => (
-            <div
-              key={index}
-              className={clsx('min-h-px flex-1 rounded-sm', index === hour ? 'bg-accent-fg' : 'bg-border-strong')}
-              style={{ height: `${Math.max(4, (count / top) * 100)}%` }}
-              title={t('chat.cacheMode.autoHour', { hour: String(index).padStart(2, '0'), count })}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="mt-1 text-dim">{t('chat.cacheMode.autoNoData')}</p>
-      )}
-      <p className="mt-1.5 text-dim">{t('chat.cacheMode.autoOverride')}</p>
-    </div>
-  )
 }
 
 interface CacheModeSelectorProps {
@@ -73,7 +30,6 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   const piStatus = useAppStore((state) => state.piStatus)
   const [picked, setPicked] = useState<{ sessionId: string; mode: CacheMode } | null>(null)
   const [warming, setWarming] = useState<{ value: string | null; enabledNow: boolean } | null>(null)
-  const [auto, setAuto] = useState<{ schedule: AutoWarmSchedule | null; model: string | null } | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -95,21 +51,12 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
     void window.piDesktop.context.getCacheWarming()
       .then((value) => setWarming((previous) => ({ value, enabledNow: previous?.enabledNow ?? false })))
       .catch(() => undefined)
-    if (sessionId) {
-      void Promise.all([
-        window.piDesktop.context.getAutoWarmSchedule().catch(() => null),
-        window.piDesktop.context.getSnapshot(sessionId).catch(() => null),
-      ]).then(([schedule, snapshot]) => setAuto({
-        schedule,
-        model: snapshot?.model ? `${snapshot.model.provider}/${snapshot.model.id}` : null,
-      }))
-    }
     const handleClick = (event: MouseEvent): void => {
       if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [isOpen, sessionId])
+  }, [isOpen])
 
   if (piStatus !== 'running' || !sessionId) return <></>
 
@@ -133,7 +80,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
     }
   }
   const label = cacheModeLabel(current, t)
-  const warms = current === 'auto' || current === 'keep-warm'
+  const warms = current === 'keep-warm'
 
   return (
     <div ref={ref} className={clsx('relative', className)}>
@@ -161,8 +108,7 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
           <div className="border-b border-border px-3 py-2">
             <div className="text-[10px] font-medium uppercase tracking-wide text-faint">{t('chat.cacheMode.title')}</div>
           </div>
-          {/* Auto is set aside for now: shown only while a chat is still in it. */}
-          {CACHE_MODES.filter((mode) => mode !== 'auto' || current === 'auto').map((mode) => (
+          {CACHE_MODES.map((mode) => (
             <button
               key={mode}
               type="button"
@@ -182,7 +128,6 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               </span>
             </button>
           ))}
-          {current === 'auto' && auto && <AutoWarmPlan schedule={auto.schedule} model={auto.model} />}
           {warms && warming && warming.value !== 'idle' && (
             <div className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">
               <p>{t('chat.cacheMode.idleWarmingOff')}</p>

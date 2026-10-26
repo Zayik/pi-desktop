@@ -65,7 +65,6 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
       if (snapshot.cacheMode) snapshot.cacheModeChangedAt = status.cacheModeChangedAt ?? Date.now()
       snapshot.cacheMode = mode
     }
-    snapshot.autoWarmLimit = mode === 'auto' ? status.idleLimit : null
     if (status.lastWarmAt !== null && status.lastWarmAt !== snapshot.lastWarmAt) snapshot.lastWarmAt = status.lastWarmAt
     // Until a request goes out, the tier the mode asks for is the one shown.
     if (snapshot.lastRequestAt === null && status.cacheRetention) snapshot.cacheRetention = status.cacheRetention
@@ -149,7 +148,6 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
       turnStartedAt: null,
       lastRequestAt: null,
       lastWarmAt: null,
-      autoWarmLimit: null,
       process: { pid: process.pid, startedAt: processStartedAt, cwd: ctx.cwd ?? process.cwd() },
       // Older Pi releases have neither; the session file still names the session.
       sessionName: ctx.sessionManager.getSessionName?.() ?? null,

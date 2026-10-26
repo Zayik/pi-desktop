@@ -6,20 +6,17 @@
  * its reports leaves Pi's own warming as it was.
  */
 import { readFileSync, statSync } from 'fs'
-import { join } from 'path'
 import {
   cacheRetentionFor,
   cacheWarmingOverride,
   fillCacheLifetime,
-  isAutoWarmSchedule,
   isCacheMode,
   isCacheModeChoice,
-  type AutoWarmSchedule,
   type CacheMode,
   type CacheModeChoice,
 } from '../../../resources/context-snapshot'
 import { SESSION_STATUS_VERSION, effectiveMode, idleLimit, type EffectiveMode, type SessionCacheStatus } from './cache-mode'
-import { AUTO_SCHEDULE_FILE, analyticsDir, sessionModePath } from './paths'
+import { analyticsDir, sessionModePath } from './paths'
 
 /** Starts a process in a mode before any pick; Pi Desktop's `PI_DESKTOP_CACHE_MODE` is read too. */
 export const START_MODE_ENV = 'PI_ANALYTICS_CACHE_MODE'
@@ -71,10 +68,6 @@ export class CacheWarming {
   /** The retention the process started with, put back when the extension lets go of a request. */
   private readonly startRetention: string | undefined
   private readonly startMode: CacheMode | null
-  private readonly scheduleFile = new WatchedFile<AutoWarmSchedule | null>((text) => {
-    const parsed: unknown = JSON.parse(text)
-    return isAutoWarmSchedule(parsed) ? parsed : null
-  }, null)
   private readonly modeFile = new WatchedFile<CacheModeChoice | null>((text) => {
     const parsed: unknown = JSON.parse(text)
     return isCacheModeChoice(parsed) ? parsed : null
@@ -82,7 +75,6 @@ export class CacheWarming {
   private sessionId: string | null = null
   private model: string | null = null
   private idleWarms = 0
-  private idleSince: number
   private status: SessionCacheStatus | null = null
 
   constructor(options: WarmingOptions = {}) {
@@ -93,14 +85,12 @@ export class CacheWarming {
     this.startRetention = this.env.PI_CACHE_RETENTION
     const start = this.env[START_MODE_ENV] ?? this.env[DESKTOP_START_MODE_ENV]
     this.startMode = isCacheMode(start) ? start : null
-    this.idleSince = this.now()
   }
 
   /** A session started or resumed; `lastRequestAt` is its last saved model call. */
   startSession(sessionId: string, model: WarmingModel | null, lastRequestAt: number | null): void {
     this.sessionId = sessionId
     this.idleWarms = 0
-    this.idleSince = lastRequestAt ?? this.now()
     this.status = {
       version: SESSION_STATUS_VERSION,
       sessionId,
@@ -153,14 +143,12 @@ export class CacheWarming {
   }
 
   private limitFor(mode: EffectiveMode): number | null {
-    const schedule = mode.mode === 'auto' ? this.scheduleFile.read(join(this.dir, AUTO_SCHEDULE_FILE)) : null
-    return idleLimit(mode, schedule, this.model, this.idleSince)
+    return idleLimit(mode)
   }
 
   /** A real request (Pi's refreshes resend the stored one without it): the idle budget starts again. */
   realRequest(): void {
     this.idleWarms = 0
-    this.idleSince = this.now()
     this.apply()
   }
 
@@ -175,7 +163,7 @@ export class CacheWarming {
   /**
    * Answer one of Pi's warming decisions, or null to leave Pi's own. While
    * the agent works (continuation probability 1) Pi decides by price; once
-   * it stops, keep-warm and auto refresh up to their limit and the other
+   * it stops, keep-warm refreshes up to its limit and the other
    * modes stop.
    */
   decide(continuationProbability: number, piAction: 'warm' | 'stop'): 'warm' | 'stop' | null {

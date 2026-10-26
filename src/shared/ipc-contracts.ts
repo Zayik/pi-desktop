@@ -110,7 +110,6 @@ export const IPC_CHANNELS = {
   CONTEXT_GET_CACHE_MODE: 'context:get-cache-mode',
   CONTEXT_SET_CACHE_MODE: 'context:set-cache-mode',
   CONTEXT_GET_CACHE_WARMING: 'context:get-cache-warming',
-  CONTEXT_GET_AUTO_WARM_SCHEDULE: 'context:get-auto-warm-schedule',
   CONTEXT_ENABLE_IDLE_CACHE_WARMING: 'context:enable-idle-cache-warming',
   CONTEXT_OPEN_SESSION_PAGE: 'context:open-session-page',
   CONTEXT_SET_DESKTOP_FOCUS: 'context:set-desktop-focus',
@@ -1385,10 +1384,6 @@ export interface AppSettings {
   // missing tests, unverified work), shown as buttons under the reply.
   // Applies to agents started after the change.
   suggestNextSteps: boolean
-  // Offer the experimental Auto cache mode, which changes the idle pings by
-  // hour of day from the last 30 days. Off: the picker hides it and chats
-  // left in Auto start in Keep warm.
-  experimentalAutoCache: boolean
   // Interface language: 'system' (follow the OS language list) or a bundled
   // language code. Unknown values reset to 'system' on load.
   language: string

@@ -35,9 +35,8 @@ export function normalizeStoredSettings(stored: Record<string, unknown>, languag
   if (typeof merged.defaultThinkingLevel !== 'string' || !merged.defaultThinkingLevel.trim()) {
     merged.defaultThinkingLevel = DEFAULT_SETTINGS.defaultThinkingLevel
   }
-  if (typeof merged.experimentalAutoCache !== 'boolean') merged.experimentalAutoCache = DEFAULT_SETTINGS.experimentalAutoCache
-  // Auto is experimental: without the setting new chats start in the default mode.
-  if (!isCacheMode(merged.cacheMode) || (merged.cacheMode === 'auto' && !merged.experimentalAutoCache)) merged.cacheMode = DEFAULT_SETTINGS.cacheMode
+  // A mode this version no longer has (such as Auto) starts new chats in the default.
+  if (!isCacheMode(merged.cacheMode)) merged.cacheMode = DEFAULT_SETTINGS.cacheMode
   merged.language = normalizeLanguageSetting(merged.language, languages)
   merged.shortcuts = normalizeKeyboardShortcuts(merged.shortcuts)
   if (typeof merged.voiceModel !== 'string' || !getVoiceModel(merged.voiceModel)) {

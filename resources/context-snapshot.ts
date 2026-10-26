@@ -155,8 +155,6 @@ export interface ContextSnapshot {
   lastRequestAt: number | null
   /** When Pi last sent a cache-warming refresh. */
   lastWarmAt: number | null
-  /** In auto mode, the idle refreshes allowed for the current break (or the next one, while working). */
-  autoWarmLimit?: number | null
   /** The Pi process recording the session, so a reader can tell a live session from one whose process is gone. */
   process?: SnapshotProcess | null
   /** The session's display name (`/name`). */
@@ -184,13 +182,11 @@ export interface SnapshotProcess {
  * - focus: the 5-minute cache, kept alive only while the agent works;
  * - keep-warm: the 5-minute cache, also refreshed `MAX_IDLE_WARMS` times
  *   after the agent stops (needs Pi's global `cacheWarming: "idle"`);
- * - long: the 1-hour cache (`PI_CACHE_RETENTION=long`), never refreshed idle;
- * - auto: keep-warm with the number of idle refreshes the app picked for
- *   the hour of day the break starts in, from past sessions (`auto-warm.json`).
+ * - long: the 1-hour cache (`PI_CACHE_RETENTION=long`), never refreshed idle.
  * A few refreshes cost less than the 1-hour tier's dearer write for breaks
  * of up to about an hour, so keep-warm is the default.
  */
-export const CACHE_MODES = ['auto', 'keep-warm', 'focus', 'long'] as const
+export const CACHE_MODES = ['keep-warm', 'focus', 'long'] as const
 export type CacheMode = typeof CACHE_MODES[number]
 export const DEFAULT_CACHE_MODE: CacheMode = 'keep-warm'
 /** Refreshes keep-warm sends after the agent stops, about 4 minutes apart: the cache then lives ~15 minutes past the last turn. */
@@ -229,12 +225,12 @@ export function cacheRetentionFor(mode: CacheMode): 'short' | 'long' {
  * The mode's answer to one of Pi's cache-warming decisions, or null to leave
  * Pi's own. While the agent works Pi expects the next request for sure
  * (continuation probability 1) and decides by price; once it stops, only
- * keep-warm and auto refresh, up to `maxIdleWarms` times since the last real
+ * keep-warm refreshes, up to `maxIdleWarms` times since the last real
  * request, and the others stop so they never pay for idle time.
  */
 export function cacheWarmingOverride(mode: CacheMode, continuationProbability: number, idleWarms: number, maxIdleWarms = MAX_IDLE_WARMS): 'warm' | 'stop' | null {
   if (continuationProbability >= 1) return null
-  return (mode === 'keep-warm' || mode === 'auto') && idleWarms < maxIdleWarms ? 'warm' : 'stop'
+  return mode === 'keep-warm' && idleWarms < maxIdleWarms ? 'warm' : 'stop'
 }
 
 /**
@@ -304,52 +300,6 @@ export function cacheStatusFromEvent(data: unknown): CacheStatusEvent | null {
     idleLimit: nullableNumber(data.idleLimit),
     lastWarmAt: nullableNumber(data.lastWarmAt),
   }
-}
-
-const AUTO_WARM_VERSION = 1
-const HOURS_PER_DAY = 24
-/** Most idle refreshes a plan holds: a 30-minute cache refreshed every 24 minutes through 12 hours. Pi itself stops idle warming 30 minutes after a run. */
-export const MAX_AUTO_WARMS = 29
-
-/**
- * Idle refreshes per local hour of the day (index 0 to 23), per
- * `provider/model`, plus the plan of the model used most for models without
- * one of their own.
- */
-export interface AutoWarmSchedule {
-  version: typeof AUTO_WARM_VERSION
-  /** When the app built it (ms since epoch). */
-  builtAt: number
-  /** Days of sessions it was built from. */
-  days: number
-  models: Record<string, number[]>
-  fallback: number[] | null
-}
-
-function isHourPlan(value: unknown): value is number[] {
-  return Array.isArray(value) && value.length === HOURS_PER_DAY &&
-    value.every((pings) => Number.isInteger(pings) && pings >= 0 && pings <= MAX_AUTO_WARMS)
-}
-
-export function isAutoWarmSchedule(value: unknown): value is AutoWarmSchedule {
-  if (!isRecord(value) || value.version !== AUTO_WARM_VERSION || typeof value.builtAt !== 'number' || typeof value.days !== 'number') return false
-  if (value.fallback !== null && !isHourPlan(value.fallback)) return false
-  return isRecord(value.models) && Object.values(value.models).every(isHourPlan)
-}
-
-export function emptyAutoWarmSchedule(builtAt: number, days: number): AutoWarmSchedule {
-  return { version: AUTO_WARM_VERSION, builtAt, days, models: {}, fallback: null }
-}
-
-/**
- * Idle refreshes auto mode allows for a break that starts at `at` (local
- * time) on a model: its own plan, the fallback plan, or keep-warm's count
- * when there is no schedule yet.
- */
-export function autoWarmLimit(schedule: AutoWarmSchedule | null, model: string | null, at: number): number {
-  const hour = new Date(at).getHours()
-  const plan = (model ? schedule?.models[model] : undefined) ?? schedule?.fallback ?? null
-  return plan ? plan[hour] : MAX_IDLE_WARMS
 }
 
 // ─── Estimation ─────────────────────────────────────────────────────────────

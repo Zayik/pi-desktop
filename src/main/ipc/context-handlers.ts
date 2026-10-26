@@ -1,9 +1,7 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '../../shared/ipc-contracts'
-import { isCacheMode, type AutoWarmSchedule, type CacheModeChoice, type ContextSnapshot } from '../../../resources/context-snapshot'
+import { isCacheMode, type CacheModeChoice, type ContextSnapshot } from '../../../resources/context-snapshot'
 import { enableIdleCacheWarming, readCacheMode, readPiCacheWarming, writeCacheMode } from '../cache-modes'
-import { freshAutoWarmSchedule, readAutoWarmSchedule } from '../auto-warm'
-import { overviewForAutoWarm } from './analytics-handlers'
 import { getContextSnapshotDir, legacyContextSnapshotDir, pruneContextSnapshots, readContextSnapshot } from '../context-snapshots'
 import { readAgentBoard } from '../agent-board'
 import { clearDesktopFocus, openSessionPage, setDesktopFocus } from '../session-page'
@@ -40,17 +38,6 @@ export function registerContextHandlers(): void {
     assertTrustedSender(event)
     if (!isCacheMode(mode)) throw new Error('mode must be a cache mode')
     return writeCacheMode(parseSessionId(sessionId), mode)
-  })
-
-  // Built from past sessions when missing or stale; the saved one is shown if that fails.
-  ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_AUTO_WARM_SCHEDULE, async (event: IpcMainInvokeEvent): Promise<AutoWarmSchedule | null> => {
-    assertTrustedSender(event)
-    try {
-      return await freshAutoWarmSchedule(overviewForAutoWarm)
-    } catch (error) {
-      appLog.warn('context-snapshots', 'Could not build the auto keep-warm schedule', error)
-      return readAutoWarmSchedule()
-    }
   })
 
   ipcMain.handle(IPC_CHANNELS.CONTEXT_GET_CACHE_WARMING, async (event: IpcMainInvokeEvent): Promise<string | null> => {

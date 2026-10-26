@@ -55,7 +55,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hasSeenTrayHint: false,
   desktopNotifications: true,
   suggestNextSteps: true,
-  experimentalAutoCache: false,
   language: SYSTEM_LANGUAGE,
   shortcuts: DEFAULT_KEYBOARD_SHORTCUTS,
   council: DEFAULT_COUNCIL_CONFIG,
