@@ -48,6 +48,14 @@ export interface CacheModelAnalysis {
   gaps: CacheGap[]
   /** What the same prompts would have cost with no cache at all (every token at the input price), per 30-minute slot start. */
   noCache: Array<[at: number, cost: number]>
+  /**
+   * What the same prompts would have cost on the longer lifetime Pi can ask
+   * for, per 30-minute slot start: Anthropic's 1 hour, where writes cost 2x
+   * input and reads the usual price. Pi sends no pings on it (its first
+   * refresh would fall after it stops warming). Null where Pi has no longer
+   * lifetime to pick (GPT-5.6 and later get 30 minutes either way).
+   */
+  long: Array<[at: number, cost: number]> | null
 }
 
 export interface CacheGroupAnalysis {
@@ -147,6 +155,7 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       base: [],
       gaps: [],
       noCache: [],
+      long: null,
     }
     if (profile.sweep && prices && id !== 'automatic') {
       const everyMs = ttlMs * PI_REFRESH_AT
@@ -170,6 +179,16 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
         uncached.set(slot, (uncached.get(slot) ?? 0) + promptTokens(call) * prices.inputPrice)
       }
       entry.noCache = [...uncached.entries()].sort((a, b) => a[0] - b[0])
+      const longSpec = profile.family === 'anthropic' ? profile.policies.find((policy) => policy.id === profile.longPolicy) : undefined
+      if (longSpec && longSpec.ttlMs > ttlMs) {
+        const longRun = gapCostsByPings(runs, { base: longSpec.id, ttlMs: longSpec.ttlMs, write: longSpec.write, everyMs: longSpec.ttlMs * PI_REFRESH_AT, horizonMs: longSpec.ttlMs }, prices)
+        const long = new Map<number, number>()
+        for (const [at, cost] of [...longRun.openings, ...longRun.gaps.map((gap): [number, number] => [gap.at, gap.costs[0]])]) {
+          const slot = slotStart(at, start)
+          long.set(slot, (long.get(slot) ?? 0) + cost)
+        }
+        entry.long = [...long.entries()].sort((a, b) => a[0] - b[0])
+      }
     } else {
       // Pings cannot change it: chart what the calls were billed.
       const billed = new Map<number, number>()
@@ -232,6 +251,8 @@ export interface PingSummary {
   /** Prompt cost no count changes, and the whole prompt cost with no cache at all. */
   baseTotal: number
   noCacheTotal: number
+  /** The whole prompt cost on the long lifetime, summed over the models that have one; null when none does. */
+  longTotal: number | null
   /** What caching with the best count saves over no cache, per week; below 0 when no cache would have been cheaper. */
   cacheSavingPerWeek: number
 }
@@ -249,9 +270,11 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
   let perBreakTotal = 0
   let baseTotal = 0
   let noCacheTotal = 0
+  let longTotal: number | null = null
   for (const model of models) {
     for (const [, cost] of model.base) baseTotal += cost
     for (const [, cost] of model.noCache) noCacheTotal += cost
+    if (model.long) longTotal = (longTotal ?? 0) + model.long.reduce((sum, [, cost]) => sum + cost, 0)
     const own = confidenceOf(model.longBreaks) === 'none' ? best : cheapest(countTotals([model], maxPings))
     modelBest.set(model.model, own)
     for (const gap of model.gaps) {
@@ -272,6 +295,7 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
     perBreakTotal,
     baseTotal,
     noCacheTotal,
+    longTotal,
     cacheSavingPerWeek: (noCacheTotal - baseTotal - totals[best]) / weeks,
   }
 }
@@ -298,11 +322,20 @@ export function slotCosts(model: CacheModelAnalysis, count: number | 'perBreak',
   return { cost, none }
 }
 
+function slotSeries(costs: Array<[at: number, cost: number]>, from: number, slots: number): number[] {
+  const cost = new Array<number>(slots).fill(0)
+  for (const [at, value] of costs) cost[Math.min(slots - 1, Math.max(0, Math.floor((at - from) / SLOT_MS)))] += value
+  return cost
+}
+
 /** What the same prompts would have cost with no cache at all, per 30-minute slot from `from`. */
 export function slotNoCache(model: CacheModelAnalysis, from: number, slots: number): number[] {
-  const cost = new Array<number>(slots).fill(0)
-  for (const [at, value] of model.noCache) cost[Math.min(slots - 1, Math.max(0, Math.floor((at - from) / SLOT_MS)))] += value
-  return cost
+  return slotSeries(model.noCache, from, slots)
+}
+
+/** What the same prompts would have cost on the long lifetime, per 30-minute slot from `from`; null without one. */
+export function slotLong(model: CacheModelAnalysis, from: number, slots: number): number[] | null {
+  return model.long ? slotSeries(model.long, from, slots) : null
 }
 
 /** The best count for every model across groups: its own once it has enough breaks, else its group's. */

@@ -9,6 +9,7 @@ import {
   optimalCounts,
   slotBest,
   slotCosts,
+  slotLong,
   slotNoCache,
   summarize,
   type CacheAnalysis,
@@ -56,6 +57,9 @@ const PING_COLORS = [
   { stroke: 'stroke-orange-400', fill: 'bg-orange-400', text: 'text-orange-400' }, // theme-exempt
   { stroke: 'stroke-rose-400', fill: 'bg-rose-400', text: 'text-rose-400' }, // theme-exempt
 ]
+/** The long lifetime's color, apart from every ping count's. */
+const LONG_COLOR = { stroke: 'stroke-indigo-400', fill: 'bg-indigo-400', text: 'text-indigo-400' } // theme-exempt
+const LONG = 'long'
 const ALL_KEY = '*'
 const NO_CACHE = 'noCache'
 const PER_BREAK = 'perBreak'
@@ -73,6 +77,17 @@ function modelName(model: string): string {
 
 function pingsLabel(count: number, t: Translate): string {
   return count === 0 ? t('analytics.promptCache.noPings') : t('analytics.promptCache.pings', { count })
+}
+
+/** A fixed setting: a ping count on the short lifetime, or the long lifetime with none. */
+type Choice = number | typeof LONG
+
+function choiceLabel(choice: Choice, t: Translate): string {
+  return choice === LONG ? t('analytics.promptCache.longLabel') : pingsLabel(choice, t)
+}
+
+function choiceColor(choice: Choice): typeof LONG_COLOR {
+  return choice === LONG ? LONG_COLOR : PING_COLORS[choice % PING_COLORS.length]
 }
 
 function sum(values: number[]): number {
@@ -105,11 +120,14 @@ interface ModelEntry {
   summary: PingSummary
   /** The recommended fixed count: its own cheapest, or its group's while it has too few breaks. */
   optimal: number
+  /** The recommended setting: that count, or the long lifetime when it costs less and the model has enough breaks to tell; null where the provider runs the cache. */
+  recommended: Choice | null
 }
 
 /** Weekly prompt cost for one table row: per ping count (null past what Pi sends), at each break's best count, and with no cache. */
 interface CostRow {
   counts: Array<number | null>
+  long: number | null
   perBreak: number | null
   noCache: number | null
 }
@@ -125,11 +143,26 @@ interface Line {
   badge?: string
 }
 
+/** Whole prompt cost of a model on a setting, over the window. */
+function choiceTotal(entry: ModelEntry, choice: Choice): number {
+  const { summary } = entry
+  if (choice === LONG && summary.longTotal !== null) return summary.longTotal
+  return summary.baseTotal + summary.totals[choice === LONG ? 0 : Math.min(choice, summary.totals.length - 1)]
+}
+
+function recommendedChoice(entry: Omit<ModelEntry, 'recommended'>): Choice | null {
+  if (entry.group.id === 'automatic') return null
+  const { summary, optimal } = entry
+  if (summary.longTotal !== null && summary.confidence !== 'none' && summary.longTotal < summary.baseTotal + summary.totals[optimal] - 1e-9) return LONG
+  return optimal
+}
+
 function costRow(entry: ModelEntry, maxPings: number, weeks: number): CostRow {
   const { summary, group } = entry
   const warmable = group.id !== 'automatic'
   return {
     counts: Array.from({ length: maxPings + 1 }, (_, count) => count <= (warmable ? group.maxPings : 0) ? (summary.baseTotal + summary.totals[count]) / weeks : null),
+    long: summary.longTotal === null ? null : summary.longTotal / weeks,
     perBreak: warmable ? (summary.baseTotal + summary.perBreakTotal) / weeks : null,
     noCache: summary.noCacheTotal > 0 ? summary.noCacheTotal / weeks : null,
   }
@@ -152,12 +185,10 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
     return analysis.groups
       .flatMap((group) => group.models.map((model) => ({ model, group })))
       .sort((a, b) => b.model.calls - a.model.calls)
-      .map(({ model, group }): ModelEntry => ({
-        model,
-        group,
-        summary: summarize([model], group.maxPings, analysis.days),
-        optimal: optimal.get(model.model) ?? 0,
-      }))
+      .map(({ model, group }): ModelEntry => {
+        const entry = { model, group, summary: summarize([model], group.maxPings, analysis.days), optimal: optimal.get(model.model) ?? 0 }
+        return { ...entry, recommended: recommendedChoice(entry) }
+      })
   }, [analysis])
 
   // Open on the most used model that can be warmed and ran in the last week.
@@ -176,21 +207,24 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
     const perBreak = new Array<number>(slots).fill(0)
     const perModel = new Array<number>(slots).fill(0)
     const noCache = new Array<number>(slots).fill(0)
+    const long = chartEntries.some((entry) => entry.model.long) ? new Array<number>(slots).fill(0) : null
     for (const entry of chartEntries) {
       const own = entry.group.id === 'automatic' ? 0 : entry.group.maxPings
       const byCount = Array.from({ length: own + 1 }, (_, count) => slotCosts(entry.model, count, analysis.from, slots).cost)
       counts.forEach((total, count) => addInto(total, byCount[Math.min(count, own)]))
       addInto(perBreak, own > 0 ? slotCosts(entry.model, 'perBreak', analysis.from, slots).cost : byCount[0])
-      addInto(perModel, byCount[Math.min(entry.optimal, own)])
+      const ownLong = slotLong(entry.model, analysis.from, slots)
+      if (long) addInto(long, ownLong ?? byCount[0])
+      addInto(perModel, entry.recommended === LONG && ownLong ? ownLong : byCount[Math.min(entry.optimal, own)])
       addInto(noCache, slotNoCache(entry.model, analysis.from, slots))
     }
-    return { counts, perBreak, perModel, noCache }
+    return { counts, long, perBreak, perModel, noCache }
   }, [chartEntries, chartMax, analysis.from, slots])
 
   if (entries.length === 0) return null
   const multi = entries.length > 1
   const single = selected === ALL_KEY ? null : chartEntries[0] ?? null
-  const recommended = single && single.group.id !== 'automatic' ? single.optimal : null
+  const recommended = single?.recommended ?? null
 
   const relative = (values: number[]): number[] => mode === 'total' ? values : values.map((value, slot) => value - series.counts[0][slot])
   const allLines: Line[] = [
@@ -203,6 +237,9 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
       steps: relative(values),
       badge: count === recommended ? t('analytics.promptCache.legend.recommended') : undefined,
     })),
+    ...(series.long
+      ? [{ key: LONG, label: t('analytics.promptCache.legend.long'), stroke: LONG_COLOR.stroke, style: 'solid' as const, width: recommended === LONG ? 3 : 1.75, steps: relative(series.long), badge: recommended === LONG ? t('analytics.promptCache.legend.recommended') : undefined }]
+      : []),
     ...(chartMax > 0 && !single
       ? [{ key: PER_MODEL, label: t('analytics.promptCache.legend.perModel'), stroke: 'stroke-primary', style: 'solid' as const, width: 3, steps: relative(series.perModel) }]
       : []),
@@ -215,10 +252,13 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
   const lines = allLines.filter((line) => !hidden.includes(line.key)).sort((a, b) => (a.badge ? 1 : 0) - (b.badge ? 1 : 0))
   const toggleLine = (key: string): void => setHidden(hidden.includes(key) ? hidden.filter((entry) => entry !== key) : [...hidden, key])
 
-  // The cheapest fixed count for each day, where the counts differed at all.
-  const dayBest = days.map((_, day) => {
-    const totals = series.counts.map((values) => sum(values.slice(day * SLOTS_PER_DAY, (day + 1) * SLOTS_PER_DAY)))
-    return totals.length > 1 && Math.max(...totals) - Math.min(...totals) >= 0.005 ? cheapest(totals) : null
+  // The cheapest fixed setting for each day, where they differed at all.
+  const dayBest = days.map((_, day): Choice | null => {
+    const options = [...series.counts, ...(series.long ? [series.long] : [])]
+    const totals = options.map((values) => sum(values.slice(day * SLOTS_PER_DAY, (day + 1) * SLOTS_PER_DAY)))
+    if (totals.length < 2 || Math.max(...totals) - Math.min(...totals) < 0.005) return null
+    const best = cheapest(totals)
+    return best === series.counts.length ? LONG : best
   })
   const dayLabel = (index: number): string => new Date(days[index]).toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric' })
   const pick = (key: string): void => { setPicked(key); setSelectedDay(null) }
@@ -279,12 +319,12 @@ export function PromptCacheAnalysis({ analysis }: { analysis: CacheAnalysis }): 
                         aria-pressed={selectedDay === index}
                         title={dayBest[index] === null
                           ? t('analytics.promptCache.chart.expand', { day: dayLabel(index) })
-                          : t('analytics.promptCache.chart.dayBest', { day: dayLabel(index), pings: pingsLabel(dayBest[index] ?? 0, t) })}
+                          : t('analytics.promptCache.chart.dayBest', { day: dayLabel(index), pings: choiceLabel(dayBest[index] ?? 0, t) })}
                         className={clsx('flex min-w-0 flex-col items-center rounded py-0.5 text-[10px] leading-tight', selectedDay === index ? 'bg-accent-bg font-medium text-accent-fg' : 'text-faint hover:bg-surface-hover hover:text-secondary')}
                       >
                         <span className="truncate">{new Date(start).toLocaleDateString(i18n.language, { day: 'numeric' })}</span>
-                        <span className={clsx('font-semibold tabular-nums', dayBest[index] === null ? 'text-ghost' : PING_COLORS[(dayBest[index] ?? 0) % PING_COLORS.length].text)}>
-                          {dayBest[index] ?? '–'}
+                        <span className={clsx('font-semibold tabular-nums', dayBest[index] === null ? 'text-ghost' : choiceColor(dayBest[index] ?? 0).text)}>
+                          {dayBest[index] === LONG ? t('analytics.promptCache.longShort') : dayBest[index] ?? '–'}
                         </span>
                       </button>
                     ))}
@@ -330,20 +370,21 @@ function Summary({ entry, entries, weeks }: { entry: ModelEntry | null; entries:
   let text: string
   if (entry === null) {
     const now = sum(entries.map(({ summary }) => summary.baseTotal + summary.totals[0]))
-    const recommended = sum(entries.map(({ summary, optimal, group }) => summary.baseTotal + summary.totals[group.id === 'automatic' ? 0 : optimal]))
+    const recommended = sum(entries.map((own) => choiceTotal(own, own.recommended ?? 0)))
     const best = sum(entries.map(({ summary, group }) => summary.baseTotal + (group.id === 'automatic' ? summary.totals[0] : summary.perBreakTotal)))
     text = t('analytics.promptCache.summary.all', { cost: weekly(recommended), now: weekly(now), saving: weekly(now - recommended), best: weekly(best) })
   } else {
-    const { summary, optimal, group, model } = entry
+    const { summary, group, model } = entry
     const name = modelName(model.model)
     const now = summary.baseTotal + summary.totals[0]
     if (group.id === 'automatic') {
       text = t('analytics.promptCache.summary.automatic', { model: name, cost: weekly(now) })
     } else {
-      const recommended = summary.baseTotal + summary.totals[optimal]
+      const choice = entry.recommended ?? 0
+      const recommended = choiceTotal(entry, choice)
       const best = weekly(summary.baseTotal + summary.perBreakTotal)
       text = now - recommended >= 0.005
-        ? t('analytics.promptCache.summary.saves', { model: name, pings: pingsLabel(optimal, t), cost: weekly(recommended), now: weekly(now), saving: weekly(now - recommended), best })
+        ? t('analytics.promptCache.summary.saves', { model: name, pings: choiceLabel(choice, t), cost: weekly(recommended), now: weekly(now), saving: weekly(now - recommended), best })
         : t('analytics.promptCache.summary.noSaving', { model: name, cost: weekly(now), best })
       if (summary.confidence === 'none') text += ` ${t('analytics.promptCache.summary.thin', { count: model.longBreaks })}`
     }
@@ -367,13 +408,31 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
       const own = cost.counts.filter((value): value is number => value !== null)
       return own[Math.min(count, own.length - 1)]
     }))),
+    long: rows.some(({ cost }) => cost.long !== null) ? sum(rows.map(({ cost }) => cost.long ?? cost.counts[0] ?? 0)) : null,
     perBreak: sum(rows.map(({ cost }) => cost.perBreak ?? cost.counts[0] ?? 0)),
     noCache: sum(rows.map(({ cost }) => cost.noCache ?? 0)) || null,
   }
   const columns = Array.from({ length: maxPings + 1 }, (_, count) => count)
+  const hasLong = totalCost.long !== null
 
-  const row = (key: string, label: React.ReactNode, cost: CostRow, detail: React.ReactNode, recommended: number | null, automatic: boolean, strong: boolean): React.JSX.Element => {
-    const best = cheapest(cost.counts.map((value) => value ?? Infinity))
+  const row = (key: string, label: React.ReactNode, cost: CostRow, detail: React.ReactNode, recommended: Choice | null, automatic: boolean, strong: boolean): React.JSX.Element => {
+    const fixed = [...cost.counts.map((value) => value ?? Infinity), cost.long ?? Infinity]
+    const best: Choice = cheapest(fixed) === cost.counts.length ? LONG : cheapest(fixed)
+    const cell = (choice: Choice, value: number | null): React.JSX.Element => (
+      <td key={choice} className="py-1.5 pl-2 text-right tabular-nums">
+        {value === null ? <span className="text-ghost">–</span> : (
+          <span
+            className={clsx(
+              'inline-block rounded px-1',
+              choice === best ? 'font-semibold text-success' : 'text-secondary',
+              choice === recommended && 'ring-1 ring-accent',
+            )}
+          >
+            {money(value)}
+          </span>
+        )}
+      </td>
+    )
     const on = selected === key
     return (
       <tr
@@ -391,25 +450,12 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
         {automatic ? (
           <>
             <td className="py-1.5 pl-2 text-right tabular-nums text-primary">{money(cost.counts[0] ?? 0)}</td>
-            <td colSpan={maxPings + 1} className="py-1.5 pl-2 text-center text-[11px] text-dim">{t('analytics.promptCache.table.providerRuns')}</td>
+            <td colSpan={maxPings + (hasLong ? 2 : 1)} className="py-1.5 pl-2 text-center text-[11px] text-dim">{t('analytics.promptCache.table.providerRuns')}</td>
           </>
         ) : (
           <>
-            {cost.counts.map((value, count) => (
-              <td key={count} className="py-1.5 pl-2 text-right tabular-nums">
-                {value === null ? <span className="text-ghost">–</span> : (
-                  <span
-                    className={clsx(
-                      'inline-block rounded px-1',
-                      count === best ? 'font-semibold text-success' : 'text-secondary',
-                      count === recommended && 'ring-1 ring-accent',
-                    )}
-                  >
-                    {money(value)}
-                  </span>
-                )}
-              </td>
-            ))}
+            {cost.counts.map((value, count) => cell(count, value))}
+            {hasLong && cell(LONG, cost.long)}
             <td className="py-1.5 pl-3 pr-2 text-right tabular-nums text-special">{cost.perBreak === null ? '–' : money(cost.perBreak)}</td>
           </>
         )}
@@ -435,6 +481,14 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
                   </span>
                 </th>
               ))}
+              {hasLong && (
+                <th className="pb-1 pl-2 text-right font-medium" title={t('analytics.promptCache.table.longTitle')}>
+                  <span className="inline-flex items-center gap-1">
+                    <span className={clsx('h-0.5 w-2.5 rounded', LONG_COLOR.fill)} />
+                    {t('analytics.promptCache.table.long')}
+                  </span>
+                </th>
+              )}
               <th className="pb-1 pl-3 pr-2 text-right font-medium">{t('analytics.promptCache.table.perBreak')}</th>
             </tr>
           </thead>
@@ -450,7 +504,7 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick }: {
                   <span className={clsx('rounded-full px-1.5 font-medium', CONFIDENCE_CLASSES[entry.summary.confidence])}>{t(CONFIDENCE_KEYS[entry.summary.confidence])}</span>
                 )}
               </div>,
-              entry.group.id === 'automatic' ? null : entry.optimal,
+              entry.recommended,
               entry.group.id === 'automatic',
               false,
             ))}

@@ -66,14 +66,14 @@
       "chart": {
         "aria": "Running prompt cost by ping count",
         "dayBest": "{{day}}: cheapest with {{pings}}. Click to show it in 30-minute blocks",
-        "dayBestNote": "The number under each day is that day's cheapest ping count, in its line color.",
+        "dayBestNote": "Under each day is that day's cheapest setting, in its line color (L is the 1-hour cache).",
         "expand": "Show {{day}} in 30-minute blocks",
         "modeLabel": "Chart values",
         "saving": "Compared with no pings",
         "savingNote": "Each line is what that ping count paid compared with no pings: below $0 saves money. Click a day to open it below.",
         "title": "Running prompt cost by ping count · {{model}}",
         "total": "Total cost",
-        "totalNote": "Each line is the running prompt cost with that many pings after every break. The lowest line at the right edge was cheapest. Click a day to open it below.",
+        "totalNote": "Each line is the running prompt cost with that setting. The lowest line at the right edge was cheapest. Click a day to open it below.",
         "upTo": "{{day}}, up to {{time}}"
       },
       "confidence": {
@@ -93,6 +93,7 @@
       },
       "legend": {
         "allHidden": "Every line is hidden. Click one in the list to show it.",
+        "long": "Long: 1-hour cache, no pings",
         "noCache": "No cache (reference)",
         "note": "Click a line to hide or show it.",
         "perBreak": "Best count at each break",
@@ -106,6 +107,8 @@
         "fiveMinutes": "5-min cache",
         "thirtyMinutes": "30-min cache"
       },
+      "longLabel": "the 1-hour cache",
+      "longShort": "L",
       "noPings": "No pings",
       "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
       "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
@@ -120,11 +123,13 @@
         "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime."
       },
       "table": {
-        "footnote": "No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
+        "footnote": "Long is Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it. 30-minute models have no longer lifetime Pi can pick. No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
         "hitRate": "{{rate}}% hits",
+        "long": "Long (1 h)",
+        "longTitle": "Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it",
         "model": "Model",
         "noCache": "No cache",
-        "note": "Prompt cost per week. Green is the cheapest fixed count; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
+        "note": "Prompt cost per week. Green is the cheapest fixed setting; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
         "perBreak": "Best at each break",
         "providerRuns": "The provider runs this cache; pings can't change it",
         "title": "Cost per week by ping count"

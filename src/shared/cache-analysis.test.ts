@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SLOTS_PER_DAY, buildCacheAnalysis, optimalCounts, slotBest, slotCosts, slotNoCache, summarize, weekSplit } from './cache-analysis'
+import { SLOTS_PER_DAY, buildCacheAnalysis, optimalCounts, slotBest, slotCosts, slotLong, slotNoCache, summarize, weekSplit } from './cache-analysis'
 import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
@@ -141,4 +141,27 @@ test('a prompt sent once after every long break is cheaper with no cache', () =>
   const calls = [0, 1, 2, 3].map((index) => call(DAY_ONE + 9 * 60 * MINUTE + index * 90 * MINUTE, 40_000, true))
   const group = buildCacheAnalysis([session(calls)], DAY_ONE, DAY_ONE, DAY_ONE).groups[0]
   assert.ok(summarize(group.models, group.maxPings, 7).cacheSavingPerWeek < 0)
+})
+
+test('the 1 hour lifetime writes at 2x with no pings: dearer for short breaks, cheaper for breaks pings cannot reach', () => {
+  const total = (breaks: number[]): { now: number; best: number; long: number } => {
+    const group = buildCacheAnalysis([session(day(DAY_ONE, breaks))], DAY_ONE, DAY_ONE, DAY_ONE).groups[0]
+    const summary = summarize(group.models, group.maxPings, 7)
+    assert.ok(summary.longTotal !== null)
+    const long = slotLong(group.models[0], DAY_ONE, SLOTS_PER_DAY)
+    assert.ok(long && Math.abs(long.reduce((sum, value) => sum + value, 0) - summary.longTotal) < 1e-9)
+    return { now: summary.baseTotal + summary.totals[0], best: summary.baseTotal + summary.totals[summary.best], long: summary.longTotal }
+  }
+  const short = total([3, 3, 3])
+  assert.ok(short.long > short.now)
+  // Every write (the opening prompt and the 500 new tokens of each of 12 calls) costs 2x instead of 1.25x.
+  assert.ok(Math.abs(short.long - short.now - 40_000 * PRICE * 0.75 - 12 * 500 * PRICE * 0.75) < 1e-9)
+  const long = total([45, 45, 45])
+  assert.ok(long.long < long.best)
+})
+
+test('a 30 minute model has no longer lifetime Pi can pick', () => {
+  const analysis = buildCacheAnalysis([session(day(DAY_ONE, [40]), ['openai/gpt-6-luna'])], DAY_ONE, DAY_ONE, DAY_ONE)
+  assert.equal(analysis.groups[0].models[0].long, null)
+  assert.equal(summarize(analysis.groups[0].models, 1, 1).longTotal, null)
 })
