@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronUp, LineChart, Timer } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -12,8 +11,6 @@ import {
   type CacheMode,
 } from '../../../../resources/context-snapshot'
 import type { Translate } from '../../../shared/i18n'
-import type { CachePlanState } from '../../../shared/analytics-report'
-import { CacheCheckDialog } from './cache-check-dialog'
 
 export function cacheModeLabel(mode: CacheMode, t: Translate): string {
   switch (mode) {
@@ -85,8 +82,6 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
   const [warming, setWarming] = useState<{ value: string | null; enabledNow: boolean } | null>(null)
   const [auto, setAuto] = useState<{ schedule: AutoWarmSchedule | null; model: string | null } | null>(null)
   const [isOpen, setIsOpen] = useState(false)
-  const [checking, setChecking] = useState<string | null>(null)
-  const [plan, setPlan] = useState<CachePlanState | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   // A session keeps the mode picked for it, or the one it started in.
@@ -104,7 +99,6 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
 
   useEffect(() => {
     if (!isOpen) return
-    void window.piDesktop.analytics.getCachePlan().then(setPlan).catch(() => undefined)
     void window.piDesktop.context.getCacheWarming()
       .then((value) => setWarming((previous) => ({ value, enabledNow: previous?.enabledNow ?? false })))
       .catch(() => undefined)
@@ -195,9 +189,6 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
               </span>
             </button>
           ))}
-          {plan?.plan.off && (
-            <p className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">{t('chat.cacheMode.controlOff')}</p>
-          )}
           {current === 'auto' && auto && <AutoWarmPlan schedule={auto.schedule} model={auto.model} />}
           {warms && warming && warming.value !== 'idle' && (
             <div className="mx-2 mb-1 mt-1 rounded-lg bg-warning-bg px-2.5 py-2 text-[11px] text-secondary">
@@ -215,23 +206,19 @@ export function CacheModeSelector({ className }: CacheModeSelectorProps): React.
             <p className="mx-3 mb-1 mt-1 text-[11px] text-faint">{t('chat.cacheMode.idleWarmingEnabled')}</p>
           )}
           <p className="border-t border-border px-3 py-1.5 text-[11px] text-dim">{t('chat.cacheMode.appliesNext')}</p>
-          {auto?.model && (
-            <button
-              type="button"
-              onClick={() => {
-                setChecking(auto.model)
-                setIsOpen(false)
-              }}
-              className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5 text-left text-xs text-secondary hover:bg-surface-hover hover:text-primary"
-            >
-              <LineChart size={12} className="shrink-0 text-accent-fg" />
-              {t('chat.cacheMode.checkRecommendation')}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false)
+              useAppStore.getState().setCurrentView('analytics')
+            }}
+            className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5 text-left text-xs text-secondary hover:bg-surface-hover hover:text-primary"
+          >
+            <LineChart size={12} className="shrink-0 text-accent-fg" />
+            {t('chat.cacheMode.openAnalysis')}
+          </button>
         </div>
       )}
-      {/* On the body: the composer is a container, which would otherwise hold the fixed overlay inside it. */}
-      {checking && createPortal(<CacheCheckDialog model={checking} onClose={() => setChecking(null)} />, document.body)}
     </div>
   )
 }

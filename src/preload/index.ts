@@ -94,7 +94,7 @@ import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
 import type { AutoWarmSchedule, CacheMode, CacheModeChoice, ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
-import type { AnalyticsReport, ApplyCacheRecommendationRequest, CachePlanState, OverviewRequest, SetModelCacheRequest } from '../shared/analytics-report'
+import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -419,22 +419,6 @@ interface PiDesktopAPI {
     getOverview(request: OverviewRequest): Promise<AnalyticsReport>
     /** Read every session file again. */
     rebuild(): Promise<void>
-    /** The pi-analytics cache plan, which Pi runs with when the package's extension is loaded. */
-    getCachePlan(): Promise<CachePlanState>
-    /**
-     * Apply the overview's recommendation for one model; main works it out
-     * again from the same range. `allowIdleWarming` lets it set Pi's
-     * `cacheWarming` to "idle" when the setting refreshes after the agent stops.
-     */
-    applyCacheRecommendation(request: ApplyCacheRecommendationRequest): Promise<CachePlanState>
-    /** Step the plan back one change. */
-    undoCachePlan(): Promise<CachePlanState>
-    /** Set one model's cache setting by hand (keep warm's count is capped by its cache lifetime). */
-    setModelCache(request: SetModelCacheRequest): Promise<CachePlanState>
-    /** Off: the pi-analytics extension leaves Pi's cache alone; the plan is kept. */
-    setCacheControl(on: boolean): Promise<CachePlanState>
-    /** Clear the plan, turn cache control back on and put Pi's `cacheWarming` back. */
-    resetCachePlan(): Promise<CachePlanState>
   }
 
   // Diagnostics report
@@ -753,12 +737,6 @@ const api: PiDesktopAPI = {
     getSessionReport: (sessionFile) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_SESSION_REPORT, sessionFile),
     getOverview: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_OVERVIEW, request),
     rebuild: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_REBUILD),
-    getCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_CACHE_PLAN),
-    applyCacheRecommendation: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_APPLY_CACHE_RECOMMENDATION, request),
-    undoCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_UNDO_CACHE_PLAN),
-    setModelCache: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_MODEL_CACHE, request),
-    setCacheControl: (on) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_CACHE_CONTROL, on),
-    resetCachePlan: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_RESET_CACHE_PLAN),
   },
 
   diagnostics: {

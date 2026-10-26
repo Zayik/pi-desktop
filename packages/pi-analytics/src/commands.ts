@@ -4,10 +4,8 @@
  */
 import { spawn } from 'child_process'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
-import { describePlan, setCacheControl, readCacheWarming, reset, undo } from './apply'
 import { cacheLines } from './cache-text'
-import { readPlan } from './plan-file'
-import { analyticsDir, planPath } from './paths'
+import { analyticsDir } from './paths'
 import { buildEnvelope, writeReport } from './report'
 
 export const USAGE = [
@@ -15,19 +13,10 @@ export const USAGE = [
   '    Write the HTML report (the same view as Pi Desktop) and open it.',
   'pi-analytics cache [--range ...] [--details 5m|30m]',
   '    Whether keep-warm pings would have saved money, and how many, per cache lifetime and model. Read only.',
-  '',
-  'Cache settings are set aside while the analysis is settled. To clear settings an earlier version made:',
-  'pi-analytics plan | undo | reset | control on|off',
-  '    Show the plan, step back one change, go back to before the first, or switch the plan on or off.',
 ]
 
 export interface CommandOptions {
   dir?: string
-  settingsPath?: string
-  /** Ask the user; a CLI without a terminal, or Pi without UI, answers no. */
-  confirm?: (title: string, message: string) => Promise<boolean>
-  /** Called after the plan changes, so a running session picks it up. */
-  afterPlanChange?: () => void
   /** Open a written report; the default starts the system's opener. */
   open?: (path: string) => void
   now?: number
@@ -81,7 +70,7 @@ export function openFile(path: string): void {
 export async function runCommand(args: string | string[], options: CommandOptions = {}): Promise<string[]> {
   const parsed = parse(Array.isArray(args) ? args : args.trim().split(/\s+/).filter(Boolean))
   const dir = options.dir ?? analyticsDir()
-  const { command, positional, flags } = parsed
+  const { command, flags } = parsed
   switch (command) {
     case 'report': {
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), rebuild: flags.has('rebuild'), now: options.now })
@@ -96,36 +85,6 @@ export async function runCommand(args: string | string[], options: CommandOption
       const envelope = await buildEnvelope({ dir, range: rangeOf(flags), now: options.now })
       return cacheLines(envelope.data.report.cacheAnalysis, details ?? null)
     }
-    case 'control': {
-      const [state] = positional
-      if (state !== 'on' && state !== 'off') return ['Say "control on" or "control off".']
-      setCacheControl(state === 'on', { dir, now: options.now })
-      options.afterPlanChange?.()
-      return [state === 'on'
-        ? 'Cache control is on: the plan and each session\'s mode apply from the next request.'
-        : 'Cache control is off: Pi runs with its own cache settings from the next request. The plan is kept; "control on" brings it back, "reset" clears it.']
-    }
-    case 'undo': {
-      const result = undo({ dir, settingsPath: options.settingsPath, now: options.now })
-      if (!result) return ['Nothing to undo.']
-      options.afterPlanChange?.()
-      return [`Undid: ${result.summary}`, ...(result.restoredCacheWarming ? [`Pi's cacheWarming is back to ${readCacheWarmingLabel(result.restoredCacheWarming)}.`] : [])]
-    }
-    case 'reset': {
-      const result = reset({ dir, settingsPath: options.settingsPath, now: options.now })
-      options.afterPlanChange?.()
-      return ['The cache plan is back to its defaults and cache control is on; Pi decides for every model again.', ...(result.restoredCacheWarming ? [`Pi's cacheWarming is back to ${readCacheWarmingLabel(result.restoredCacheWarming)}.`] : [])]
-    }
-    case 'plan': {
-      const plan = readPlan(planPath(dir))
-      const lines = describePlan(plan)
-      const warming = readCacheWarming(options.settingsPath)
-      return [
-        ...(lines.length > 0 ? lines : ['The cache plan is empty: Pi decides for every model.']),
-        `Pi's cacheWarming: ${warming ?? 'not set (refreshes only while the agent works)'}`,
-        ...(plan.history.length > 0 ? [`${plan.history.length} change${plan.history.length === 1 ? '' : 's'} on record; the last: ${plan.history.at(-1)?.summary}`] : []),
-      ]
-    }
     case 'help':
     case '--help':
       return USAGE
@@ -134,6 +93,3 @@ export async function runCommand(args: string | string[], options: CommandOption
   }
 }
 
-function readCacheWarmingLabel(value: string | undefined): string {
-  return value === undefined || value === 'unset' ? 'not set' : `"${value}"`
-}

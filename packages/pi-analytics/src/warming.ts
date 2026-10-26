@@ -1,9 +1,9 @@
 /**
  * The package's side of Pi's prompt cache, for one Pi process: which mode
- * each request runs in (the session's pick, else the plan), the cache tier
- * it asks for, and the answer to Pi's idle cache-warming decisions. With no
- * pick and no plan entry for the model it changes nothing, so installing the
- * package for its reports leaves Pi's own warming as it was.
+ * each request runs in (the session's pick, else the mode the process started
+ * in), the cache tier it asks for, and the answer to Pi's idle cache-warming
+ * decisions. With neither it changes nothing, so installing the package for
+ * its reports leaves Pi's own warming as it was.
  */
 import { readFileSync, statSync } from 'fs'
 import { join } from 'path'
@@ -18,19 +18,10 @@ import {
   type CacheMode,
   type CacheModeChoice,
 } from '../../../resources/context-snapshot'
-import {
-  SESSION_STATUS_VERSION,
-  effectiveMode,
-  emptyPlan,
-  idleLimit,
-  isCachePlan,
-  type CachePlan,
-  type EffectiveMode,
-  type SessionCacheStatus,
-} from './cache-plan'
-import { AUTO_SCHEDULE_FILE, analyticsDir, planPath, sessionModePath } from './paths'
+import { SESSION_STATUS_VERSION, effectiveMode, idleLimit, type EffectiveMode, type SessionCacheStatus } from './cache-mode'
+import { AUTO_SCHEDULE_FILE, analyticsDir, sessionModePath } from './paths'
 
-/** Starts a process in a mode before any pick or plan; Pi Desktop's `PI_DESKTOP_CACHE_MODE` is read too. */
+/** Starts a process in a mode before any pick; Pi Desktop's `PI_DESKTOP_CACHE_MODE` is read too. */
 export const START_MODE_ENV = 'PI_ANALYTICS_CACHE_MODE'
 const DESKTOP_START_MODE_ENV = 'PI_DESKTOP_CACHE_MODE'
 
@@ -80,10 +71,6 @@ export class CacheWarming {
   /** The retention the process started with, put back when the extension lets go of a request. */
   private readonly startRetention: string | undefined
   private readonly startMode: CacheMode | null
-  private readonly planFile = new WatchedFile<CachePlan>((text) => {
-    const parsed: unknown = JSON.parse(text)
-    return isCachePlan(parsed) ? parsed : emptyPlan(0)
-  }, emptyPlan(0))
   private readonly scheduleFile = new WatchedFile<AutoWarmSchedule | null>((text) => {
     const parsed: unknown = JSON.parse(text)
     return isAutoWarmSchedule(parsed) ? parsed : null
@@ -150,9 +137,8 @@ export class CacheWarming {
 
   /** The mode for the next request, with `PI_CACHE_RETENTION` set to its tier (or put back when there is none). */
   apply(): EffectiveMode | null {
-    const plan = this.planFile.read(planPath(this.dir))
     const session = this.sessionId ? this.modeFile.read(sessionModePath(this.sessionId, this.dir)) : null
-    const mode = effectiveMode({ session, plan, model: this.model, start: this.startMode })
+    const mode = effectiveMode({ session, start: this.startMode })
     if (mode) this.env.PI_CACHE_RETENTION = cacheRetentionFor(mode.mode)
     else if (this.startRetention === undefined) delete this.env.PI_CACHE_RETENTION
     else this.env.PI_CACHE_RETENTION = this.startRetention

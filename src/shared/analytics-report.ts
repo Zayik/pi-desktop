@@ -6,7 +6,6 @@
 import { addModelUsage, type ModelUsage } from './agent-board'
 import { buildCacheAnalysis, summarize, type CacheAnalysis } from './cache-analysis'
 import { buildCacheReport, type CacheReport } from './cache-policy'
-import type { CachePlan } from '../../packages/pi-analytics/src/cache-plan'
 import {
   WORK_CATEGORIES,
   localDayKey,
@@ -41,28 +40,6 @@ export interface OverviewRequest {
 }
 
 /** Apply the recommendation for `model` in the overview of `range` (and `projectPath`). */
-export interface ApplyCacheRecommendationRequest extends OverviewRequest {
-  model: string
-  allowIdleWarming: boolean
-  /** Apply the long-cache alternative instead of the ping count. */
-  long?: boolean
-}
-
-/** One model's cache setting picked by hand; `default` takes its entry out so Pi decides. */
-export interface SetModelCacheRequest {
-  model: string
-  mode: 'default' | 'focus' | 'keep-warm' | 'long'
-  /** keep-warm: idle refreshes, capped by the model's cache lifetime. */
-  pings?: number
-  allowIdleWarming: boolean
-}
-
-/** The pi-analytics cache plan and Pi's `cacheWarming`, which idle refreshes need set to "idle". */
-export interface CachePlanState {
-  plan: CachePlan
-  cacheWarming: string | null
-}
-
 export interface SessionReportRequest {
   sessionFile: string
 }

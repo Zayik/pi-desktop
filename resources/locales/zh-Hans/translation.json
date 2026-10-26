@@ -9,77 +9,7 @@
   },
   "analytics": {
     "cache": {
-      "assumed": "{{policy}}（推定）",
-      "current": "当前",
-      "gaps": {
-        "bar_other": "{{range}}：{{count}} 个间隔",
-        "over": ">{{minutes}} 分",
-        "range": "{{from}}–{{to}} 分",
-        "title": "调用间隔",
-        "under": "<{{minutes}} 分"
-      },
-      "hourly": {
-        "cell_other": "{{hour}}:00：{{count}} 次保活，{{gaps}} 段空闲，比全天固定次数节省 {{saving}}",
-        "empty": "{{hour}}:00：无空闲",
-        "flat": "全天使用同一保活次数与按小时调整一样便宜。",
-        "saving": "按一天中的小时调整次数将花费 {{cost}}，比最佳固定次数少 {{saving}}。",
-        "title": "按一天中的小时的最便宜保活次数"
-      },
-      "keep": "按这种调用节奏，当前设置已接近最便宜。",
-      "measured": "已计费 {{cost}} · {{calls}} 次调用",
-      "noOptions": "此模型没有可比较的缓存设置或保活选项，仅显示实际计费。",
-      "notes": {
-        "copilot1hUnlisted": "Copilot 文档只列出 5 分钟价格，但其后端接受 1 小时时长（VS Code 的扩展缓存设置会使用）。1 小时一行按 Anthropic 的 2 倍写入价估算。",
-        "copilotAutomatic": "Copilot 会自动缓存此模型，没有可更改的设置。",
-        "copilotVendor": "Copilot 在厂商自己的服务器上运行此模型，因此按厂商的缓存时长估算。",
-        "implicitLifetime": "OpenAI 自动缓存此模型，不收写入费用。时长为典型值：内存约 5 到 10 分钟（按 5 分钟估算），24 小时保留约 30 分钟。",
-        "piNo12h": "Pi 的长保留在此模型上请求 30 分钟，因此目前无法在 Pi 中选择 12 小时。",
-        "piNoPings": "此模型尚无保活记录。Pi 只对已知缓存时长的模型保活（来自其自带列表、models.json 或本应用），因此这里的保活只是假设。"
-      },
-      "observed": {
-        "axis": "调用前的间隔（分钟）；虚线：当前使用的时长",
-        "bar": "间隔最多 {{range}} 分钟：{{gaps}} 次中 {{hits}} 次命中缓存",
-        "longer": "{{warm}} 分钟后仍有命中，长于 {{expected}} 分钟时长。",
-        "matches": "实测命中保持到约 {{warm}} 分钟，从 {{cold}} 分钟开始下降，与 {{expected}} 分钟时长相符。",
-        "pingedGaps_other": "保活后的 {{count}} 次调用中 {{hits}} 次命中缓存。",
-        "pings_other": "{{count}} 次保活：{{hits}} 次命中缓存（{{cost}}）。",
-        "shorter": "缓存似乎短于 {{expected}} 分钟：从 {{cold}} 分钟起命中已下降。",
-        "title": "实测：间隔后命中缓存的调用（%）",
-        "unclear": "{{expected}} 分钟附近的间隔还不够，暂无法核对时长。"
-      },
-      "pings_other": "{{count}} 次保活",
-      "policy": {
-        "fiveMinutes": "5 分钟",
-        "inMemory": "内存（约 5 分钟）",
-        "inMemoryWarm30": "内存 + 保活（空闲最多 30 分钟）",
-        "inMemoryWarm60": "内存 + 保活（空闲最多 1 小时）",
-        "inMemoryWarmBreakEven": "内存 + 保活（比重发便宜时）",
-        "none": "不缓存",
-        "oneHour": "1 小时",
-        "thirtyMinutes": "30 分钟",
-        "thirtyWarm12h": "30 分钟 + 保活（空闲最多 12 小时）",
-        "thirtyWarm6h": "30 分钟 + 保活（空闲最多 6 小时）",
-        "thirtyWarmBreakEven": "30 分钟 + 保活（比重写便宜时）",
-        "twelveHours": "12 小时",
-        "twentyFourHours": "24 小时保留（约 30 分钟）",
-        "warm30": "5 分钟 + 保活（空闲最多 30 分钟）",
-        "warm60": "5 分钟 + 保活（空闲最多 1 小时）",
-        "warmBreakEven": "5 分钟 + 保活（比重写便宜时）"
-      },
-      "recommend": "最便宜：{{policy}}，这些调用约可省 {{saving}}。",
       "rulesAsOf": "缓存规则截至 {{date}}。仅对厂商提供该选项之后的调用进行比较。",
-      "sweep": {
-        "axis": "每段空闲允许的保活次数（每 {{every}} 分钟一次）",
-        "best_other": "最便宜：{{base}} + 每段空闲 {{count}} 次保活（空闲 {{idle}} 内保持缓存），{{cost}}。约可节省 {{saving}}（平均每会话 {{perSession}}）。",
-        "idleHours": "{{hours}} 小时",
-        "idleMinutes": "{{minutes}} 分钟",
-        "long": "{{policy}} {{cost}}",
-        "none_other": "最便宜的是 {{base}} + 每段空闲 {{count}} 次保活，{{cost}}，并不比当前便宜。",
-        "point_other": "每段空闲 {{count}} 次保活（保持 {{idle}}）：{{cost}}，实际发送 {{sent}} 次",
-        "title": "{{base}} 按每段空闲保活次数的费用"
-      },
-      "timing": "当前 {{current}} · 间隔中位数 {{gap}} · {{share}}% 的间隔超过 {{ttl}} 分钟",
-      "unknown": "未知",
       "viaCopilot": "经由 Copilot"
     },
     "category": {
@@ -241,22 +171,6 @@
       "thirtyDays": "30 天",
       "threeMonths": "90 天"
     },
-    "recommend": {
-      "alternative": "或改用 {{policy}} 缓存：每周节省 {{amount}}",
-      "applied": "已应用",
-      "apply": "应用",
-      "beyondPi_other": "回放中最便宜的是刷新 {{count}} 次（{{minutes}} 分钟），但 Pi 在运行结束 30 分钟后停止预热。",
-      "focus": "智能体停止后不再刷新",
-      "keepWarm_other": "智能体停止后保持缓存 {{minutes}} 分钟（刷新 {{count}} 次）",
-      "long": "使用 {{policy}} 缓存",
-      "none": "每个模型都已使用最便宜的设置。",
-      "note_other": "每周节省，基于最近 {{count}} 天",
-      "planned_other": "缓存计划设置了 {{count}} 个模型。",
-      "saving": "每周节省 {{amount}}",
-      "thin_other": "中断次数还不够，暂无建议：{{models}}。",
-      "title": "可应用的缓存设置",
-      "undo": "撤销上次更改"
-    },
     "retro": {
       "button": "复盘",
       "overallTitle": "新建对话，根据这些数据进行复盘",
@@ -388,18 +302,6 @@
       "unknownMimeType": "未知",
       "unsupportedImageType": "不支持的图片类型（{{mimeType}}）。请使用 PNG、JPEG、GIF 或 WebP。"
     },
-    "cacheCheck": {
-      "close": "",
-      "failed": "",
-      "intro": "",
-      "loading": "",
-      "longOnly": "",
-      "noHistory": "",
-      "noSaving": "",
-      "notCovered": "",
-      "notEnoughData_other": "",
-      "title": ""
-    },
     "cacheMode": {
       "appliesNext": "",
       "autoHour_other": "",
@@ -407,8 +309,6 @@
       "autoNoData": "",
       "autoNow_other": "",
       "autoOverride": "",
-      "checkRecommendation": "",
-      "controlOff": "设置中的缓存控制已关闭，Pi 使用自身的缓存设置；此选择会在重新开启后生效。",
       "enableIdleWarming": "",
       "idleWarmingEnabled": "",
       "idleWarmingOff": "",
@@ -430,6 +330,7 @@
           "label": ""
         }
       },
+      "openAnalysis": "",
       "title": "",
       "withMode": ""
     },

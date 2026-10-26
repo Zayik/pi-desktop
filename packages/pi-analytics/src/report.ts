@@ -8,10 +8,8 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { AnalyticsIndex } from '../../../src/main/analytics-index'
 import type { AnalyticsRangeKey } from '../../../src/shared/analytics-report'
-import { readPlan } from './plan-file'
 import { REPORT_DATA_MARKER, REPORT_ENVELOPE_VERSION, type ReportEnvelope } from './envelope'
-import { ARCHIVE_DIR, INDEX_FILE, REPORTS_DIR, analyticsDir, planPath } from './paths'
-import { cacheChecks, recommendations, reportDays } from './recommendations'
+import { ARCHIVE_DIR, INDEX_FILE, REPORTS_DIR, analyticsDir } from './paths'
 
 export const REPORT_TEMPLATE_FILE = 'report.html'
 
@@ -39,10 +37,7 @@ export async function buildEnvelope(options: BuildOptions = {}): Promise<ReportE
       version: REPORT_ENVELOPE_VERSION,
       data: {
         report,
-        recommendations: recommendations(report, now),
-        checks: cacheChecks(report, now),
-        plan: readPlan(planPath(dir)),
-        days: reportDays(report, now),
+        days: report.cacheAnalysis.days,
         range,
         generatedAt: now,
         language: options.language ?? 'en',

@@ -4,7 +4,7 @@ import { dirname } from 'path'
 import { analyticsDir, sessionStatusPath } from './paths'
 import { CacheWarming, type WarmingModel } from './warming'
 import { quietSqliteWarning } from './quiet'
-import type { SessionCacheStatus } from './cache-plan'
+import type { SessionCacheStatus } from './cache-mode'
 
 /** Sent on `pi.events` whenever a session's cache status changes. */
 export const STATUS_EVENT = 'pi-analytics:status'
@@ -12,8 +12,8 @@ const WRITE_DELAY_MS = 200
 const FOOTER_KEY = 'pi-analytics'
 
 /**
- * pi-analytics in Pi: the `/analytics` command (report, cache, and plan,
- * undo, reset for settings an earlier version made) and the cache plan applied to every request. It owns
+ * pi-analytics in Pi: the `/analytics` command (report and cache) and the
+ * session's cache mode applied to every request. It owns
  * `cache_warming_decision`; other extensions only observe it.
  */
 export default function piAnalytics(pi: ExtensionAPI): void {
@@ -89,11 +89,7 @@ export default function piAnalytics(pi: ExtensionAPI): void {
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       // The session index loads node:sqlite; it is loaded only when asked for.
       const { runCommand } = await import('./commands')
-      const lines = await runCommand(args, {
-        dir,
-        confirm: (title, message) => (ctx.hasUI ? ctx.ui.confirm(title, message) : Promise.resolve(false)),
-        afterPlanChange: () => warming.apply(),
-      })
+      const lines = await runCommand(args, { dir })
       ctx.ui.notify(lines.join('\n'), 'info')
     },
   })
