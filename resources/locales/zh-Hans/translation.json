@@ -9,8 +9,7 @@
   },
   "analytics": {
     "cache": {
-      "rulesAsOf": "缓存规则截至 {{date}}。仅对厂商提供该选项之后的调用进行比较。",
-      "viaCopilot": "经由 Copilot"
+      "rulesAsOf": "缓存规则截至 {{date}}。仅对厂商提供该选项之后的调用进行比较。"
     },
     "category": {
       "build": "构建",
@@ -61,106 +60,66 @@
       "title": "项目"
     },
     "promptCache": {
-      "automaticBasis": "该缓存由服务商管理，没有可设置的有效期，保活无济于事。",
-      "basis_other": "{{count}} 天 · 超过 {{minutes}} 分钟的间隔 {{breaks}} 次 · 保活最长覆盖 {{reach}} 分钟",
-      "best": "最佳",
-      "breaks": {
-        "fewPings": "少量保活即可覆盖",
-        "morePings": "更多保活可覆盖",
-        "note": "按时长统计的调用间隔。只有蓝色行里的间隔保活才划算。",
-        "onePing": "1 次保活可覆盖",
-        "over": "超过 {{minutes}} 分钟",
-        "title": "间隔分布",
-        "tooLong": "太长，保活无法覆盖",
-        "under": "不超过 {{minutes}} 分钟",
-        "warm": "缓存仍然有效，无需保活"
+      "allModels": "所有模型",
+      "bar": {
+        "idle": "{{label}}：无调用",
+        "same": "{{label}}：{{cost}}，保温请求无影响",
+        "saved": "{{label}}：该设置 {{cost}}，不发送 {{none}}（节省 {{saving}}）",
+        "wasted": "{{label}}：该设置 {{cost}}，不发送 {{none}}（多 {{extra}}）"
       },
-      "cells": {
-        "cell_other": "{{from}}–{{to}}：{{count}} 次间隔（{{lengths}} 分钟）。最佳：{{best}}，节省 {{saving}}。",
-        "empty": "{{from}}–{{to}}：没有长到需要保活的间隔",
-        "note": "数字表示该段内结束的间隔最省的保活次数。灰色段没有长到需要保活的间隔。",
-        "title": "每 30 分钟段最省的保活次数"
+      "choice": {
+        "capped": "30 分钟缓存最多只发送 1 次保温请求，因此这些模型止于 1。",
+        "fixedNote": "每个模型在每次间隔后发送 {{pings}}。",
+        "label": "保温请求",
+        "optimal": "最优",
+        "optimalNote": "最优：每个模型使用各自最省钱的固定次数。长间隔少于 10 次的模型沿用相同缓存时长模型的次数。"
       },
-      "chart": {
-        "aria": "按保活次数的累计提示费用",
-        "back_other": "返回 {{count}} 天",
-        "clickToZoom": "点击图表展开某一天",
-        "expand": "将 {{day}} 展开为 30 分钟分段",
-        "modeLabel": "图表数值",
-        "nextDay": "后一天",
-        "previousDay": "前一天",
-        "saving": "与不保活相比",
-        "savingNote": "每条线表示用该次数保活时的费用，与不保活相比。越低越省。离开期间保持平直，在每次间隔处变化。点击某天可展开。",
-        "title": "按保活次数的费用",
-        "total": "总费用",
-        "totalNote": "每条线表示用该次数保活时的累计提示费用。由于用量远大于保活带来的差异，线条彼此接近。点击某天可展开。",
-        "upTo": "{{day}}，截至 {{time}}",
-        "zoomNote": "同样的线条，按 30 分钟分段显示一天。悬停可查看该段的间隔。"
-      },
+      "clickDay": "点击某一天，按 30 分钟查看",
       "confidence": {
         "early": "初步",
         "none": "数据不足",
         "solid": "可靠"
       },
-      "details": "详情",
-      "dynamic": {
-        "label": "动态保活",
-        "multi_other": "所有模型统一 {{count}} 次保活节省 {{fixed}}。每个模型用各自最优次数（{{models}}）节省 {{perModel}}。事后看每次间隔都选最省次数可节省 {{perBreak}}，这是按时间设置次数的上限。",
-        "single_other": "事后看，每次间隔都选最省的次数，比固定 {{count}} 次保活多省 {{extra}}。这是按时间设置次数最多能带来的收益。"
+      "day": {
+        "bestNote": "柱下数字：在该时段结束的间隔最省钱的保温次数。没有数字的时段没有超过缓存时长的间隔。",
+        "bestRow": "每个时段最省钱的保温次数",
+        "cell_other": "{{block}}：{{count}} 次间隔（{{lengths}} 分钟），{{best}}最省钱",
+        "close": "关闭当天视图",
+        "empty": "当天没有调用。",
+        "next": "后一天",
+        "previous": "前一天",
+        "total": "使用{{pings}} {{cost}}，不发送 {{none}}"
       },
-      "group": {
-        "automatic": "自动缓存",
+      "facts": {
+        "automatic": "缓存由服务商管理，保温请求无效",
+        "best": "最佳固定次数：{{pings}}",
+        "costs": "{{pings}}每周多花 {{cost}}",
+        "hitRate": "命中率 {{rate}}",
+        "noCacheCheaper": "不使用缓存每周可便宜 {{cost}}",
+        "saves": "{{pings}}每周节省 {{cost}}",
+        "thin_other": "数据不足（{{count}} 次长间隔）",
+        "vsNoCache": "相比不使用缓存，每周节省 {{cost}}"
+      },
+      "headline": {
+        "costs_other": "使用{{pings}}时，{{count}} 天内提示花费 {{cost}}：比不发送多 {{extra}}。",
+        "noPings_other": "不发送保温请求时，{{count}} 天内提示花费 {{cost}}。",
+        "saves_other": "使用{{pings}}时，{{count}} 天内提示花费 {{cost}}：比不发送少 {{saving}}，约每周 {{weekly}}。"
+      },
+      "legend": {
+        "cost": "该设置下的提示花费",
+        "saved": "保温请求节省的部分",
+        "wasted": "无效保温请求多付的部分"
+      },
+      "lifetime": {
+        "automatic": "服务商缓存",
         "fiveMinutes": "5 分钟缓存",
         "thirtyMinutes": "30 分钟缓存"
       },
-      "headline": {
-        "automatic": "{{rate}}% 的输入来自缓存。",
-        "automaticNone": "还没有缓存读取。",
-        "none": "保活不会省钱，保持关闭即可。",
-        "save_other": "{{count}} 次保活每周约可节省 {{cost}}。",
-        "thin_other": "长间隔还不够（超过 {{minutes}} 分钟的有 {{count}} 次）。多用一段时间后再看。",
-        "tie": "{{low}} 次和 {{high}} 次保活效果相当。"
-      },
-      "hitRate": "命中率",
-      "legend": {
-        "bestFixed": "最佳固定值",
-        "day": "当天",
-        "savingNote": "低于 $0 表示省钱，高于 $0 表示多花。悬停某行可突出对应的线。",
-        "total_other": "{{count}} 天合计",
-        "totalNote": "累计提示费用。切换到“与不保活相比”可看清差异。"
-      },
-      "line": {
-        "noCache": "",
-        "perBreak": "每次间隔取最优",
-        "perModel": "每个模型取各自最优"
-      },
-      "models": {
-        "all": "全部模型",
-        "breaks": "超过 {{minutes}} 分钟的间隔",
-        "data": "数据",
-        "filter": "图表中的模型",
-        "label": "模型",
-        "model": "模型",
-        "note": "逐个模型单独计算。长间隔少于 10 次的模型沿用分组的次数。点击模型可只看该模型。",
-        "title": "按模型",
-        "useGroup": "沿用分组：{{pings}}"
-      },
-      "noCache": {
-        "cheaper": "",
-        "saves": ""
-      },
+      "modelCount_other": "{{count}} 个模型",
       "noPings": "不保活",
       "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
       "pings_other": "{{count}} 次保活",
-      "readOnly": "只读",
-      "savesPerWeek": "每周节省",
-      "showing": "正在显示",
-      "title": "提示缓存",
-      "weeks": {
-        "differ": "上上周以 {{earlier}} 最省（{{earlierSaving}}），上周以 {{later}} 最省（{{laterSaving}}）。随着数据增多值得继续观察。",
-        "label": "最近两周",
-        "same_other": "两周都以 {{count}} 次保活最省（分别节省 {{earlier}} 和 {{later}}）。"
-      }
+      "title": "提示缓存"
     },
     "prompts": {
       "cost": "费用",

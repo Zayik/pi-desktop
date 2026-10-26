@@ -9,8 +9,7 @@
   },
   "analytics": {
     "cache": {
-      "rulesAsOf": "Cache rules as of {{date}}. Options are only compared for calls made after the vendor offered them.",
-      "viaCopilot": "via Copilot"
+      "rulesAsOf": "Cache rules as of {{date}}. Options are only compared for calls made after the vendor offered them."
     },
     "category": {
       "build": "Builds",
@@ -63,117 +62,74 @@
       "title": "Projects"
     },
     "promptCache": {
-      "automaticBasis": "The provider runs this cache. It has no lifetime to set, so pings cannot help.",
-      "basis_one": "{{count}} day · {{breaks}} breaks over {{minutes}} min · pings cover breaks up to {{reach}} min",
-      "basis_other": "{{count}} days · {{breaks}} breaks over {{minutes}} min · pings cover breaks up to {{reach}} min",
-      "best": "Best",
-      "breaks": {
-        "fewPings": "a few pings cover these",
-        "morePings": "more pings cover these",
-        "note": "Breaks between calls, by length. Pings only pay off in the blue rows.",
-        "onePing": "1 ping covers these",
-        "over": "Over {{minutes}} min",
-        "title": "Where your breaks fall",
-        "tooLong": "too long for pings",
-        "under": "Up to {{minutes}} min",
-        "warm": "the cache is still warm, no pings needed"
+      "allModels": "All models",
+      "bar": {
+        "idle": "{{label}}: no calls",
+        "same": "{{label}}: {{cost}}, pings made no difference",
+        "saved": "{{label}}: {{cost}} with this setting, {{none}} with no pings (saves {{saving}})",
+        "wasted": "{{label}}: {{cost}} with this setting, {{none}} with no pings ({{extra}} more)"
       },
-      "cells": {
-        "cell_one": "{{from}}–{{to}}: {{count}} break ({{lengths}} min). Best: {{best}}, saves {{saving}}.",
-        "cell_other": "{{from}}–{{to}}: {{count}} breaks ({{lengths}} min). Best: {{best}}, saves {{saving}}.",
-        "empty": "{{from}}–{{to}}: no break long enough for pings to matter",
-        "note": "The number is the cheapest ping count for the breaks that ended in that block. Grey blocks had no break long enough for pings to matter.",
-        "title": "Cheapest ping count per 30-minute block"
+      "choice": {
+        "capped": "Pi sends at most 1 ping on a 30-minute cache, so those models stop at 1.",
+        "fixedNote": "Every model with {{pings}} after each break.",
+        "label": "Pings",
+        "optimal": "Optimal",
+        "optimalNote": "Optimal: each model on its own cheapest fixed count. A model with fewer than 10 long breaks uses the count of models with the same cache lifetime."
       },
-      "chart": {
-        "aria": "Running prompt cost by ping count",
-        "back_one": "Back to {{count}} day",
-        "back_other": "Back to {{count}} days",
-        "clickToZoom": "Click the chart to expand a day",
-        "expand": "Expand {{day}} into 30-minute blocks",
-        "modeLabel": "Chart values",
-        "nextDay": "Next day",
-        "previousDay": "Previous day",
-        "saving": "Compared with no pings",
-        "savingNote": "Each line is what you would have paid with that many pings, compared with no pings. Lower is cheaper. Flat while you were away, it steps at each break. Click a day to expand it.",
-        "title": "Cost by ping count",
-        "total": "Total cost",
-        "totalNote": "Each line is your running prompt cost with that many pings. The dotted line is the same prompts with no cache at all. Click a day to expand it.",
-        "upTo": "{{day}}, up to {{time}}",
-        "zoomNote": "The same lines for one day, in 30-minute blocks. Hover a block for its breaks."
-      },
+      "clickDay": "Click a day to see it in 30-minute blocks",
       "confidence": {
         "early": "Early",
         "none": "Not enough data",
         "solid": "Solid"
       },
-      "details": "Details",
-      "dynamic": {
-        "label": "Dynamic pings",
-        "multi_one": "One count for every model ({{count}} ping) saves {{fixed}}. Each model on its own best count ({{models}}) saves {{perModel}}. The cheapest count at every break, in hindsight, saves {{perBreak}}: the most a count set by time could reach.",
-        "multi_other": "One count for every model ({{count}} pings) saves {{fixed}}. Each model on its own best count ({{models}}) saves {{perModel}}. The cheapest count at every break, in hindsight, saves {{perBreak}}: the most a count set by time could reach.",
-        "single_one": "Choosing the cheapest count at every break, in hindsight, would have saved {{extra}} more than a fixed {{count}} ping. That is the most a count set by time could add.",
-        "single_other": "Choosing the cheapest count at every break, in hindsight, would have saved {{extra}} more than a fixed {{count}} pings. That is the most a count set by time could add."
+      "day": {
+        "bestNote": "Numbers under the bars: the cheapest ping count for the breaks that ended in that block. Blocks with no number had no break longer than the cache lifetime.",
+        "bestRow": "Cheapest ping count per block",
+        "cell_one": "{{block}}: {{count}} break ({{lengths}} min), cheapest with {{best}}",
+        "cell_other": "{{block}}: {{count}} breaks ({{lengths}} min), cheapest with {{best}}",
+        "close": "Close the day",
+        "empty": "No calls on this day.",
+        "next": "Next day",
+        "previous": "Previous day",
+        "total": "{{cost}} with {{pings}}, {{none}} with no pings"
       },
-      "group": {
-        "automatic": "Automatic caching",
-        "fiveMinutes": "5-minute cache",
-        "thirtyMinutes": "30-minute cache"
+      "facts": {
+        "automatic": "The provider runs this cache, so pings cannot help",
+        "best": "Best fixed: {{pings}}",
+        "costs": "{{pings}} costs {{cost}} a week more",
+        "hitRate": "Hit rate {{rate}}",
+        "noCacheCheaper": "No cache would be {{cost}} a week cheaper",
+        "saves": "{{pings}} saves {{cost}} a week",
+        "thin_one": "Not enough data yet ({{count}} long break)",
+        "thin_other": "Not enough data yet ({{count}} long breaks)",
+        "vsNoCache": "Caching saves {{cost}} a week over no cache"
       },
       "headline": {
-        "automatic": "{{rate}}% of input was read from cache.",
-        "automaticNone": "No cache reads yet.",
-        "none": "Pings would not have saved money. Leave them off.",
-        "save_one": "{{count}} ping would have saved about {{cost}} a week.",
-        "save_other": "{{count}} pings would have saved about {{cost}} a week.",
-        "thin_one": "Not enough breaks yet ({{count}} over {{minutes}} min). Check back after more use.",
-        "thin_other": "Not enough breaks yet ({{count}} over {{minutes}} min). Check back after more use.",
-        "tie": "{{low}} and {{high}} pings are about the same."
+        "costs_one": "With {{pings}}, prompts cost {{cost}} over {{count}} day: {{extra}} more than no pings.",
+        "costs_other": "With {{pings}}, prompts cost {{cost}} over {{count}} days: {{extra}} more than no pings.",
+        "noPings_one": "With no pings, prompts cost {{cost}} over {{count}} day.",
+        "noPings_other": "With no pings, prompts cost {{cost}} over {{count}} days.",
+        "saves_one": "With {{pings}}, prompts cost {{cost}} over {{count}} day: {{saving}} less than no pings, about {{weekly}} a week.",
+        "saves_other": "With {{pings}}, prompts cost {{cost}} over {{count}} days: {{saving}} less than no pings, about {{weekly}} a week."
       },
-      "hitRate": "Hit rate",
       "legend": {
-        "bestFixed": "Best fixed",
-        "day": "This day",
-        "savingNote": "Below $0 saves money, above $0 costs extra. Hover a row to pick out its line.",
-        "total_one": "{{count}}-day total",
-        "total_other": "{{count}}-day total",
-        "totalNote": "Running prompt cost. Switch to “compared with no pings” to see the gaps."
+        "cost": "Prompt cost with this setting",
+        "saved": "Saved by pings",
+        "wasted": "Extra paid for pings that did not help"
       },
-      "line": {
-        "noCache": "No cache",
-        "perBreak": "Best at each break",
-        "perModel": "Each model at its best"
+      "lifetime": {
+        "automatic": "Provider cache",
+        "fiveMinutes": "5-min cache",
+        "thirtyMinutes": "30-min cache"
       },
-      "models": {
-        "all": "All models",
-        "breaks": "Breaks over {{minutes}} min",
-        "data": "Data",
-        "filter": "Models in the chart",
-        "label": "Models",
-        "model": "Model",
-        "note": "Each model on its own. A model with fewer than 10 long breaks borrows the group's count. Click a model to chart just that one.",
-        "title": "By model",
-        "useGroup": "Uses group: {{pings}}"
-      },
-      "noCache": {
-        "cheaper": "Sending with no cache at all would have been about {{cost}} a week cheaper: most prompts were not reread before the cache expired.",
-        "saves": "Caching itself saves about {{cost}} a week compared with sending with no cache."
-      },
+      "modelCount_one": "{{count}} model",
+      "modelCount_other": "{{count}} models",
       "noPings": "No pings",
       "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
       "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
       "pings_one": "{{count}} ping",
       "pings_other": "{{count}} pings",
-      "readOnly": "Read only",
-      "savesPerWeek": "Saves / week",
-      "showing": "Showing details",
-      "title": "Prompt cache",
-      "weeks": {
-        "differ": "The week before last was cheapest with {{earlier}} ({{earlierSaving}}), last week with {{later}} ({{laterSaving}}). Worth watching as more weeks come in.",
-        "label": "Last two weeks",
-        "same_one": "Both weeks agree on {{count}} ping (saving {{earlier}} and {{later}}).",
-        "same_other": "Both weeks agree on {{count}} pings (saving {{earlier}} and {{later}})."
-      }
+      "title": "Prompt cache"
     },
     "prompts": {
       "cost": "Cost",

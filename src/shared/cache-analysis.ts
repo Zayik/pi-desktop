@@ -43,7 +43,7 @@ export interface CacheModelAnalysis {
   longBreaks: number
   /** Gaps the cache outlives on its own. */
   shortBreaks: number
-  /** Prompt cost no ping count changes (each session's first call, calls inside the lifetime), per 30-minute slot start. */
+  /** Prompt cost no ping count changes (each session's first call, calls inside the lifetime; every call's billed cost where pings cannot help), per 30-minute slot start. */
   base: Array<[at: number, cost: number]>
   gaps: CacheGap[]
   /** What the same prompts would have cost with no cache at all (every token at the input price), per 30-minute slot start. */
@@ -170,6 +170,14 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
         uncached.set(slot, (uncached.get(slot) ?? 0) + promptTokens(call) * prices.inputPrice)
       }
       entry.noCache = [...uncached.entries()].sort((a, b) => a[0] - b[0])
+    } else {
+      // Pings cannot change it: chart what the calls were billed.
+      const billed = new Map<number, number>()
+      for (const call of all) {
+        const slot = slotStart(call[0], start)
+        billed.set(slot, (billed.get(slot) ?? 0) + call[6] + call[7] + call[8])
+      }
+      entry.base = [...billed.entries()].sort((a, b) => a[0] - b[0])
     }
     group.models.push(entry)
     groups.set(id, group)
@@ -268,45 +276,35 @@ export function summarize(models: CacheModelAnalysis[], maxPings: number, days: 
   }
 }
 
-export type PingSeriesMode = 'saving' | 'total'
-
 /**
- * Running cost per 30-minute slot from `from`: one line per count (0 to
- * `maxPings`), then the cheapest count at every gap, then every model on its
- * own best count, then no cache at all. `saving` subtracts no pings, so the
- * 0 line stays flat at 0; `total` adds the cost no count changes. Each line
- * has `slots + 1` points.
+ * Prompt cost per 30-minute slot from `from` with `count` pings (capped at
+ * what Pi sends for the model) and with none; each array has `slots` entries.
  */
-export function pingSeries(models: CacheModelAnalysis[], maxPings: number, modelBest: Map<string, number>, from: number, slots: number, mode: PingSeriesMode): number[][] {
-  const lines = maxPings + 4
-  const noCache = maxPings + 3
-  const steps = Array.from({ length: lines }, () => new Array<number>(slots).fill(0))
+export function slotCosts(model: CacheModelAnalysis, count: number, from: number, slots: number): { cost: number[]; none: number[] } {
+  const cost = new Array<number>(slots).fill(0)
+  const none = new Array<number>(slots).fill(0)
   const slotOf = (at: number): number => Math.min(slots - 1, Math.max(0, Math.floor((at - from) / SLOT_MS)))
-  for (const model of models) {
-    const own = modelBest.get(model.model) ?? 0
-    if (mode === 'total') {
-      for (const [at, cost] of model.base) {
-        const slot = slotOf(at)
-        for (let line = 0; line < noCache; line++) steps[line][slot] += cost
-      }
-    } else {
-      for (const [at, cost] of model.base) steps[noCache][slotOf(at)] -= cost
-    }
-    for (const [at, cost] of model.noCache) steps[noCache][slotOf(at)] += cost
-    for (const gap of model.gaps) {
-      const slot = slotOf(gap.at)
-      const zero = mode === 'saving' ? gap.costs[0] : 0
-      for (let count = 0; count <= maxPings; count++) steps[count][slot] += gap.costs[count] - zero
-      steps[maxPings + 1][slot] += Math.min(...gap.costs) - zero
-      steps[maxPings + 2][slot] += gap.costs[own] - zero
-      if (mode === 'saving') steps[noCache][slot] -= gap.costs[0]
-    }
+  for (const [at, value] of model.base) {
+    const slot = slotOf(at)
+    cost[slot] += value
+    none[slot] += value
   }
-  return steps.map((step) => {
-    const running = [0]
-    for (let slot = 0; slot < slots; slot++) running.push(running[slot] + step[slot])
-    return running
-  })
+  for (const gap of model.gaps) {
+    const slot = slotOf(gap.at)
+    cost[slot] += gap.costs[Math.min(count, gap.costs.length - 1)]
+    none[slot] += gap.costs[0]
+  }
+  return { cost, none }
+}
+
+/** The best count for every model across groups: its own once it has enough breaks, else its group's. */
+export function optimalCounts(analysis: CacheAnalysis): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const group of analysis.groups) {
+    if (group.id === 'automatic') continue
+    for (const [model, count] of summarize(group.models, group.maxPings, analysis.days).modelBest) counts.set(model, count)
+  }
+  return counts
 }
 
 /** The cheapest count for the gaps ending in each slot of a day, or null where no gap's count mattered. */

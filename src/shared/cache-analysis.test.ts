@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SLOTS_PER_DAY, buildCacheAnalysis, pingSeries, slotBest, summarize, weekSplit } from './cache-analysis'
+import { SLOTS_PER_DAY, buildCacheAnalysis, optimalCounts, slotBest, slotCosts, summarize, weekSplit } from './cache-analysis'
 import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
@@ -70,20 +70,19 @@ test('gaps inside the lifetime and session openings land in the base cost, not t
   assert.equal(model.gaps.length, 0)
   assert.equal(model.longBreaks, 0)
   assert.ok(model.base.length > 0)
-  const saving = pingSeries(group.models, group.maxPings, new Map(), DAY_ONE, SLOTS_PER_DAY, 'saving')
-  assert.ok(saving.slice(0, group.maxPings + 3).every((line) => line.every((value) => value === 0)))
-  const total = pingSeries(group.models, group.maxPings, new Map(), DAY_ONE, SLOTS_PER_DAY, 'total')
-  assert.ok(total[0][SLOTS_PER_DAY] > 0)
-  assert.equal(total[0][SLOTS_PER_DAY], total[group.maxPings][SLOTS_PER_DAY])
+  const { cost, none } = slotCosts(model, group.maxPings, DAY_ONE, SLOTS_PER_DAY)
+  assert.ok(cost.reduce((sum, value) => sum + value, 0) > 0)
+  assert.deepEqual(cost, none)
 })
 
-test('lines run flat until a break and step at the slot it ends in', () => {
+test('a break changes the cost of the slot it ends in, and only that slot', () => {
   const group = buildCacheAnalysis([session(day(DAY_ONE, [12]))], DAY_ONE, DAY_ONE, DAY_ONE).groups[0]
-  const lines = pingSeries(group.models, group.maxPings, new Map(), DAY_ONE, SLOTS_PER_DAY, 'saving')
+  const { cost, none } = slotCosts(group.models[0], 2, DAY_ONE, SLOTS_PER_DAY)
   // Calls start at 9:00; the break ends at 9:18, in the 9:00 slot (index 18).
-  assert.equal(lines[2][18], 0)
-  assert.ok(lines[2][19] < 0)
-  assert.equal(lines[2][19], lines[2][SLOTS_PER_DAY])
+  assert.ok(cost[18] < none[18])
+  assert.ok(cost.every((value, slot) => slot === 18 || value === none[slot]))
+  // A count past what Pi sends is capped.
+  assert.deepEqual(slotCosts(group.models[0], 99, DAY_ONE, SLOTS_PER_DAY).cost, slotCosts(group.models[0], group.maxPings, DAY_ONE, SLOTS_PER_DAY).cost)
   const cells = slotBest(group.models, group.maxPings, DAY_ONE)
   assert.equal(cells[18]?.best, 2)
   assert.equal(cells.filter(Boolean).length, 1)
@@ -99,6 +98,7 @@ test('a model with too few breaks borrows the group count; hindsight is never wo
   const summary = summarize(group.models, group.maxPings, 8)
   assert.equal(summary.confidence, 'solid')
   assert.equal(summary.modelBest.get('anthropic/claude-opus-5-5'), summary.best)
+  assert.equal(optimalCounts({ from: DAY_ONE, to: DAY_ONE, days: 8, groups: [group] }).get('anthropic/claude-opus-5-5'), summary.best)
   assert.ok(summary.perBreakTotal <= summary.perModelTotal + 1e-12)
   assert.ok(summary.perModelTotal <= summary.totals[summary.best] + 1e-12)
 })
@@ -120,6 +120,8 @@ test('a model with no lifetime to warm only reports its hit rate', () => {
   const summary = summarize(analysis.groups[0].models, 0, 1)
   assert.ok(summary.hitRate !== null && summary.hitRate > 0.7)
   assert.equal(analysis.groups[0].models[0].gaps.length, 0)
+  // Its billed cost is still charted.
+  assert.ok(slotCosts(analysis.groups[0].models[0], 0, DAY_ONE, SLOTS_PER_DAY).cost.some((value) => value > 0))
 })
 
 test('no cache prices every prompt token at the input price, and caching beats it when prompts are reread', () => {
@@ -128,12 +130,8 @@ test('no cache prices every prompt token at the input price, and caching beats i
   const summary = summarize(group.models, group.maxPings, 7)
   assert.ok(Math.abs(summary.noCacheTotal - model.promptTokens * PRICE) < 1e-9)
   assert.ok(summary.cacheSavingPerWeek > 0)
-  // The no-cache line ends at the same total in both modes, once the 0-ping line is added back.
-  const total = pingSeries(group.models, group.maxPings, summary.modelBest, DAY_ONE, SLOTS_PER_DAY, 'total')
-  const saving = pingSeries(group.models, group.maxPings, summary.modelBest, DAY_ONE, SLOTS_PER_DAY, 'saving')
-  const noCache = group.maxPings + 3
-  assert.ok(Math.abs(total[noCache][SLOTS_PER_DAY] - summary.noCacheTotal) < 1e-9)
-  assert.ok(Math.abs(saving[noCache][SLOTS_PER_DAY] + total[0][SLOTS_PER_DAY] - summary.noCacheTotal) < 1e-9)
+  const { none } = slotCosts(model, 0, DAY_ONE, SLOTS_PER_DAY)
+  assert.ok(Math.abs(none.reduce((sum, value) => sum + value, 0) - summary.baseTotal - summary.totals[0]) < 1e-9)
 })
 
 test('a prompt sent once after every long break is cheaper with no cache', () => {
