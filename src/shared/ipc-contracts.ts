@@ -113,6 +113,13 @@ export const IPC_CHANNELS = {
   // Context panel
   CONTEXT_GET_SNAPSHOT: 'context:get-snapshot',
   CONTEXT_GET_AGENT_BOARD: 'context:get-agent-board',
+  CONTEXT_OPEN_SESSION_PAGE: 'context:open-session-page',
+  CONTEXT_SET_DESKTOP_FOCUS: 'context:set-desktop-focus',
+
+  // Analytics: cost and time per session and across sessions
+  ANALYTICS_GET_SESSION_REPORT: 'analytics:get-session-report',
+  ANALYTICS_GET_OVERVIEW: 'analytics:get-overview',
+  ANALYTICS_REBUILD: 'analytics:rebuild',
 
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',

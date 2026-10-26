@@ -1,17 +1,28 @@
 import { readdir, readFile, rm, stat } from 'fs/promises'
 import { join } from 'path'
 import { getGuiDataPath } from './app-data-paths'
+import { CONTEXT_DIR, analyticsDir } from '../../packages/pi-analytics/src/paths'
 import { isContextSnapshot, snapshotFileName, type ContextSnapshot } from '../../resources/context-snapshot'
 
-const CONTEXT_DIR_NAME = 'context-snapshots'
+/** Where snapshots were written before they moved to pi-analytics' folder; still read for older chats. */
+const LEGACY_CONTEXT_DIR_NAME = 'context-snapshots'
 /** A snapshot file is small, but an unbounded one would be read whole on every poll. */
 const MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
 /** Snapshots of sessions untouched this long are removed at startup. */
 const SNAPSHOT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-/** Folder the context extension writes snapshots to (passed to the agent as `PI_DESKTOP_CONTEXT_DIR`). */
+/**
+ * Folder the context recorder writes snapshots to (passed to the agent as
+ * `PI_DESKTOP_CONTEXT_DIR`): pi-analytics' own, where the recorder puts
+ * snapshots of sessions run outside the app, so its session page and this
+ * panel read the same files.
+ */
 export function getContextSnapshotDir(): string {
-  return getGuiDataPath(CONTEXT_DIR_NAME)
+  return join(analyticsDir(), CONTEXT_DIR)
+}
+
+export function legacyContextSnapshotDir(): string {
+  return getGuiDataPath(LEGACY_CONTEXT_DIR_NAME)
 }
 
 interface CachedSnapshot {
@@ -28,10 +39,14 @@ const cache = new Map<string, CachedSnapshot>()
  * could not run). Parsed files are cached by mtime and size, since the
  * Context panel polls.
  */
-export async function readContextSnapshot(sessionId: string, dir = getContextSnapshotDir()): Promise<ContextSnapshot | null> {
-  const snapshot = await readSnapshotFile(join(dir, snapshotFileName(sessionId)))
-  // The file name is derived from the id, so check the id inside matches.
-  return snapshot && snapshot.sessionId === sessionId ? snapshot : null
+export async function readContextSnapshot(sessionId: string, dir?: string): Promise<ContextSnapshot | null> {
+  const dirs = dir ? [dir] : [getContextSnapshotDir(), legacyContextSnapshotDir()]
+  for (const candidate of dirs) {
+    const snapshot = await readSnapshotFile(join(candidate, snapshotFileName(sessionId)))
+    // The file name is derived from the id, so check the id inside matches.
+    if (snapshot && snapshot.sessionId === sessionId) return snapshot
+  }
+  return null
 }
 
 async function readSnapshotFile(path: string): Promise<ContextSnapshot | null> {

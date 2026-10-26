@@ -12,3 +12,10 @@ export function agentResourcePath(fileName: string): string {
     ? join(process.resourcesPath, RESOURCES_DIR_NAME, fileName)
     : join(app.getAppPath(), RESOURCES_DIR_NAME, fileName)
 }
+
+/** Where the bundled pi-analytics package's built files ship (`packages/pi-analytics/dist` while developing). */
+export function piAnalyticsPath(fileName: string): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'pi-analytics', fileName)
+    : join(app.getAppPath(), 'packages', 'pi-analytics', 'dist', fileName)
+}

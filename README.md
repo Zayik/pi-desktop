@@ -16,6 +16,7 @@ Pi Desktop is in alpha, so expect rough edges.
 - [Linked tasks](#linked-tasks): one task across several Git repositories, shipped as linked pull requests
 - Right-edge tool rail that opens the Review panel, file tree, diff viewer, and terminal
 - Subagents panel with a live, read-only transcript for each subagent the chat starts (OMP, or Pi with pi-subagents)
+- [Analytics](#analytics): where cost and time went, for one session with its subagents or across every session, with a retro that turns the numbers into proposed fixes
 - [Context panel](#context-panel): the chat and every subagent and worktree session it started, with what fills each context window, prompt-cache countdowns, and what each agent, call, and turn cost
 - Diff viewer with a filter for the files the session touched, per-file discard, and a Git bar with Commit, Commit + Push, Push, and PR (it becomes Open PR #N when the branch has an open pull request). In the Commit dialog, **Suggest message** asks the session's model for a commit message, and new files are committed only if you check them. The status bar has a branch menu to switch branches or create a new one
 - Code, image, PDF, and HTML previews, a CodeMirror 6 editor with Git change markers, and workspace file search
@@ -72,7 +73,47 @@ The panel finds a chat's other agents in the files they already write, so no sub
 
 Those sessions are read from their JSONL: every call counts toward cost, and the context breakdown covers the conversation, with the rest of the last call's prompt (system prompt and tools) shown as one share. Cache countdowns for a subagent use the main agent's model details when it ran the same model.
 
-The bundled `pi-desktop-context.ts` extension records the main agent's snapshot. It only observes: it adds nothing to the context and changes no request. It writes one JSON snapshot per session to `<GUI data dir>/context-snapshots/`, rebuilt from the saved session when one is resumed. The category breakdown follows [pi-context-view](https://github.com/dimk90/pi-context-view).
+The main agent's snapshot is recorded by the bundled [pi-analytics](packages/pi-analytics) package (and, for OMP, by `pi-desktop-context.ts`, the same recorder on its own). It only observes: it adds nothing to the context and changes no request. It writes one JSON snapshot per session to `~/.pi/agent/pi-analytics/context/`, rebuilt from the saved session when one is resumed; Pi sessions in a terminal with the package installed write there too, so a chat started in either place shows the same figures in both. The category breakdown follows [pi-context-view](https://github.com/dimk90/pi-context-view).
+
+**Open in browser** (the arrow button in the panel's header) opens the same board as a web page, with every Pi session on the computer in a sidebar: the chats here, and Pi sessions in a terminal. It follows the chat open in the app until you pick another session, and it only reads. In a terminal, `/start-session-analyzer` opens the same page; the [pi-analytics README](packages/pi-analytics/README.md#live-session-page) has the details.
+
+![The live session page: every Pi session in the sidebar, the same board as the Context panel for the one picked](docs/screenshots/session-page.png)
+
+## Analytics
+
+Analytics shows where money and time went: per tool, per kind of work (tests, builds, lint, installs, reading, searching, editing, subagents), per skill, per prompt and per day. It has two scopes:
+
+- **This session**: the chart button on the right-edge tool rail. The open chat plus its pi-subagents children, billion-context delegates and forks.
+- **Overall**: Sidebar > Tools > Analytics. Every session in a date range (7 days to all time), optionally only the open project, with cost per day, the most expensive sessions and prompts, and projects.
+
+![Analytics across sessions: signals, cost per day, work by kind and tools](docs/screenshots/analytics-overview.png)
+
+![Analytics for one session beside the chat](docs/screenshots/analytics-session.png)
+
+What it measures:
+
+- **Time per tool call**: from the call to its result. Parallel calls of one message split the time between them. Active time counts gaps under 5 minutes between session entries, plus time waiting on a running tool, so a 20-minute test run counts as work.
+- **Carried cost**: a tool result stays in the context and is sent again with every later call, mostly as cache reads, until a compaction drops it. Each result is charged its tokens times the prompt price of every later call on the same branch. This is usually where a large `read` really costs.
+- **Tests and builds**: shell commands are sorted by what they run (`npm test`, `vitest`, `pytest`, `go test`, `cargo test`, `npm run build`, `tsc`, `eslint`, ...), with run counts, failures and median run time.
+- **Skills**: a read of a skill's `SKILL.md`, or a `/skill:` command, counts as a load, and its text is charged carried cost like a tool result.
+- **Signals**: coarse rules that point at the biggest costs, for example tests taking a large share of active time, tests rerun many times per session, a command failing again and again, or one tool's results making up a large share of cost.
+
+**Prompt cache** (Overall scope) is read only: it shows what each cache setting would have cost, and changes nothing in Pi. It replays each model's calls, with their real prompt sizes and the real breaks between them, the way Pi warms: a refresh at 90% of the cache lifetime, and none after Pi stops warming, 30 minutes after a run. A break the pings do not bridge pays for its pings and a full rewrite.
+
+- **Cost per week by ping count**: one row per model, with what a week would cost with no cache, with no pings, with 1 to 6 pings (up to what fits in Pi's 30 minutes: 6 on a 5-minute cache, 1 on a 30-minute one), on Anthropic's 1-hour cache (**Long**: writes cost 2x input instead of 1.25x, reads are the same, and no pings), and with the best count at each break (hindsight, the most a schedule could save). Under **No pings**, what the short cache's write premium adds and its cheaper reads save against no cache. Green marks the cheapest setting and an outline the recommended one; a model with fewer than 10 long breaks borrows the count of models with the same cache lifetime. No cache is a reference only and is never recommended. An **All models** row adds them up.
+- **Running cost chart**: click a row to chart its running prompt cost with one colored line per ping count, Long, and the best count at each break. Switch between total cost and the saving against no pings, click a legend line to hide or show it, and click a day for its 30-minute blocks. The digits under each day name that day's cheapest setting.
+
+Rates follow the vendors: Anthropic writes cost 1.25x input on the 5-minute cache and 2x on the 1-hour one, reads 0.1x (0.05x on Opus 5.5); OpenAI GPT-5.6 and later have a 30-minute cache with 1.25x writes, and Pi's long setting asks them for 30 minutes too, so they have no Long column; older OpenAI and Gemini models cache automatically with no write charge, so pings cannot change them; GitHub Copilot bills at the upstream vendor's rates. The section says which day the rules were last checked. It is an estimate: it assumes the same calls at the same times.
+
+![Prompt cache cost per week by ping count, and the running cost chart for one model](docs/screenshots/analytics-cache.png)
+
+The same report runs without the app: [`packages/pi-analytics`](packages/pi-analytics/README.md) is a Pi package and CLI (`pi-analytics report`, or `/analytics` inside Pi) that writes this view as one HTML file, and `pi-analytics cache` prints the prompt cache analysis.
+
+![The pi-analytics HTML report](docs/screenshots/pi-analytics-report.png)
+
+**Retro** builds a digest of the report and puts a retrospective request in the composer: the session scope in the open chat, the overall scope in a new chat. Under Pi it runs the bundled `pi-retro` skill (`resources/skills/pi-retro`, loaded with `--skill`), adapted from the MIT-licensed [`retro` skill by Matt Pocock](https://github.com/mattpocock/skills) so that every proposed change cites a measured number. The copy button next to it copies the digest alone.
+
+Pi's session files stay the source of truth; Pi never deletes them on its own. The app keeps one row of facts per session file in `<GUI data dir>/analytics.sqlite` (Node's built-in SQLite), read again only when a file changes, so **Rebuild** can always recreate it. Rows outlive their files, so a deleted session keeps its history. billion-context writes delegate sessions to the temp folder, so they are copied to `<GUI data dir>/analytics-archive/` before they are read. A fork copies its parent's entries; those count once, in the parent.
 
 ## Pi and OMP engines
 

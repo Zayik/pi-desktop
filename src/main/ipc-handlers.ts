@@ -30,6 +30,7 @@ import { registerTypeSafeHandlers } from './ipc/typesafe-handlers'
 import { registerWorkflowHandlers } from './ipc/workflow-handlers'
 import { registerSubagentHandlers } from './ipc/subagent-handlers'
 import { registerContextHandlers } from './ipc/context-handlers'
+import { registerAnalyticsHandlers } from './ipc/analytics-handlers'
 import { wireWorkspaceActivity, type WindowControls } from './ipc/workspace-activity-wiring'
 import type { WorkspaceTerminals } from './workspace-terminals'
 
@@ -79,6 +80,7 @@ export function registerIpcHandlers(
   registerWorkflowHandlers(ctx)
   registerSubagentHandlers(ctx)
   registerContextHandlers()
+  registerAnalyticsHandlers()
   registerVoiceHandlers(ctx)
   registerTypeSafeHandlers()
 

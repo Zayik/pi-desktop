@@ -41,7 +41,33 @@ jobs:
         # runner version supports, so enumerate files with `find` instead of
         # relying on the shell/runtime to expand the pattern. `resources/` holds
         # the shared permission-rules engine's tests, so include it too.
-        run: npx --no-install tsx --test $(find src resources -name '*.test.ts')
+        run: npx --no-install tsx --test $(find src resources packages -name '*.test.ts' -not -path '*/node_modules/*')
+
+  helper-tests:
+    # The session page's helper checks processes and serves files the way each
+    # system does, so its tests also run on Windows and macOS.
+    name: Session page helper (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # The tests need no Electron or native modules.
+        run: npm ci --ignore-scripts
+
+      - name: Helper tests
+        run: npx --no-install tsx --test packages/pi-analytics/src/live/liveness.test.ts packages/pi-analytics/src/live/sessions.test.ts packages/pi-analytics/src/live/server.test.ts
 
   build:
     name: Build (${{ matrix.os }})

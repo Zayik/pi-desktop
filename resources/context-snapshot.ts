@@ -1,8 +1,9 @@
 /**
  * Context snapshots: what fills a session's model context, and what each model
  * call cost. The bundled `pi-desktop-context.ts` extension builds one per
- * session and writes it as JSON to the folder named in `PI_DESKTOP_CONTEXT_DIR`;
- * the GUI reads it for the Context panel.
+ * session and writes it as JSON to the folder named in `PI_DESKTOP_CONTEXT_DIR`
+ * (pi-analytics runs the same recorder, into its own folder when that is
+ * unset); Pi Desktop's Context panel and the pi-analytics session page read it.
  *
  * Shared by the extension loaded into Pi and OMP, the main process, and the
  * renderer, so it has no imports at all. Token counts in the breakdown are
@@ -131,7 +132,7 @@ export interface ContextSnapshot {
   catalog?: SnapshotModel[]
   updatedAt: number
   model: SnapshotModel | null
-  /** Which prompt cache tier requests ask for (`PI_CACHE_RETENTION=long` picks long). */
+  /** The prompt cache tier the latest request asked for (`PI_CACHE_RETENTION=long` picks long). */
   cacheRetention: 'short' | 'long'
   /** Pi's `cacheWarming` setting (`off`, `streaming`, `idle`), when it has one. */
   cacheWarming: string | null
@@ -148,6 +149,24 @@ export interface ContextSnapshot {
   lastRequestAt: number | null
   /** When Pi last sent a cache-warming refresh. */
   lastWarmAt: number | null
+  /** The Pi process recording the session, so a reader can tell a live session from one whose process is gone. */
+  process?: SnapshotProcess | null
+  /** The session's display name (`/name`). */
+  sessionName?: string | null
+  thinkingLevel?: string | null
+  /** True from the start of an agent run to its end. */
+  agentRunning?: boolean
+  /** The tool running now. */
+  activeTool?: string | null
+  /** When the session ended: Pi quit, or switched to another session. */
+  endedAt?: number | null
+}
+
+export interface SnapshotProcess {
+  pid: number
+  /** When the process started (ms since epoch), to tell it from a later process given the same id. */
+  startedAt: number
+  cwd: string
 }
 
 // ─── Estimation ─────────────────────────────────────────────────────────────

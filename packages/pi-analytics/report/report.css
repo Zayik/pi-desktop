@@ -1,0 +1,17 @@
+/* The app's theme and utilities; the classes come from the shared views. */
+@import '../../../src/renderer/src/index.css';
+@source '../../../src/renderer/src/components';
+@source './';
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+body {
+  margin: 0;
+  background: var(--color-app);
+}

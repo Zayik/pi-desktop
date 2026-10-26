@@ -11,9 +11,11 @@ import { engineForBoundSession } from '../pi-paths'
 import { DEFAULT_AGENT_ENGINE_LABEL, agentEngineLabel } from '../../shared/agent-engine-label'
 import { i18n } from '../../shared/i18n'
 import { typeSafeKeyEnv, typeSafeKeyStore } from '../typesafe-key-store'
-import { agentResourcePath } from '../agent-resources'
+import { agentResourcePath, piAnalyticsPath } from '../agent-resources'
+import { piAnalyticsInstalled } from '../pi-analytics-install'
 import { CONTEXT_DIR_ENV, CONTEXT_EXTENSION_FILE, PARENT_SESSION_ENV } from '../../../resources/context-snapshot'
 import { getContextSnapshotDir } from '../context-snapshots'
+import { RETRO_SKILL_NAME } from '../../shared/retro-digest'
 
 const READ_ONLY_TOOLS = 'read,grep,find,ls'
 const OMP_READ_ONLY_TOOLS = 'read,grep,glob'
@@ -21,6 +23,8 @@ const OMP_READ_ONLY_TOOLS = 'read,grep,glob'
 const PERMISSIONS_EXTENSION_PATH = agentResourcePath('pi-desktop-permissions.ts')
 const NEXT_STEPS_EXTENSION_PATH = agentResourcePath(NEXT_STEPS_EXTENSION_FILE)
 const CONTEXT_EXTENSION_PATH = agentResourcePath(CONTEXT_EXTENSION_FILE)
+const RETRO_SKILL_PATH = agentResourcePath(join('skills', RETRO_SKILL_NAME))
+const ANALYTICS_EXTENSION_PATH = piAnalyticsPath('extension.js')
 
 const LOCALES_DIR_NAME = 'locales'
 // The language files ship next to the extension (resources/ is extraResources).
@@ -102,9 +106,15 @@ export function applyPermissionModeToStartOptions(
     args.push('-e', PERMISSIONS_EXTENSION_PATH)
   }
   if (suggestsNextSteps) args.push('-e', NEXT_STEPS_EXTENSION_PATH)
-  // Only observes: records what fills the context for the Context panel.
-  const recordsContext = existsSync(CONTEXT_EXTENSION_PATH)
-  if (recordsContext) args.push('-e', CONTEXT_EXTENSION_PATH)
+  // Only observes: records what fills the context, for the Context panel. A copy the user installed in Pi already loads.
+  const installedAnalytics = engine === 'pi' && piAnalyticsInstalled()
+  const bundledAnalytics = engine === 'pi' && !installedAnalytics && existsSync(ANALYTICS_EXTENSION_PATH)
+  if (bundledAnalytics) args.push('-e', ANALYTICS_EXTENSION_PATH)
+  // Where pi-analytics does not load (OMP), the recorder runs on its own.
+  const recordsContext = installedAnalytics || bundledAnalytics || existsSync(CONTEXT_EXTENSION_PATH)
+  if (recordsContext && !installedAnalytics && !bundledAnalytics) args.push('-e', CONTEXT_EXTENSION_PATH)
+  // The Analytics retro runs this skill with `/skill:pi-retro`; only Pi takes `--skill`.
+  if (engine === 'pi' && existsSync(RETRO_SKILL_PATH)) args.push('--skill', RETRO_SKILL_PATH)
 
   return {
     ...options,

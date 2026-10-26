@@ -11,6 +11,7 @@ import { HomeScreen } from './components/home-screen'
 import { NotesPanel } from './components/notes-panel'
 import { SkillsPanel } from './components/skills-panel'
 import { DiagnosticsPanel } from './components/diagnostics-panel'
+import { AnalyticsView } from './components/analytics-view'
 import { PiMissingNotice, PiSetupScreen } from './components/pi-setup-screen'
 import { NoProviderNotice, PiLoginDialog } from './components/providers-panel'
 import { MissionControl } from './components/mission-control'
@@ -48,6 +49,13 @@ export function App(): React.JSX.Element {
   const workflowPanelOpen = useAppStore((state) => state.workflowPanelOpen)
   const workflowPanelFilter = useAppStore((state) => state.workflowPanelFilter)
   const workflowPanelWorkspaceId = useAppStore((state) => state.workflowPanelWorkspaceId)
+  const openSessionId = useAppStore((state) => state.sessionState?.sessionId ?? null)
+
+  // The live session page, once popped out, follows the chat open here.
+  useEffect(() => {
+    void window.piDesktop.context.setDesktopFocus(openSessionId).catch(() => {})
+  }, [openSessionId])
+
   const piSetupOpen = useAppStore((state) => state.piSetupOpen)
   const setPiSetupOpen = useAppStore((state) => state.setPiSetupOpen)
   const piSetupFailure = useAppStore((state) => state.piSetupFailure)
@@ -217,6 +225,7 @@ export function App(): React.JSX.Element {
                 {currentView === 'notes' && <NotesPanel />}
                 {currentView === 'skills' && <SkillsPanel />}
                 {currentView === 'diagnostics' && <DiagnosticsPanel />}
+                {currentView === 'analytics' && <AnalyticsView />}
               </div>
               {globalWorkflowOpen && <WorkflowNavigator embedded />}
             </main>

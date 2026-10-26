@@ -110,7 +110,7 @@ export interface PreviewTarget {
 }
 
 /** A secondary view in the chat's side slot. */
-export type ChatSidePanel = 'files' | 'diff' | 'tasks' | 'context'
+export type ChatSidePanel = 'files' | 'diff' | 'tasks' | 'context' | 'analytics'
 
 /**
  * Whether a side panel takes the whole side slot. The chat then shows no file
@@ -118,7 +118,7 @@ export type ChatSidePanel = 'files' | 'diff' | 'tasks' | 'context'
  * The layout and the actions that open a panel read this one rule.
  */
 export function sidePanelHidesPreview(panel: ChatSidePanel | null): boolean {
-  return panel === 'diff' || panel === 'tasks' || panel === 'context'
+  return panel === 'diff' || panel === 'tasks' || panel === 'context' || panel === 'analytics'
 }
 
 // ─── Composer Draft ──────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ interface AppState {
   pendingFollowUp: string[]
 
   // UI
-  currentView: 'home' | 'chat' | 'mission-control' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills' | 'diagnostics'
+  currentView: 'home' | 'chat' | 'mission-control' | 'settings' | 'sessions' | 'timeline' | 'packages' | 'diff' | 'notes' | 'skills' | 'diagnostics' | 'analytics'
   /** The full-page "Pi not found" setup screen, shown over every view. */
   piSetupOpen: boolean
   /** Why Pi cannot start, from the last setup check; null when it can. */

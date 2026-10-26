@@ -98,6 +98,7 @@ import type { ThemeFile } from '../shared/theme/theme-file'
 import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResult } from '../shared/subagent-task'
 import type { ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
+import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -416,6 +417,20 @@ interface PiDesktopAPI {
     getSnapshot(sessionId: string): Promise<ContextSnapshot | null>
     /** The chat and the subagent and worktree sessions that belong to it. */
     getAgentBoard(request: AgentBoardRequest): Promise<AgentBoard>
+    /** Opens pi-analytics' live session page in the browser, following the chat open here. */
+    openSessionPage(sessionId: string | null): Promise<void>
+    /** The chat open now, for the session page to follow once it has been opened. */
+    setDesktopFocus(sessionId: string | null): Promise<void>
+    /** Auto mode's idle pings per hour of day, built from the last 30 days; null when there is none. */
+  }
+
+  // Analytics: where cost and time went, per session and across sessions
+  analytics: {
+    /** Null for a session file outside the session stores. */
+    getSessionReport(sessionFile: string): Promise<AnalyticsReport | null>
+    getOverview(request: OverviewRequest): Promise<AnalyticsReport>
+    /** Read every session file again. */
+    rebuild(): Promise<void>
   }
 
   // Diagnostics report
@@ -745,6 +760,14 @@ const api: PiDesktopAPI = {
   context: {
     getSnapshot: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_SNAPSHOT, sessionId),
     getAgentBoard: (request) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_GET_AGENT_BOARD, request),
+    openSessionPage: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_OPEN_SESSION_PAGE, sessionId),
+    setDesktopFocus: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.CONTEXT_SET_DESKTOP_FOCUS, sessionId),
+  },
+
+  analytics: {
+    getSessionReport: (sessionFile) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_SESSION_REPORT, sessionFile),
+    getOverview: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_OVERVIEW, request),
+    rebuild: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_REBUILD),
   },
 
   diagnostics: {

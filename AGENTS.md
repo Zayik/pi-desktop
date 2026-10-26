@@ -71,6 +71,10 @@ src/
 │   ├── repo-set-draft.ts         # Repo set editing: unique names; the first repository is the main one
 │   ├── subagent-task.ts          # Subagent rows for the Subagents panel, rail badge and composer strip: parsers and reducers
 │   ├── untrusted-data.ts         # Wrap file/agent text as a labeled untrusted-data block
+│   ├── session-analytics.ts      # Session JSONL -> cost/time facts: per tool, kind of work, skill, test run, prompt, day; carried cost
+│   ├── analytics-report.ts       # Facts of many sessions -> one report (session or overall scope) and its signals
+│   ├── cache-policy.ts           # Replay a model's calls under each prompt-cache setting (5m, 1h, 5m + keep-warm, 30m, 12h); the cheapest
+│   ├── retro-digest.ts           # A report as the Markdown digest the pi-retro skill reads; the composer prompt
 │   ├── agent-engine-label.ts     # Display names for the Pi/OMP engines (every surface reads this one map)
 │   ├── product-name.ts           # "Pi Desktop" display name (a named constant, never a translation key)
 │   ├── i18n/                     # i18next instance, t/tEnglish, bundled languages, OS-language resolver, pseudo-language, locale checks
@@ -140,6 +144,7 @@ src/
 │   ├── skills-discovery.ts       # Per-engine skill roots scan + catalog merge
 │   ├── session-metadata.ts       # Bounded reader: session name, header, first-message preview; header-only (disposable) means metadata only
 │   ├── session-jsonl.ts          # Session JSONL text -> entries (a partial last line is skipped)
+│   ├── analytics-index.ts        # analytics.sqlite: one row of facts per session file, delegate archive, session/overall reports
 │   ├── session-lineage-reader.ts # Parent links and labels across the session store
 │   ├── get-messages-trim.ts      # Shrink a get_messages response before IPC
 │   ├── map-concurrent.ts         # Bounded-concurrency mapper
@@ -235,6 +240,9 @@ src/
             ├── model-selector.tsx # Composer model picker (searchable, keyboard-driven)
             ├── subagent-progress.tsx # Compact live subagent strip on the composer
             ├── subagent-panel.tsx # Right-side Subagents panel: the chat's subagents and one live transcript
+            ├── analytics-panel.tsx # Right-side Analytics panel: the session and its agents' report, Retro
+            ├── analytics-view.tsx # Sidebar > Analytics: overall report by date range and project, Rebuild, Retro
+            ├── analytics-report-view.tsx # The report's tiles, signals, tables and daily chart, shared by both
             ├── context-panel.tsx  # Right-side Context panel: agents board (main agent, subagents, worktree sessions), context breakdown, prompt cache countdown, billing
             ├── subagent-task-row.tsx # One subagent row with its status icon
             ├── voice-mic-button.tsx # Composer mic button for voice dictation
@@ -398,6 +406,7 @@ resources/
 
 - The right-edge tool rail (`chat-tool-rail.tsx`) toggles the Review panel, file tree, diff viewer, Subagents, Context, and terminal. It has no workflow button
 - The Context panel (`context-panel.tsx`) polls the active session's snapshot (`context:get-snapshot`) every 2s, and the agents board (`context:get-agent-board`) every 3s. `resources/context-snapshot.ts` holds the snapshot format and the breakdown; `src/shared/context-view.ts` derives the cache countdown, next-call estimates, and billing table
+- The Analytics panel (`analytics-panel.tsx`) reads `analytics:get-session-report` every 10s; Sidebar > Analytics (`analytics-view.tsx`) reads `analytics:get-overview`. Both come from `src/main/analytics-index.ts`, which keeps one row of `SessionAnalytics` facts (`src/shared/session-analytics.ts`) per session file in `<GUI data dir>/analytics.sqlite` through `node:sqlite`, re-read only when the file's mtime or size changes. A full scan runs 15s after launch and at most every 30s after. Rows are kept after their file is deleted. Delegate sessions are copied from `<tmp>/acp-delegate/` to `<GUI data dir>/analytics-archive/acp-delegate/` first. Entries a fork copied from its parent (timestamps before the fork's header) count only as carried context. Bump `SESSION_ANALYTICS_VERSION` when facts change, so every file is read again
 - The Review panel (`review-rail.tsx`) shows the permission mode, pending approvals, changed files, and session status. It is hidden by default
 - Click a workspace file link (chat or file tree) to open it in a side pane: code (CodeMirror), image, PDF, or HTML. HTML runs in a sandboxed `<webview>` (no Node access, isolated partition, `file://` source only). HTML preview runs scripts and network only when the workspace is trusted; an untrusted workspace gets a static preview with a "Trust workspace" banner. A PDF preview gets plugins and scripts only when its URL loads a .pdf file, and for an untrusted workspace its partition loads only PDF files and the built-in viewer's own files (`preview-guest.ts`)
 
@@ -542,6 +551,8 @@ The GUI data dir is `<appData>/pi-desktop` (on Linux, `~/.config/pi-desktop`). `
 | `<GUI data dir>/permission-rules.json` | Global permission rules |
 | `<GUI data dir>/repo-sets.json` | Saved repo sets for linked tasks |
 | `<GUI data dir>/repo-maps/` | One repo map per running linked task, read by the agent extensions |
+| `<GUI data dir>/analytics.sqlite` | Analytics index: one row of facts per session file, kept after the file is deleted |
+| `<GUI data dir>/analytics-archive/` | Copies of billion-context delegate sessions, which live in the temp folder |
 | `<GUI data dir>/context-snapshots/` | One context snapshot per session, written by `pi-desktop-context.ts`, read by the Context panel; pruned after 30 days |
 | `<GUI data dir>/themes/` | User theme files |
 | `<GUI data dir>/typesafe-api-key` | TypeSafe API key (owner-only file) |
@@ -602,7 +613,9 @@ pi --mode rpc [--no-session] [--provider <name>] [--model <id>] [--thinking <lev
 - `--tools` is added in Plan / Read-only mode with the engine's read-only tools. `-e` loads the bundled permissions extension whenever it exists on disk (`ipc/pi-start-options.ts`)
 - The extension reads its settings from `PI_DESKTOP_*` environment variables (mode, agent label, language, rules path, workspace trust)
 - While Suggest Next Steps is on, `-e` also loads `pi-desktop-next-steps.ts`, and Plan / Read-only mode adds `suggest_next_steps` to `--tools`. The agent may end a turn with up to three steps; the chat hides the call and shows the steps as buttons that fill the composer. With its `tools.xdev` setting on, OMP sends the call as a `write` to `xd://suggest_next_steps`: the chat reads that form too, and the permission and linked-task checks treat it as no file write (`resources/next-steps.ts`)
-- `-e` always loads `pi-desktop-context.ts` when it exists on disk, with `PI_DESKTOP_CONTEXT_DIR` set to `<GUI data dir>/context-snapshots/`. It only observes events (`context_with_system`, `before_provider_request`, `message_end`, `cache_warming_decision`, ...) and writes one snapshot per session for the Context panel. It also sets `PI_DESKTOP_PARENT_SESSION_ID` to its session id (the app passes it empty), so a Pi process spawned from the session that loads the recorder names its parent. The Context panel's agents board (`src/main/agent-board.ts`, `src/shared/agent-board.ts`, IPC `context:get-agent-board`) reads child sessions from disk: billion-context delegates in `<tmp>/acp-delegate/`, pi-subagents children under `<chat file without .jsonl>/`, sessions in other git worktrees started after the chat, sessions whose header `parentSession` is the chat, and snapshots naming it as parent Subagent questions (`src/shared/subagent-questions.ts`) are read from the parent's `subagent_supervisor_request` custom messages and `subagent_supervisor_reply` entries, matched to the child by `<run id>/run-<child index>/` in its session path; the chat renders the request as a system notice (`message-parsing.ts`)
+- Under OMP, `-e` loads `pi-desktop-context.ts` when it exists on disk, with `PI_DESKTOP_CONTEXT_DIR` set to `<pi-analytics dir>/context/` (older chats' snapshots are still read from `<GUI data dir>/context-snapshots/`). It observes events (`context_with_system`, `before_provider_request`, `message_end`, ...) and writes one snapshot per session for the Context panel. Under Pi, `-e` loads the bundled `pi-analytics/extension.js` instead (`packages/pi-analytics/dist` while developing, built by `npm run build`; skipped when the user's Pi settings list pi-analytics in `packages`, see `src/main/pi-analytics-install.ts`), which runs the same recorder. Neither changes a request or answers `cache_warming_decision`: the app does not set the cache tier or Pi's warming. It also sets `PI_DESKTOP_PARENT_SESSION_ID` to its session id (the app passes it empty), so a Pi process spawned from the session that loads the recorder names its parent. The Context panel's agents board (`src/main/agent-board.ts`, `src/shared/agent-board.ts`, IPC `context:get-agent-board`) reads child sessions from disk: billion-context delegates in `<tmp>/acp-delegate/`, pi-subagents children under `<chat file without .jsonl>/`, sessions in other git worktrees started after the chat, sessions whose header `parentSession` is the chat, and snapshots naming it as parent. Subagent questions (`src/shared/subagent-questions.ts`) are read from the parent's `subagent_supervisor_request` custom messages and `subagent_supervisor_reply` entries, matched to the child by `<run id>/run-<child index>/` in its session path; the chat renders the request as a system notice (`message-parsing.ts`)
+- Under Pi, `--skill` loads the bundled `resources/skills/pi-retro` (adapted from Matt Pocock's MIT `retro` skill; its LICENSE ships beside it), which the Analytics Retro button runs with `/skill:pi-retro`
+- `packages/pi-analytics` is the analytics core as a Pi package and CLI (`npm run build:pi-analytics` bundles it into `packages/pi-analytics/dist/` with esbuild, and the report page into one HTML file with Vite). It reuses `src/shared` (session analytics, report, cache policy, retro digest), `src/main/analytics-index.ts` and the renderer's `AnalyticsReportView`, so the CLI report looks like the app. Its own modules: the extension (`extension.ts`, observe only), the CLI's cache text (`cache-text.ts`), and the shared commands (`commands.ts`). The prompt cache analysis (`src/shared/cache-analysis.ts`) is read only: it replays each model's calls at every ping count Pi can send, on the 1-hour cache and with no cache, and the app's Analytics view and `pi-analytics cache` show it
 - A linked task's runtime also loads `pi-desktop-repo-set.ts` and gets `PI_DESKTOP_REPO_MAP_PATH`, its repo map under `<GUI data dir>/repo-maps/` (`WorkspaceManager.startSessionRuntime`)
 - No `--session-dir` is added; each engine uses its own default store. A caller-supplied `--session-dir` in extra args still wins
 

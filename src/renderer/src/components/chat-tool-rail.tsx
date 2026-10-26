@@ -3,7 +3,7 @@ import { activeShortcuts } from '../utils/app-shortcuts'
 import { formatShortcut } from '../../../shared/keyboard-shortcuts'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
-import { FolderTree, Gauge, GitCompare, ListChecks, Terminal, ShieldCheck } from 'lucide-react'
+import { BarChart3, FolderTree, Gauge, GitCompare, ListChecks, Terminal, ShieldCheck } from 'lucide-react'
 import { countRunningSubagentTasks } from '../../../shared/subagent-task'
 
 export function ChatToolRail(): React.JSX.Element {
@@ -50,6 +50,12 @@ export function ChatToolRail(): React.JSX.Element {
         active={sidePanel === 'context'}
         onClick={() => void setSidePanel(sidePanel === 'context' ? null : 'context')}
         title={t('chat.toolbar.context')}
+      />
+      <RailButton
+        icon={<BarChart3 size={16} />}
+        active={sidePanel === 'analytics'}
+        onClick={() => void setSidePanel(sidePanel === 'analytics' ? null : 'analytics')}
+        title={t('chat.toolbar.analytics')}
       />
       <RailButton
         icon={<Terminal size={16} />}

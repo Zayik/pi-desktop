@@ -7,6 +7,250 @@
     "working": "Pi is working",
     "workingInAnotherWorkspace": "Pi is working in another workspace"
   },
+  "analytics": {
+    "cache": {
+      "rulesAsOf": "Cache rules as of {{date}}. Options are only compared for calls made after the vendor offered them."
+    },
+    "category": {
+      "build": "Builds",
+      "edit": "Editing",
+      "git": "Git",
+      "install": "Installs",
+      "lint": "Lint and types",
+      "other": "Other tools",
+      "read": "Reading files",
+      "search": "Searching",
+      "shell": "Other commands",
+      "subagent": "Subagents",
+      "test": "Tests",
+      "web": "Web"
+    },
+    "daily": {
+      "bar": "{{day}}: {{cost}}, {{time}} active",
+      "peak": "Peak day {{cost}}",
+      "title": "Cost per day"
+    },
+    "kind": {
+      "child": "fork",
+      "delegate": "delegate",
+      "main": "main",
+      "subagent": "subagent"
+    },
+    "loading": "Loading…",
+    "models": {
+      "hide": "Hide",
+      "model": "Model",
+      "show_one": "Show {{count}} model",
+      "show_other": "Show {{count}} models",
+      "title": "Models"
+    },
+    "page": {
+      "generated_one": "Generated {{date}} from the last day",
+      "generated_other": "Generated {{date}} from the last {{count}} days",
+      "noData": "This report has no data. Run pi-analytics report again.",
+      "title": "Pi analytics"
+    },
+    "panel": {
+      "close": "Close Analytics",
+      "empty": "No analytics for this session yet. It appears after the first saved message.",
+      "noSession": "Open a session to see where its cost and time went.",
+      "title": "Analytics"
+    },
+    "projects": {
+      "project": "Project",
+      "sessions": "Sessions",
+      "title": "Projects"
+    },
+    "promptCache": {
+      "allModels": "All models",
+      "chart": {
+        "aria": "Running prompt cost by ping count",
+        "dayBest": "{{day}}: cheapest with {{pings}}. Click to show it in 30-minute blocks",
+        "dayBestNote": "Under each day is that day's cheapest setting, in its line color (L is the 1-hour cache).",
+        "expand": "Show {{day}} in 30-minute blocks",
+        "modeLabel": "Chart values",
+        "saving": "Compared with no pings",
+        "savingNote": "Each line is what that ping count paid compared with no pings: below $0 saves money. Click a day to open it below.",
+        "title": "Running prompt cost by ping count · {{model}}",
+        "total": "Total cost",
+        "totalNote": "Each line is the running prompt cost with that setting. The lowest line at the right edge was cheapest. Click a day to open it below.",
+        "upTo": "{{day}}, up to {{time}}"
+      },
+      "confidence": {
+        "early": "Early",
+        "none": "Not enough data",
+        "solid": "Solid"
+      },
+      "day": {
+        "bestNote": "Each row is a model, in its line color. A number is the cheapest ping count for the breaks that ended in that block; blocks without one had no break longer than the cache lifetime.",
+        "bestRow": "Cheapest ping count per 30-minute block",
+        "cell_one": "{{model}}, {{block}}: {{count}} break ({{lengths}} min), cheapest with {{best}}",
+        "cell_other": "{{model}}, {{block}}: {{count}} breaks ({{lengths}} min), cheapest with {{best}}",
+        "close": "Close day",
+        "next": "Next day",
+        "previous": "Previous day",
+        "upTo": "Up to {{time}}"
+      },
+      "legend": {
+        "allHidden": "Every line is hidden. Click one in the list to show it.",
+        "long": "Long: 1-hour cache, no pings",
+        "noCache": "No cache (reference)",
+        "note": "Click a line to hide or show it.",
+        "perBreak": "Best count at each break",
+        "perModel": "Each model at its recommended count",
+        "recommended": "Recommended",
+        "title_one": "Total over {{count}} day",
+        "title_other": "Total over {{count}} days"
+      },
+      "lifetime": {
+        "automatic": "Provider cache",
+        "fiveMinutes": "5-min cache",
+        "thirtyMinutes": "30-min cache"
+      },
+      "longLabel": "the 1-hour cache",
+      "longShort": "L",
+      "noPings": "No pings",
+      "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
+      "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
+      "pings_one": "{{count}} ping",
+      "pings_other": "{{count}} pings",
+      "summary": {
+        "all": "All models: with each model on its recommended count, prompts cost {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
+        "automatic": "{{model}} uses the provider's cache, which pings can't change: {{cost}} a week.",
+        "noSaving": "{{model}}: pings don't pay off here, so no pings is cheapest at {{cost}} a week. The best count at every break would cost {{best}}.",
+        "saves": "{{model}}: {{pings}} is cheapest, {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
+        "thin_one": "Only {{count}} long break so far, so this uses the count of models with the same cache lifetime.",
+        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime.",
+        "vsNoCache": "Against no cache ({{noCache}} a week), the {{multiple}}x cache writes add {{writes}} and the cheaper reads save {{reads}}, before any pings."
+      },
+      "table": {
+        "footnote": "Long is Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it. 30-minute models have no longer lifetime Pi can pick. No cache is shown only to compare cost and is never recommended. Best count at each break is hindsight: the cheapest count for every break, the most a schedule could save.",
+        "hitRate": "{{rate}}% hits",
+        "long": "Long (1 h)",
+        "longTitle": "Anthropic's 1-hour cache: writes cost 2x input instead of 1.25x, reads cost the same, and Pi sends no pings on it",
+        "model": "Model",
+        "noCache": "No cache",
+        "note": "Prompt cost per week. Under No pings: what the short cache's write premium adds and its cheaper reads save, compared with no cache. Green is the cheapest fixed setting; the outlined cell is the recommended one (a model with fewer than 10 long breaks uses the count of models with the same cache lifetime). Click a row to chart it.",
+        "perBreak": "Best at each break",
+        "providerRuns": "The provider runs this cache; pings can't change it",
+        "reads": "reads −{{cost}}",
+        "title": "Cost per week by ping count",
+        "writeMultiple": "writes {{multiple}}x",
+        "writes": "writes +{{cost}}"
+      },
+      "title": "Prompt cache"
+    },
+    "prompts": {
+      "cost": "Cost",
+      "empty": "No prompts yet.",
+      "prompt": "Prompt",
+      "time": "Time",
+      "title": "Most expensive prompts"
+    },
+    "ranges": {
+      "all": "All",
+      "oneYear": "1 Y",
+      "sevenDays": "7 D",
+      "thirtyDays": "30 D",
+      "threeMonths": "90 D"
+    },
+    "retro": {
+      "button": "Retro",
+      "overallTitle": "Start a new chat that runs a retrospective on these numbers",
+      "sessionTitle": "Put a retrospective on this session's numbers in the composer"
+    },
+    "sessions": {
+      "agentsTitle": "Session and agents",
+      "cost": "Cost",
+      "session": "Session",
+      "time": "Active",
+      "topTitle": "Most expensive sessions"
+    },
+    "showAll_one": "Show all {{count}}",
+    "showAll_other": "Show all {{count}}",
+    "showLess": "Show less",
+    "signal": {
+      "buildTime": "Builds took {{share}}% of active time ({{minutes}} min over {{runs}} runs).",
+      "cachePings_one": "Keeping the {{minutes}}-minute prompt cache warm with {{count}} ping after the agent stops would have saved about {{cost}} a week.",
+      "cachePings_other": "Keeping the {{minutes}}-minute prompt cache warm with {{count}} pings after the agent stops would have saved about {{cost}} a week.",
+      "carriedTool": "{{tool}} results were sent again with later calls for {{share}}% of the cost ({{cost}}).",
+      "compactions": "{{sessions}} session(s) compacted three or more times (most: {{most}}). Context is filling up fast.",
+      "failingCommand": "{{command}} failed {{failures}} times.",
+      "skillCost": "The {{skill}} skill stayed in context for {{share}}% of the cost ({{uses}} loads).",
+      "slowTests": "The median test run takes {{minutes}} min ({{runs}} runs).",
+      "subagentShare": "Subagents account for {{share}}% of the cost.",
+      "testReruns": "Tests ran {{perSession}} times per session that tested ({{runs}} runs, {{failed}} failed).",
+      "testTime": "Tests took {{share}}% of active time ({{minutes}} min over {{runs}} runs)."
+    },
+    "signals": {
+      "empty": "Nothing stands out.",
+      "note": "Places to look, strongest first",
+      "title": "Signals"
+    },
+    "skills": {
+      "skill": "Skill",
+      "title": "Skills",
+      "tokens": "Tokens",
+      "uses": "Loads"
+    },
+    "slow": {
+      "call": "Call",
+      "command": "Command",
+      "empty": "No timed tool calls yet.",
+      "failingTitle": "Failed more than once",
+      "failures": "Failures",
+      "title": "Slowest tool calls"
+    },
+    "tests": {
+      "empty": "No test runs found.",
+      "failed": "Failed",
+      "median": "Median run",
+      "perSession": "Runs per session",
+      "runs": "Runs",
+      "share": "Share of active time",
+      "title": "Tests",
+      "total": "Total time"
+    },
+    "tiles": {
+      "cost": "Cost",
+      "costDetail": "{{sessions}} sessions · {{calls}} calls",
+      "subagents": "Subagents",
+      "subagentsDetail": "{{share}} of cost",
+      "tests": "Time in tests",
+      "testsDetail": "{{runs}} runs · {{failed}} failed",
+      "time": "Active time",
+      "timeDetail": "{{prompts}} prompts"
+    },
+    "tools": {
+      "calls": "Calls",
+      "carried": "Carried",
+      "empty": "No tool calls yet.",
+      "errors_one": "{{count}} error",
+      "errors_other": "{{count}} errors",
+      "note": "Carried: cost of resending results",
+      "time": "Time",
+      "title": "Tools",
+      "tool": "Tool"
+    },
+    "untitled": "Untitled",
+    "view": {
+      "empty": "No sessions in this range.",
+      "error": "Could not read the analytics index.",
+      "noProject": "No project open",
+      "projectOnly": "Only {{project}}",
+      "range": "Date range",
+      "rebuild": "Rebuild",
+      "rebuildTitle": "Read every session file again",
+      "subtitle": "Where cost and time went across your sessions. Built from Pi's session files; deleted sessions keep their history.",
+      "title": "Analytics"
+    },
+    "work": {
+      "kind": "Kind",
+      "note": "Wall-clock time per kind of work",
+      "share": "Share",
+      "title": "Work by kind"
+    }
+  },
   "app": {
     "dropFolder": {
       "description": "Opens that folder as a workspace (creates one if needed)",
@@ -178,6 +422,7 @@
       "loading": "Loading…",
       "noSession": "Open a session to see its context.",
       "noSnapshot": "Nothing recorded for this session yet. Recording starts when its agent starts, so send a message or restart the agent.",
+      "openInBrowser": "Open in browser, with every Pi session on this computer",
       "tiles": {
         "calls_one": "{{count}} request",
         "calls_other": "{{count}} requests",
@@ -309,6 +554,7 @@
       "viewSource": "View source"
     },
     "toolbar": {
+      "analytics": "Analytics",
       "context": "Context",
       "diffViewer": "Diff viewer",
       "fileTree": "File tree",
@@ -1420,6 +1666,28 @@
     "sessionStatusHeading": "Session Status",
     "subtitle": "Control what {{agent}} can do before changes move forward."
   },
+  "sessionPage": {
+    "followDesktop": "Follow Pi Desktop",
+    "historyNote": "From Pi's session log: this session ran without pi-analytics, so the prompt, tools and cache details are estimates.",
+    "live": "Live",
+    "loading": "Loading…",
+    "noData": "Nothing recorded for this session yet.",
+    "none": "No Pi sessions in the last 7 days.",
+    "pick": "Pick a session",
+    "recent": "Recent",
+    "reconnecting": "Reconnecting…",
+    "running": "Running",
+    "state": {
+      "ended": "Ended",
+      "history": "From log",
+      "idle": "Idle",
+      "stopped": "Stopped",
+      "working": "Working"
+    },
+    "stoppedNote": "Pi stopped without closing this session, so the figures end where it stopped.",
+    "title": "Pi sessions",
+    "untitled": "Untitled session"
+  },
   "sessions": {
     "activeBadge": "active",
     "archivedBadge": "archived",
@@ -1786,6 +2054,8 @@
     "tools": {
       "allWorkflows": "All Workflows",
       "allWorkflowsTitle": "Workflow runs from every project",
+      "analytics": "Analytics",
+      "analyticsTitle": "Cost and time across sessions",
       "diagnostics": "Diagnostics",
       "notes": "Notes",
       "packages": "Packages",
