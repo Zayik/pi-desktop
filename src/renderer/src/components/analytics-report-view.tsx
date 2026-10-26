@@ -7,7 +7,13 @@ import type { WorkCategory } from '../../../shared/session-analytics'
 import { CACHE_RULES_CHECKED, GAP_BUCKET_MINUTES, OBSERVED_GAP_MINUTES, type CacheDay, type CacheNote, type CachePolicyId, type ModelCacheReport, type ObservedCache } from '../../../shared/cache-policy'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
-import { isImportedModel } from '../../../shared/claude-code-session'
+import { importSourceOf, type ImportSource } from '../../../shared/import-sources'
+
+const IMPORT_LABEL_KEYS: Record<ImportSource, 'analytics.cache.fromClaudeCode' | 'analytics.cache.fromCodex' | 'analytics.cache.fromCopilot'> = {
+  'claude-code': 'analytics.cache.fromClaudeCode',
+  codex: 'analytics.cache.fromCodex',
+  copilot: 'analytics.cache.fromCopilot',
+}
 
 const CATEGORY_LABEL_KEYS = {
   test: 'analytics.category.test',
@@ -398,13 +404,14 @@ export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.El
   const { t } = useTranslation()
   const cheapest = model.policies.reduce<number | null>((min, policy) => (min === null || policy.cost < min ? policy.cost : min), null)
   const name = model.model.split('/').slice(1).join('/') || model.model
+  const source = importSourceOf(model.model)
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2">
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="flex min-w-0 items-baseline gap-1.5">
           <span className="truncate font-mono text-secondary" title={model.model}>{name}</span>
           {model.route === 'copilot' && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.viaCopilot')}</span>}
-          {isImportedModel(model.model) && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t('analytics.cache.fromClaudeCode')}</span>}
+          {source && <span className="shrink-0 rounded bg-card px-1 text-[10px] text-dim">{t(IMPORT_LABEL_KEYS[source])}</span>}
         </span>
         <span className="shrink-0 text-[11px] text-dim tabular-nums">
           {t('analytics.cache.measured', { cost: formatUsd(model.measuredCost), calls: model.calls })}
@@ -419,7 +426,8 @@ export function ModelCache({ model }: { model: ModelCacheReport }): React.JSX.El
         })}
       </div>
       {model.notes.map((note) => <p key={note} className="mt-0.5 text-[11px] text-dim">{t(CACHE_NOTE_KEYS[note])}</p>)}
-      {isImportedModel(model.model) && <p className="mt-0.5 text-[11px] text-dim">{t('analytics.cache.importedNote')}</p>}
+      {source && <p className="mt-0.5 text-[11px] text-dim">{t('analytics.cache.importedNote')}</p>}
+      {model.estimatedCalls > 0 && <p className="mt-0.5 text-[11px] text-dim">{t('analytics.cache.estimatedNote', { count: model.estimatedCalls })}</p>}
       <GapHistogram buckets={model.gapBuckets} warmMinutes={model.shortTtlMs / 60_000} />
       {model.observed && <ObservedHits observed={model.observed} />}
       {model.policies.length === 0 ? (

@@ -17,15 +17,11 @@
  *   that session's `sessionId`. Those are read as inherited, like a Pi fork.
  */
 import { anthropicCost } from './anthropic-prices'
+import { IMPORT_PROVIDERS } from './import-sources'
 import { analyzeSession, type SessionAnalytics } from './session-analytics'
 
 /** Calls are named `claude-code/<model>`, so they stay apart from the same model under Pi. */
-export const CLAUDE_CODE_PROVIDER = 'claude-code'
-
-/** A model from another tool's sessions: its replay is shown, but Pi has no setting to apply to it. */
-export function isImportedModel(model: string): boolean {
-  return model.startsWith(`${CLAUDE_CODE_PROVIDER}/`)
-}
+export const CLAUDE_CODE_PROVIDER = IMPORT_PROVIDERS['claude-code']
 
 type UnknownRecord = Record<string, unknown>
 

@@ -5,6 +5,8 @@
 import { spawn } from 'child_process'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
 import type { AnalyticsSource } from '../../../src/shared/session-analytics'
+import type { ImportSource } from '../../../src/shared/import-sources'
+import { IMPORT_ENV } from '../../../src/main/pi-paths'
 import { applyRecommendations, describePlan, setCacheControl, setKeepWarmPings, readCacheWarming, reset, undo } from './apply'
 import { readPlan } from './plan-file'
 import { analyticsDir, planPath } from './paths'
@@ -24,12 +26,12 @@ export const USAGE = [
   'pi-analytics control on|off',
   '    Off: the package only reads, and Pi runs with its own cache settings (the plan is kept). On: the plan applies again.',
   'pi-analytics sources [--rebuild]',
-    '    List the tools whose sessions are read (Pi, Claude Code), with how many sessions and the days they cover.',
+    '    List the tools whose sessions are read (Pi, Claude Code, Codex, the Copilot app and CLI), with how many sessions and the days they cover.',
   'pi-analytics plan | undo | reset',
   '    Show the plan, step back one change, or go back to before the first.',
 ]
 
-const SOURCE_LABELS: Record<AnalyticsSource, string> = { pi: 'Pi', 'claude-code': 'Claude Code' }
+const SOURCE_LABELS: Record<AnalyticsSource, string> = { pi: 'Pi', 'claude-code': 'Claude Code', codex: 'Codex', copilot: 'Copilot app and CLI' }
 
 export interface CommandOptions {
   dir?: string
@@ -214,8 +216,11 @@ export async function runCommand(args: string | string[], options: CommandOption
             ? `${label}: ${found.sessions} session${found.sessions === 1 ? '' : 's'}, ${day(found.firstAt)} to ${day(found.lastAt)}, $${found.cost.toFixed(2)} at list prices (${root})`
             : `${label}: no sessions found in ${root}`
         }),
-        ...(sources.roots.some((root) => root.source === 'claude-code') ? [] : ['Claude Code: off (PI_ANALYTICS_CLAUDE_CODE=0)']),
-        'Claude Code sessions are priced at Anthropic\'s API list prices, also when they ran on a subscription. Pi cannot change their cache settings, so they get no recommendations.',
+        ...(Object.keys(IMPORT_ENV) as ImportSource[])
+          .filter((source) => !sources.roots.some((root) => root.source === source))
+          .map((source) => `${SOURCE_LABELS[source]}: off (${IMPORT_ENV[source]}=0)`),
+        'Other tools\' sessions are priced at the vendors\' list prices, also when they ran on a subscription. Pi cannot change their cache settings, so they get no recommendations.',
+        'Copilot logs only totals per run, so each Copilot call\'s prompt size is estimated; its timing is measured.',
       ]
     }
     case 'help':

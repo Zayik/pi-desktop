@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { analyzeClaudeCodeSession, claudeCodeEntries, isImportedModel } from './claude-code-session'
+import { analyzeClaudeCodeSession, claudeCodeEntries } from './claude-code-session'
+import { isImportedModel } from './import-sources'
 import { anthropicCost, anthropicPrice } from './anthropic-prices'
 
 const T0 = Date.parse('2026-10-20T10:00:00Z')

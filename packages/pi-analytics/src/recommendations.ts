@@ -6,7 +6,7 @@
  */
 import type { AnalyticsReport } from '../../../src/shared/analytics-report'
 import { PI_REFRESH_AT, piMaxIdlePings, type ModelCacheReport, type PingSweepPoint } from '../../../src/shared/cache-policy'
-import { isImportedModel } from '../../../src/shared/claude-code-session'
+import { isImportedModel } from '../../../src/shared/import-sources'
 
 export { PI_IDLE_WARMING_MS, piMaxIdlePings } from '../../../src/shared/cache-policy'
 import type { ModelCachePlan } from './cache-plan'

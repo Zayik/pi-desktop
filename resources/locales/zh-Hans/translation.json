@@ -30,7 +30,10 @@
         "title": "每日缓存命中（实测）",
         "write": "缓存写入"
       },
+      "estimatedNote_other": "{{count}} 次调用的提示大小为估算值：Copilot 只记录每次运行的总量。间隔时间为实测。",
       "fromClaudeCode": "来自 Claude Code",
+      "fromCodex": "来自 Codex",
+      "fromCopilot": "来自 Copilot 应用",
       "gaps": {
         "bar_other": "{{range}}：{{count}} 个间隔",
         "over": ">{{minutes}} 分",
@@ -45,7 +48,7 @@
         "saving": "按一天中的小时调整次数将花费 {{cost}}，比最佳固定次数少 {{saving}}。",
         "title": "按一天中的小时的最便宜保活次数"
       },
-      "importedNote": "读取自 Claude Code 的记录，按 API 标价计算。Pi 无法更改它的缓存设置，这里只显示各设置本会花费多少。",
+      "importedNote": "读取自其他工具的日志，按厂商标价计算。Pi 无法更改该工具的缓存设置，这里只显示各设置本会花费多少。",
       "keep": "按这种调用节奏，当前设置已接近最便宜。",
       "measured": "已计费 {{cost}} · {{calls}} 次调用",
       "noOptions": "此模型没有可比较的缓存设置或保活选项，仅显示实际计费。",

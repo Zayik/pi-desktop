@@ -15,7 +15,7 @@ import {
   type CacheOption,
 } from '../../../../packages/pi-analytics/src/recommendations'
 import type { Translate } from '../../../shared/i18n'
-import { isImportedModel } from '../../../shared/claude-code-session'
+import { isImportedModel } from '../../../shared/import-sources'
 import { checkText } from './cache-check-dialog'
 import { formatUsd } from './analytics-report-view'
 

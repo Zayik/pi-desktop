@@ -12,7 +12,7 @@ function point(pings: number, cost: number): PingSweepPoint {
 function model(change: Partial<ModelCacheReport>): ModelCacheReport {
   const pingSweep = change.pingSweep ?? [point(0, 10), point(1, 8), point(2, 7), point(3, 7.5)]
   return {
-    model: 'anthropic/claude-haiku-5-5', provider: 'anthropic', family: 'anthropic', route: 'api', notes: [], calls: 100, sessions: 5,
+    model: 'anthropic/claude-haiku-5-5', provider: 'anthropic', family: 'anthropic', route: 'api', notes: [], calls: 100, estimatedCalls: 0, sessions: 5,
     measuredCost: 10, currentPolicy: '5m', currentPolicyMeasured: true, inputPrice: 1e-6, readRatio: 0.1, readRatioMeasured: true,
     policies: [{ policy: '5m', cost: 10, pings: 0, coldCalls: 20 }], recommended: null, saving: 0, savingShare: 0,
     medianGapMs: MINUTE, longGapShare: 0.2, shortTtlMs: 5 * MINUTE, gapBuckets: [100, 50, 30, 20], sweepPolicy: '5m', pingEveryMs: 4 * MINUTE,

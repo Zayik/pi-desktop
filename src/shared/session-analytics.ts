@@ -110,6 +110,8 @@ export type CacheCall = [
   cacheWriteCost: number,
   /** 1 for a cache-warming ping Pi sent while idle; missing or 0 for a real call (rows from before version 3 have none). */
   ping?: number,
+  /** 1 when the tool logged only session totals, so this call's split into input, reads and writes is estimated. */
+  estimated?: number,
 ]
 
 export interface DayFact {
@@ -119,7 +121,7 @@ export interface DayFact {
 }
 
 /** The tool that wrote a session: Pi, or one imported from another tool's logs. */
-export const ANALYTICS_SOURCES = ['pi', 'claude-code'] as const
+export const ANALYTICS_SOURCES = ['pi', 'claude-code', 'codex', 'copilot'] as const
 export type AnalyticsSource = typeof ANALYTICS_SOURCES[number]
 
 export interface SessionAnalytics {
@@ -479,7 +481,7 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
         addCall(facts, call, turn, day)
         addModelUsage(facts.models, call, callCost(call))
         priceOf.set(id, promptPrice(call))
-        recordCacheCall(facts, call, isRecord(message.usage) ? message.usage.cacheWrite1h : 0)
+        recordCacheCall(facts, call, isRecord(message.usage) ? message.usage.cacheWrite1h : 0, false, isRecord(message.usage) && message.usage.estimated === true)
       }
       continue
     }
@@ -561,7 +563,7 @@ export function analyzeSession(entries: UnknownRecord[], sessionFile: string): S
   return facts
 }
 
-function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown, ping = false): void {
+function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h: unknown, ping = false, estimated = false): void {
   if (call.at <= 0) return
   let model: number
   const last = facts.cacheCalls[facts.cacheCalls.length - 1]
@@ -574,7 +576,8 @@ function recordCacheCall(facts: SessionAnalytics, call: ModelCall, cacheWrite1h:
   }
   const oneHour = typeof cacheWrite1h === 'number' && Number.isFinite(cacheWrite1h) ? Math.min(cacheWrite1h, call.cacheWrite) : 0
   const row: CacheCall = [call.at, model, call.input, call.cacheRead, call.cacheWrite, oneHour, call.cost.input, call.cost.cacheRead, call.cost.cacheWrite]
-  if (ping) row.push(1)
+  if (ping || estimated) row.push(ping ? 1 : 0)
+  if (estimated) row.push(1)
   facts.cacheCalls.push(row)
   if (facts.cacheCalls.length > MAX_CACHE_CALLS) facts.cacheCalls.shift()
 }

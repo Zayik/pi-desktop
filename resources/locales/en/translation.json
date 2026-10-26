@@ -33,7 +33,11 @@
         "title": "Cache hits per day (measured)",
         "write": "Cache writes"
       },
+      "estimatedNote_one": "{{count}} call's prompt size is estimated: Copilot logs only totals per run. Break timing is measured.",
+      "estimatedNote_other": "{{count}} calls' prompt sizes are estimated: Copilot logs only totals per run. Break timing is measured.",
       "fromClaudeCode": "from Claude Code",
+      "fromCodex": "from Codex",
+      "fromCopilot": "from the Copilot app",
       "gaps": {
         "bar_one": "{{range}}: {{count}} gap",
         "bar_other": "{{range}}: {{count}} gaps",
@@ -50,7 +54,7 @@
         "saving": "Changing the count by hour of day would have cost {{cost}}, {{saving}} less than the best single count.",
         "title": "Cheapest pings per gap by hour of day"
       },
-      "importedNote": "Read from Claude Code's transcripts and priced at API list prices. Pi cannot change its cache settings, so this shows what each setting would have cost.",
+      "importedNote": "Read from another tool's logs and priced at the vendor's list prices. Pi cannot change that tool's cache settings, so this shows what each setting would have cost.",
       "keep": "The current setting is already about the cheapest for this timing.",
       "measured": "{{cost}} billed · {{calls}} calls",
       "noOptions": "This model has no cache setting or keep-warm option to compare; only the billed cost is shown.",

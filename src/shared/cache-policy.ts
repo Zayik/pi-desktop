@@ -25,6 +25,8 @@
  *   Anthropic's `ttl: "1h"` (VS Code's extendedTtl setting sends it).
  */
 import { anthropicPrice } from './anthropic-prices'
+import { openAIBillsCacheWrites } from './openai-prices'
+import { IMPORT_PROVIDERS } from './import-sources'
 import { localDayKey, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 export type CacheProvider = 'anthropic' | 'openai' | 'other'
@@ -176,7 +178,7 @@ function openAIModelId(id: string): boolean {
 
 /** GPT-5.6 and later price cache writes and take a lifetime; earlier models cache automatically. */
 function openAIHasLifetimes(id: string, calls: CacheCall[]): boolean {
-  return /gpt-(5\.([6-9]|\d{2,})|[6-9]|\d{2,})/.test(id) || id.includes('daybreak') || calls.some((call) => call[4] > 0)
+  return openAIBillsCacheWrites(id) || calls.some((call) => call[4] > 0)
 }
 
 export function cacheProvider(model: string): CacheProvider {
@@ -222,7 +224,8 @@ function cacheProfile(model: string, calls: CacheCall[]): CacheProfile {
   const id = rest.join('/').toLowerCase()
   const kind = cacheProvider(model)
   const vendor = vendorProfile(kind, id, calls)
-  if (provider.toLowerCase() !== 'github-copilot') return { ...vendor, route: 'api' }
+  // Copilot's own app and CLI sessions, imported from their logs, run on the same backend.
+  if (!['github-copilot', IMPORT_PROVIDERS.copilot].includes(provider.toLowerCase())) return { ...vendor, route: 'api' }
   if (vendor.family === 'none') return { ...vendor, route: 'copilot', notes: ['copilot-automatic'] }
   const notes: CacheNote[] = ['copilot-vendor']
   // Copilot's price list shows only the 5 minute write, though its backend takes `ttl: "1h"` (VS Code's extendedTtl uses it).
@@ -264,6 +267,8 @@ export interface ModelCacheReport {
   route: CacheRoute
   notes: CacheNote[]
   calls: number
+  /** Calls whose split into input, reads and writes was spread from session totals (Copilot logs no per-call usage). */
+  estimatedCalls: number
   sessions: number
   /** What the prompts were billed: input, cache reads and cache writes. */
   measuredCost: number
@@ -684,7 +689,9 @@ function policyLifetimeMinutes(policy: CachePolicyId | null, profile: CacheProfi
  * pings' own reads. Timestamps are when Pi recorded each message, so a
  * long response shifts a break by its streaming time.
  */
-function observeCache(events: CacheCall[][], profile: CacheProfile, policy: CachePolicyId | null): ObservedCache | null {
+function observeCache(allEvents: CacheCall[][], profile: CacheProfile, policy: CachePolicyId | null): ObservedCache | null {
+  // An estimated split of reads and writes says nothing about when the cache went cold.
+  const events = allEvents.filter((run) => !run.some((call) => call[10] === 1))
   if (!events.some((run) => run.some((call) => call[3] > 0))) return null
   const buckets: ObservedGapBucket[] = [...OBSERVED_GAP_MINUTES, null].map((upToMinutes) => ({ upToMinutes, gaps: 0, hits: 0 }))
   const observed: ObservedCache = {
@@ -791,6 +798,7 @@ export function buildCacheReport(sessions: SessionAnalytics[]): CacheReport {
       route: profile.route,
       notes: profile.notes,
       calls: all.length,
+      estimatedCalls: all.filter((call) => call[10] === 1).length,
       sessions: runs.length,
       measuredCost,
       currentPolicy: measuredPolicy ?? profile.defaultPolicy,
