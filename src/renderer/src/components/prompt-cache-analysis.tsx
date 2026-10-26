@@ -143,9 +143,6 @@ interface CostRow {
   long: number | null
   perBreak: number | null
   noCache: number | null
-  /** Against no cache, with no pings: what the write premium added and what cheaper reads saved. */
-  writes: number | null
-  reads: number | null
 }
 
 interface Line {
@@ -178,12 +175,11 @@ function costRow(entry: ModelEntry, maxPings: number, weeks: number): CostRow {
     long: summary.longTotal === null ? null : summary.longTotal / weeks,
     perBreak: warmable ? (summary.baseTotal + summary.perBreakTotal) / weeks : null,
     noCache: summary.noCacheTotal > 0 ? summary.noCacheTotal / weeks : null,
-    ...cacheEffect(summary, warmable, weeks),
   }
 }
 
 /** No cache against the short cache with no pings: the writes cost more, the reads cost less. */
-function cacheEffect(summary: PingSummary, warmable: boolean, weeks: number): Pick<CostRow, 'writes' | 'reads'> {
+function cacheEffect(summary: PingSummary, warmable: boolean, weeks: number): { writes: number | null; reads: number | null } {
   if (!warmable || summary.noCacheTotal <= 0) return { writes: null, reads: null }
   const now = summary.baseTotal + summary.totals[0]
   return { writes: summary.writePremium / weeks, reads: (summary.noCacheTotal - (now - summary.writePremium)) / weeks }
@@ -479,8 +475,6 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick, settings
     long: rows.some(({ cost }) => cost.long !== null) ? sum(rows.map(({ cost }) => cost.long ?? cost.counts[0] ?? 0)) : null,
     perBreak: sum(rows.map(({ cost }) => cost.perBreak ?? cost.counts[0] ?? 0)),
     noCache: sum(rows.map(({ cost }) => cost.noCache ?? 0)) || null,
-    writes: sum(rows.map(({ cost }) => cost.writes ?? 0)),
-    reads: sum(rows.map(({ cost }) => cost.reads ?? 0)),
   }
   const columns = Array.from({ length: maxPings + 1 }, (_, count) => count)
   const hasLong = totalCost.long !== null
@@ -514,12 +508,6 @@ function CostTable({ entries, maxPings, weeks, selected, multi, onPick, settings
           </button>
         ) : (
           <span className={className}>{money(value)}</span>
-        )}
-        {choice === 0 && cost.writes !== null && cost.reads !== null && (
-          <div className="mt-0.5 text-[10px] font-normal leading-tight">
-            <div className="text-warning">{t('analytics.promptCache.table.writes', { cost: money(cost.writes) })}</div>
-            <div className="text-success">{t('analytics.promptCache.table.reads', { cost: money(cost.reads) })}</div>
-          </div>
         )}
       </td>
       )
