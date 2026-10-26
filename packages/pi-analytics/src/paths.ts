@@ -15,6 +15,8 @@ export function analyticsDir(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export const SESSIONS_DIR = 'sessions'
+/** Context snapshots, one per session, from the recorder Pi Desktop's Context panel uses. */
+export const CONTEXT_DIR = 'context'
 export const REPORTS_DIR = 'reports'
 export const INDEX_FILE = 'analytics.sqlite'
 export const ARCHIVE_DIR = 'archive'
@@ -29,6 +31,14 @@ export function sessionModePath(sessionId: string, dir = analyticsDir()): string
 /** What the extension is doing for one session, rewritten as it changes. */
 export function sessionStatusPath(sessionId: string, dir = analyticsDir()): string {
   return join(dir, SESSIONS_DIR, `${safeId(sessionId)}.status.json`)
+}
+
+/**
+ * Where sessions' context snapshots go: Pi Desktop names the folder for its
+ * chats (`PI_DESKTOP_CONTEXT_DIR`, the same one), everything else uses this.
+ */
+export function contextDir(dir = analyticsDir(), env: NodeJS.ProcessEnv = process.env): string {
+  return env.PI_DESKTOP_CONTEXT_DIR || join(dir, CONTEXT_DIR)
 }
 
 function safeId(sessionId: string): string {

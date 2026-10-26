@@ -96,3 +96,39 @@ test('copies the cache status pi-analytics reports into the snapshot', async () 
     assert.equal(snapshot.lastWarmAt, 900)
   })
 })
+
+test('records which process runs the session and whether its agent is working', async () => {
+  await withDir(async (dir) => {
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir })
+    emit('session_start')
+    emit('agent_start')
+    emit('tool_execution_start', { toolName: 'bash', toolCallId: 't1', args: {} })
+    emit('session_info_changed', { name: 'Rate limiter' })
+    // Written on a short timer while the session runs.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    let snapshot = JSON.parse(await readFile(join(dir, snapshotFileName(SESSION_ID)), 'utf8')) as ContextSnapshot
+    assert.equal(snapshot.process?.pid, process.pid)
+    assert.ok(Math.abs((snapshot.process?.startedAt ?? 0) - (Date.now() - process.uptime() * 1000)) < 2_000)
+    assert.equal(snapshot.agentRunning, true)
+    assert.equal(snapshot.activeTool, 'bash')
+    assert.equal(snapshot.sessionName, 'Rate limiter')
+    assert.equal(snapshot.endedAt, null)
+
+    emit('tool_execution_end')
+    emit('agent_end')
+    snapshot = await readSnapshot(dir, emit)
+    assert.equal(snapshot.agentRunning, false)
+    assert.equal(snapshot.activeTool, null)
+    assert.ok(typeof snapshot.endedAt === 'number', 'a closed session says so, so readers need not guess from its process')
+  })
+})
+
+test('records nothing on its own without a folder: pi-analytics runs it with one', async () => {
+  await withDir(async (dir) => {
+    delete process.env[CONTEXT_DIR_ENV]
+    const { emit } = await loadExtension({})
+    emit('session_start')
+    emit('session_shutdown')
+    await assert.rejects(readFile(join(dir, snapshotFileName(SESSION_ID)), 'utf8'))
+  })
+})

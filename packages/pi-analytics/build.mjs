@@ -1,6 +1,7 @@
 // Builds the package from Pi Desktop's sources: the extension and the CLI as
-// self-contained bundles, and the report page as one HTML file with its
-// script, styles and font inlined. Run from the repository: `npm run build:pi-analytics`.
+// self-contained bundles, and the report and live session pages as one HTML
+// file each with script, styles and font inlined. Run from the repository:
+// `npm run build:pi-analytics`.
 import { build as esbuild } from 'esbuild'
 import { build as vite } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -65,26 +66,32 @@ function inlineIntoHtml() {
   }
 }
 
-await vite({
-  configFile: false,
-  root: resolve(here, 'report'),
-  base: './',
-  logLevel: 'warn',
-  plugins: [react(), tailwindcss(), inlineIntoHtml()],
-  build: {
-    outDir: dist,
-    emptyOutDir: false,
-    assetsInlineLimit: () => true,
-    cssCodeSplit: false,
-    modulePreload: false,
-    rollupOptions: { output: { inlineDynamicImports: true } },
-  },
-  define: { 'process.env.NODE_ENV': '"production"' },
-})
+/** Build one page into `dist/<outName>`, everything inlined. */
+async function buildPage(rootName, outName) {
+  await vite({
+    configFile: false,
+    root: resolve(here, rootName),
+    base: './',
+    logLevel: 'warn',
+    plugins: [react(), tailwindcss(), inlineIntoHtml()],
+    build: {
+      outDir: dist,
+      emptyOutDir: false,
+      assetsInlineLimit: () => true,
+      cssCodeSplit: false,
+      modulePreload: false,
+      rollupOptions: { output: { inlineDynamicImports: true } },
+    },
+    define: { 'process.env.NODE_ENV': '"production"' },
+  })
+  const page = resolve(dist, 'index.html')
+  writeFileSync(resolve(dist, outName), readFileSync(page, 'utf8'))
+  rmSync(page)
+}
 
-const page = resolve(dist, 'index.html')
-writeFileSync(resolve(dist, 'report.html'), readFileSync(page, 'utf8'))
-rmSync(page)
+// The report, with its data written in; the live session page, fed by the helper.
+await buildPage('report', 'report.html')
+await buildPage('sessions', 'sessions.html')
 // The retro skill ships with the app too; one copy lives in the repository.
 cpSync(resolve(here, '../../resources/skills'), resolve(dist, 'skills'), { recursive: true })
 // dist/ is shipped on its own in the app, without the package's own package.json.

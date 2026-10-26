@@ -32,7 +32,7 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc -b --noEmit",
     "build:pi-analytics": "node packages/pi-analytics/build.mjs",
-    "lint": "eslint src bin scripts resources packages/pi-analytics/src packages/pi-analytics/report packages/pi-analytics/build.mjs && node scripts/check-semantic-colors.mjs && i18next-cli lint && i18next-cli extract --ci --dry-run",
+    "lint": "eslint src bin scripts resources packages/pi-analytics/src packages/pi-analytics/report packages/pi-analytics/sessions packages/pi-analytics/build.mjs && node scripts/check-semantic-colors.mjs && i18next-cli lint && i18next-cli extract --ci --dry-run",
     "package": "npm run build && electron-builder",
     "package:linux": "npm run build && electron-builder --linux",
     "package:linux:appimage": "npm run build && electron-builder --linux AppImage",

@@ -107,10 +107,13 @@ export function applyPermissionModeToStartOptions(
   }
   if (suggestsNextSteps) args.push('-e', NEXT_STEPS_EXTENSION_PATH)
   // Applies the cache mode (the pick for the chat, else the cache plan). A copy the user installed in Pi already loads.
-  if (engine === 'pi' && existsSync(ANALYTICS_EXTENSION_PATH) && !piAnalyticsInstalled()) args.push('-e', ANALYTICS_EXTENSION_PATH)
-  // Records what fills the context for the Context panel.
-  const recordsContext = existsSync(CONTEXT_EXTENSION_PATH)
-  if (recordsContext) args.push('-e', CONTEXT_EXTENSION_PATH)
+  // It also records what fills the context, for the Context panel.
+  const installedAnalytics = engine === 'pi' && piAnalyticsInstalled()
+  const bundledAnalytics = engine === 'pi' && !installedAnalytics && existsSync(ANALYTICS_EXTENSION_PATH)
+  if (bundledAnalytics) args.push('-e', ANALYTICS_EXTENSION_PATH)
+  // Where pi-analytics does not load (OMP), the recorder runs on its own.
+  const recordsContext = installedAnalytics || bundledAnalytics || existsSync(CONTEXT_EXTENSION_PATH)
+  if (recordsContext && !installedAnalytics && !bundledAnalytics) args.push('-e', CONTEXT_EXTENSION_PATH)
   // The Analytics retro runs this skill with `/skill:pi-retro`; only Pi takes `--skill`.
   if (engine === 'pi' && existsSync(RETRO_SKILL_PATH)) args.push('--skill', RETRO_SKILL_PATH)
 
