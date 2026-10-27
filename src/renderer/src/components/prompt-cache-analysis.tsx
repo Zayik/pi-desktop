@@ -342,34 +342,29 @@ function ModelCard({ id, entry, entries, analysis, days, weeks, state, open, onT
   const current = entry && state ? inUseChoice(entry, state) : null
 
   // The small graph: no pings against the recommended setting, plus the one in use when it differs.
-  const mini: Line[] = [
-    { key: '0', label: t('analytics.promptCache.noPings'), stroke: PING_COLORS[0].stroke, style: 'solid', width: 1.5, steps: series.counts[0] },
-  ]
+  // The small graph: regular cache (no pings) against the best setting, plus the one in use when it differs.
+  // No cache is listed beside it but not drawn, since it would flatten the other lines.
+  const noCacheLine: Line = { key: NO_CACHE, label: t('analytics.promptCache.models.noCache'), stroke: 'stroke-dim', style: 'dotted', width: 1.5, steps: series.noCache }
+  const regular: Line = { key: '0', label: t('analytics.promptCache.models.regular'), stroke: PING_COLORS[0].stroke, style: 'solid', width: 1.5, steps: series.counts[0] }
+  const mini: Line[] = [regular]
+  let best: Line | null = null
   if (entry === null) {
-    if (series.maxPings > 0) mini.push({ key: PER_MODEL, label: t('analytics.promptCache.models.eachRecommended'), stroke: 'stroke-primary', style: 'solid', width: 2.5, steps: series.perModel })
+    if (series.maxPings > 0) best = { key: PER_MODEL, label: t('analytics.promptCache.models.bestEach'), stroke: 'stroke-primary', style: 'solid', width: 2.5, steps: series.perModel }
   } else if (recommended !== null && recommended !== 0) {
-    mini.push({ key: String(recommended), label: t('analytics.promptCache.models.recommended', { setting: choiceLabel(recommended, t) }), stroke: choiceColor(recommended).stroke, style: 'solid', width: 2.5, steps: choiceSteps(series, recommended) })
+    best = { key: String(recommended), label: t('analytics.promptCache.models.best', { setting: choiceLabel(recommended, t) }), stroke: choiceColor(recommended).stroke, style: 'solid', width: 2.5, steps: choiceSteps(series, recommended) }
   }
+  if (best) mini.push(best)
   if (current !== null && current !== 0 && current !== recommended) {
     mini.push({ key: `in-${current}`, label: t('analytics.promptCache.models.inUse', { setting: choiceLabel(current, t) }), stroke: choiceColor(current).stroke, style: 'dashed', width: 1.75, steps: choiceSteps(series, current) })
   }
+  const saving = best ? weekly(series.counts[0]) - weekly(best.steps) : 0
+  const rows: SparkRow[] = [
+    ...(sum(series.noCache) > 0 ? [{ line: noCacheLine }] : []),
+    ...mini.map((line) => ({ line, note: line === best && saving >= 0.005 ? t('analytics.promptCache.models.saving', { saving: money(saving) }) : undefined })),
+  ]
 
-  const noPings = weekly(series.counts[0])
-  let headline: string
-  if (entry === null) {
-    const each = weekly(series.perModel)
-    headline = noPings - each >= 0.005
-      ? t('analytics.promptCache.models.allSaves', { cost: money(each), saving: money(noPings - each) })
-      : t('analytics.promptCache.models.noSaving', { cost: money(noPings) })
-  } else if (automatic) {
-    headline = t('analytics.promptCache.models.automatic', { cost: money(noPings) })
-  } else {
-    // A model with too few breaks borrows its group's count, so name that count even when it saves little here.
-    const best = weekly(choiceSteps(series, recommended ?? 0))
-    headline = recommended !== null && recommended !== 0
-      ? t('analytics.promptCache.models.saves', { setting: choiceLabel(recommended, t), cost: money(best), saving: money(Math.max(0, noPings - best)) })
-      : t('analytics.promptCache.models.noSaving', { cost: money(noPings) })
-  }
+  // The rows beside the graph carry the costs; only a provider-run cache needs a word on why there is nothing to pick.
+  const headline = automatic ? t('analytics.promptCache.models.automatic') : null
 
   return (
     <div id={id} className={clsx('scroll-mt-4 rounded-lg border bg-surface', open ? 'border-accent' : 'border-border')}>
@@ -395,7 +390,7 @@ function ModelCard({ id, entry, entries, analysis, days, weeks, state, open, onT
             <ChevronDown aria-hidden="true" className={clsx('h-3.5 w-3.5 text-dim transition-transform', open && 'rotate-180')} />
           </span>
         </div>
-        {!open && <Sparkline lines={mini} weeks={weeks} />}
+        {!open && <Sparkline lines={mini} rows={rows} weeks={weeks} />}
       </button>
       {open && (
         <div className="border-t border-border px-3 pb-3 pt-2">
@@ -406,8 +401,14 @@ function ModelCard({ id, entry, entries, analysis, days, weeks, state, open, onT
   )
 }
 
-/** A small running-cost graph with no axes, and each line's weekly cost beside it. */
-function Sparkline({ lines, weeks }: { lines: Line[]; weeks: number }): React.JSX.Element {
+/** A row beside the small graph: a line's weekly cost, with what it saves. */
+interface SparkRow {
+  line: Line
+  note?: string
+}
+
+/** A small running-cost graph with no axes, and each row's weekly cost beside it. */
+function Sparkline({ lines, rows, weeks }: { lines: Line[]; rows: SparkRow[]; weeks: number }): React.JSX.Element {
   const points = 240
   const running = lines.map((line) => {
     const per = Math.max(1, Math.ceil(line.steps.length / points))
@@ -429,11 +430,14 @@ function Sparkline({ lines, weeks }: { lines: Line[]; weeks: number }): React.JS
           <path key={line.key} d={path(running[index])} fill="none" className={line.stroke} strokeWidth={line.width} strokeDasharray={dashArray(line.style)} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         ))}
       </svg>
-      <div className="w-56 shrink-0 space-y-0.5 text-[10px]">
-        {lines.map((line) => (
+      <div className="w-72 shrink-0 space-y-0.5 text-[10px]">
+        {rows.map(({ line, note }) => (
           <div key={line.key} className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-1.5 truncate text-dim"><LineSwatch line={line} />{line.label}</span>
-            <span className="tabular-nums text-secondary">{money(sum(line.steps) / weeks)}</span>
+            <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
+              {note && <span className="font-medium text-success">{note}</span>}
+              <span className="text-secondary">{money(sum(line.steps) / weeks)}</span>
+            </span>
           </div>
         ))}
       </div>
