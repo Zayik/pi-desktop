@@ -69,7 +69,6 @@
         "modeLabel": "图表数值",
         "saving": "对比不发送",
         "savingNote": "每条曲线表示该保温次数相对不发送的花费：低于 $0 即节省。点击某一天在下方查看。",
-        "title": "按保温次数的累计提示花费 · {{model}}",
         "total": "总花费",
         "totalNote": "每条曲线表示该设置下的累计提示花费。右端最低的曲线最省钱。点击某一天在下方查看。",
         "upTo": "{{day}}，截至 {{time}}"
@@ -105,6 +104,19 @@
       },
       "longLabel": "1 小时缓存",
       "longShort": "L",
+      "models": {
+        "allSaves": "推荐设置：每周 {{cost}}，比不 ping 少 {{saving}}",
+        "automatic": "服务商缓存：每周 {{cost}}",
+        "count_one": "{{count}} 个模型",
+        "count_other": "{{count}} 个模型",
+        "eachRecommended": "各自使用推荐设置",
+        "hint": "点击模型查看完整图表",
+        "inUse": "{{setting}}（使用中）",
+        "noSaving": "不 ping 最便宜：每周 {{cost}}",
+        "recommended": "{{setting}}（推荐）",
+        "saves": "{{setting}}：每周 {{cost}}，比不 ping 少 {{saving}}",
+        "title": "各模型"
+      },
       "noPings": "不保活",
       "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
       "pings_other": "{{count}} 次保活",

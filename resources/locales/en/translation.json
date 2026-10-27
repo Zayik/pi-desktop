@@ -71,7 +71,6 @@
         "modeLabel": "Chart values",
         "saving": "Compared with no pings",
         "savingNote": "Each line is what that ping count paid compared with no pings: below $0 saves money. Click a day to open it below.",
-        "title": "Running prompt cost by ping count · {{model}}",
         "total": "Total cost",
         "totalNote": "Each line is the running prompt cost with that setting. The lowest line at the right edge was cheapest. Click a day to open it below.",
         "upTo": "{{day}}, up to {{time}}"
@@ -109,6 +108,19 @@
       },
       "longLabel": "the 1-hour cache",
       "longShort": "L",
+      "models": {
+        "allSaves": "Recommended settings: {{cost}} a week, {{saving}} less than no pings",
+        "automatic": "Provider cache: {{cost}} a week",
+        "count_one": "{{count}} model",
+        "count_other": "{{count}} models",
+        "eachRecommended": "Each at its recommended setting",
+        "hint": "Click a model to open its full chart",
+        "inUse": "{{setting}} (in use)",
+        "noSaving": "No pings is cheapest: {{cost}} a week",
+        "recommended": "{{setting}} (recommended)",
+        "saves": "{{setting}}: {{cost}} a week, {{saving}} less than no pings",
+        "title": "Each model"
+      },
       "noPings": "No pings",
       "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
       "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",

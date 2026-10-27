@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import {
   SLOTS_PER_DAY,
   SLOT_MS,
@@ -208,16 +208,49 @@ function settable(entry: ModelEntry): boolean {
   return entry.group.id !== 'automatic' && !isImportedModel(entry.model.model)
 }
 
-/** Prompt cost per model at every ping count, with a running-cost chart for the model you pick; with `settings`, a click on a cost uses that setting. */
+/** Running cost per slot for a set of models: every ping count (capped per model), Long, each break's best, each model's recommended setting and no cache. */
+interface Series {
+  counts: number[][]
+  long: number[] | null
+  perBreak: number[]
+  perModel: number[]
+  noCache: number[]
+  /** The most pings any of the models can take. */
+  maxPings: number
+}
+
+function buildSeries(entries: ModelEntry[], from: number, slots: number): Series {
+  const maxPings = Math.max(0, ...entries.map((entry) => entry.group.id === 'automatic' ? 0 : entry.group.maxPings))
+  const counts = Array.from({ length: maxPings + 1 }, () => new Array<number>(slots).fill(0))
+  const perBreak = new Array<number>(slots).fill(0)
+  const perModel = new Array<number>(slots).fill(0)
+  const noCache = new Array<number>(slots).fill(0)
+  const long = entries.some((entry) => entry.model.long) ? new Array<number>(slots).fill(0) : null
+  for (const entry of entries) {
+    const own = entry.group.id === 'automatic' ? 0 : entry.group.maxPings
+    const byCount = Array.from({ length: own + 1 }, (_, count) => slotCosts(entry.model, count, from, slots).cost)
+    counts.forEach((total, count) => addInto(total, byCount[Math.min(count, own)]))
+    addInto(perBreak, own > 0 ? slotCosts(entry.model, 'perBreak', from, slots).cost : byCount[0])
+    const ownLong = slotLong(entry.model, from, slots)
+    if (long) addInto(long, ownLong ?? byCount[0])
+    addInto(perModel, entry.recommended === LONG && ownLong ? ownLong : byCount[Math.min(entry.optimal, own)])
+    addInto(noCache, slotNoCache(entry.model, from, slots))
+  }
+  return { counts, long, perBreak, perModel, noCache, maxPings }
+}
+
+/** The slots of a setting's line in a series. */
+function choiceSteps(series: Series, choice: Choice): number[] {
+  return choice === LONG ? series.long ?? series.counts[0] : series.counts[Math.min(choice, series.counts.length - 1)]
+}
+
+/** Prompt cost per model at every ping count, then a small running-cost graph per model that opens into its full chart; with `settings`, a click on a cost uses that setting. */
 export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAnalysis; settings?: CacheSettingsControls }): React.JSX.Element | null {
-  const { t, i18n } = useTranslation()
-  const [mode, setMode] = useState<ChartMode>('total')
-  const [picked, setPicked] = useState<string | null>(null)
-  const [hidden, setHidden] = useState<string[]>([NO_CACHE])
-  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const { t } = useTranslation()
+  // undefined: nothing clicked yet, so the default model is open; null: every graph closed.
+  const [expanded, setExpanded] = useState<string | null | undefined>(undefined)
   const days = useMemo(() => dayStarts(analysis.from, analysis.to), [analysis.from, analysis.to])
   const maxPings = Math.max(0, ...analysis.groups.map((group) => group.maxPings))
-  const slots = days.length * SLOTS_PER_DAY
   const weeks = Math.max(analysis.days, 1) / 7
 
   const entries = useMemo(() => {
@@ -238,33 +271,200 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
     const warmable = entries.filter((entry) => entry.group.id !== 'automatic')
     return (warmable.find(ranRecently) ?? warmable[0] ?? entries[0])?.model.model ?? ALL_KEY
   }, [entries, analysis.to])
-  const selected = picked ?? defaultKey
-  const chartEntries = useMemo(() => selected === ALL_KEY ? entries : entries.filter((entry) => entry.model.model === selected), [entries, selected])
-  const chartMax = Math.max(0, ...chartEntries.map((entry) => entry.group.id === 'automatic' ? 0 : entry.group.maxPings))
-
-  const series = useMemo(() => {
-    const counts = Array.from({ length: chartMax + 1 }, () => new Array<number>(slots).fill(0))
-    const perBreak = new Array<number>(slots).fill(0)
-    const perModel = new Array<number>(slots).fill(0)
-    const noCache = new Array<number>(slots).fill(0)
-    const long = chartEntries.some((entry) => entry.model.long) ? new Array<number>(slots).fill(0) : null
-    for (const entry of chartEntries) {
-      const own = entry.group.id === 'automatic' ? 0 : entry.group.maxPings
-      const byCount = Array.from({ length: own + 1 }, (_, count) => slotCosts(entry.model, count, analysis.from, slots).cost)
-      counts.forEach((total, count) => addInto(total, byCount[Math.min(count, own)]))
-      addInto(perBreak, own > 0 ? slotCosts(entry.model, 'perBreak', analysis.from, slots).cost : byCount[0])
-      const ownLong = slotLong(entry.model, analysis.from, slots)
-      if (long) addInto(long, ownLong ?? byCount[0])
-      addInto(perModel, entry.recommended === LONG && ownLong ? ownLong : byCount[Math.min(entry.optimal, own)])
-      addInto(noCache, slotNoCache(entry.model, analysis.from, slots))
-    }
-    return { counts, long, perBreak, perModel, noCache }
-  }, [chartEntries, chartMax, analysis.from, slots])
 
   if (entries.length === 0) return null
   const multi = entries.length > 1
-  const single = selected === ALL_KEY ? null : chartEntries[0] ?? null
-  const recommended = single?.recommended ?? null
+  const open = expanded === undefined ? defaultKey : expanded
+  const cards: Array<{ key: string; entry: ModelEntry | null }> = [
+    ...(multi ? [{ key: ALL_KEY, entry: null }] : []),
+    ...entries.map((entry) => ({ key: entry.model.model, entry })),
+  ]
+  // A model picked in the table opens its graph and brings it into view.
+  const pick = (key: string): void => {
+    setExpanded(key)
+    requestAnimationFrame(() => document.getElementById(cardId(key))?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
+  }
+
+  return (
+    <section className="min-w-0 space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wide text-dim">{t('analytics.promptCache.title')}</h3>
+        <span className="text-[10px] text-faint">{t('analytics.promptCache.note', { count: analysis.days })}</span>
+      </div>
+
+      {settings && <SettingsBar entries={entries} controls={settings} />}
+      <CostTable entries={entries} maxPings={maxPings} weeks={weeks} selected={open ?? ''} multi={multi} onPick={pick} settings={settings} />
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.models.title')}</div>
+          <span className="text-[10px] text-faint">{t('analytics.promptCache.models.hint')}</span>
+        </div>
+        {cards.map(({ key, entry }) => (
+          <ModelCard
+            key={key}
+            id={cardId(key)}
+            entry={entry}
+            entries={entries}
+            analysis={analysis}
+            days={days}
+            weeks={weeks}
+            state={settings?.state ?? null}
+            open={open === key}
+            onToggle={() => setExpanded(open === key ? null : key)}
+          />
+        ))}
+      </div>
+
+      <ModelPrices models={analysis.groups.flatMap((group) => group.models.map((model) => model.model))} />
+
+      <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
+    </section>
+  )
+}
+
+function cardId(key: string): string {
+  return `prompt-cache-model-${key === ALL_KEY ? 'all' : key.replace(/[^A-Za-z0-9_-]/g, '-')}`
+}
+
+/** One model (or all of them, with `entry` null): a line on what to pick and a small running-cost graph; a click opens the full chart in its place. */
+function ModelCard({ id, entry, entries, analysis, days, weeks, state, open, onToggle }: {
+  id: string
+  entry: ModelEntry | null
+  entries: ModelEntry[]
+  analysis: CacheAnalysis
+  days: number[]
+  weeks: number
+  state: CacheSettingsState | null
+  open: boolean
+  onToggle: () => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const slots = days.length * SLOTS_PER_DAY
+  const chartEntries = useMemo(() => entry ? [entry] : entries, [entry, entries])
+  const series = useMemo(() => buildSeries(chartEntries, analysis.from, slots), [chartEntries, analysis.from, slots])
+  const weekly = (steps: number[]): number => sum(steps) / weeks
+  const automatic = entry?.group.id === 'automatic'
+  const recommended = entry ? entry.recommended : null
+  const current = entry && state ? inUseChoice(entry, state) : null
+
+  // The small graph: no pings against the recommended setting, plus the one in use when it differs.
+  const mini: Line[] = [
+    { key: '0', label: t('analytics.promptCache.noPings'), stroke: PING_COLORS[0].stroke, style: 'solid', width: 1.5, steps: series.counts[0] },
+  ]
+  if (entry === null) {
+    if (series.maxPings > 0) mini.push({ key: PER_MODEL, label: t('analytics.promptCache.models.eachRecommended'), stroke: 'stroke-primary', style: 'solid', width: 2.5, steps: series.perModel })
+  } else if (recommended !== null && recommended !== 0) {
+    mini.push({ key: String(recommended), label: t('analytics.promptCache.models.recommended', { setting: choiceLabel(recommended, t) }), stroke: choiceColor(recommended).stroke, style: 'solid', width: 2.5, steps: choiceSteps(series, recommended) })
+  }
+  if (current !== null && current !== 0 && current !== recommended) {
+    mini.push({ key: `in-${current}`, label: t('analytics.promptCache.models.inUse', { setting: choiceLabel(current, t) }), stroke: choiceColor(current).stroke, style: 'dashed', width: 1.75, steps: choiceSteps(series, current) })
+  }
+
+  const noPings = weekly(series.counts[0])
+  let headline: string
+  if (entry === null) {
+    const each = weekly(series.perModel)
+    headline = noPings - each >= 0.005
+      ? t('analytics.promptCache.models.allSaves', { cost: money(each), saving: money(noPings - each) })
+      : t('analytics.promptCache.models.noSaving', { cost: money(noPings) })
+  } else if (automatic) {
+    headline = t('analytics.promptCache.models.automatic', { cost: money(noPings) })
+  } else {
+    // A model with too few breaks borrows its group's count, so name that count even when it saves little here.
+    const best = weekly(choiceSteps(series, recommended ?? 0))
+    headline = recommended !== null && recommended !== 0
+      ? t('analytics.promptCache.models.saves', { setting: choiceLabel(recommended, t), cost: money(best), saving: money(Math.max(0, noPings - best)) })
+      : t('analytics.promptCache.models.noSaving', { cost: money(noPings) })
+  }
+
+  return (
+    <div id={id} className={clsx('scroll-mt-4 rounded-lg border bg-surface', open ? 'border-accent' : 'border-border')}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex w-full flex-col gap-1.5 rounded-lg px-3 py-2 text-left hover:bg-surface-hover"
+      >
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-dim">
+            <span className={clsx('text-xs text-primary', entry ? 'font-mono' : 'font-semibold')}>{entry ? modelName(entry.model.model) : t('analytics.promptCache.allModels')}</span>
+            {entry && <SourceTag model={entry.model.model} />}
+            {entry && <span>{t(LIFETIME_KEYS[entry.group.id])}</span>}
+            {entry?.summary.hitRate != null && <span>{t('analytics.promptCache.table.hitRate', { rate: Math.round(entry.summary.hitRate * 100) })}</span>}
+            {entry && !automatic && entry.summary.confidence !== 'solid' && (
+              <span className={clsx('rounded-full px-1.5 font-medium', CONFIDENCE_CLASSES[entry.summary.confidence])}>{t(CONFIDENCE_KEYS[entry.summary.confidence])}</span>
+            )}
+            {entry === null && <span>{t('analytics.promptCache.models.count', { count: entries.length })}</span>}
+          </div>
+          <span className="flex items-center gap-1.5 text-[11px] text-secondary">
+            {headline}
+            <ChevronDown aria-hidden="true" className={clsx('h-3.5 w-3.5 text-dim transition-transform', open && 'rotate-180')} />
+          </span>
+        </div>
+        {!open && <Sparkline lines={mini} weeks={weeks} />}
+      </button>
+      {open && (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <ModelChart entry={entry} entries={entries} chartEntries={chartEntries} series={series} analysis={analysis} days={days} weeks={weeks} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A small running-cost graph with no axes, and each line's weekly cost beside it. */
+function Sparkline({ lines, weeks }: { lines: Line[]; weeks: number }): React.JSX.Element {
+  const points = 240
+  const running = lines.map((line) => {
+    const per = Math.max(1, Math.ceil(line.steps.length / points))
+    const values = [0]
+    let total = 0
+    for (let slot = 0; slot < line.steps.length; slot++) {
+      total += line.steps[slot]
+      if ((slot + 1) % per === 0 || slot === line.steps.length - 1) values.push(total)
+    }
+    return values
+  })
+  const high = Math.max(0.01, ...running.map((values) => values[values.length - 1]))
+  const path = (values: number[]): string => values.map((value, index) => `${index === 0 ? 'M' : 'L'}${((index / Math.max(1, values.length - 1)) * 1000).toFixed(1)} ${(40 - (value / high) * 38).toFixed(2)}`).join(' ')
+  return (
+    <div className="flex w-full items-center gap-3">
+      <svg className="h-12 min-w-0 flex-1 overflow-visible" viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true">
+        <line x1={0} x2={1000} y1={40} y2={40} className="stroke-border" vectorEffect="non-scaling-stroke" strokeWidth={1} />
+        {lines.map((line, index) => (
+          <path key={line.key} d={path(running[index])} fill="none" className={line.stroke} strokeWidth={line.width} strokeDasharray={dashArray(line.style)} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        ))}
+      </svg>
+      <div className="w-56 shrink-0 space-y-0.5 text-[10px]">
+        {lines.map((line) => (
+          <div key={line.key} className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-dim"><LineSwatch line={line} />{line.label}</span>
+            <span className="tabular-nums text-secondary">{money(sum(line.steps) / weeks)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** The full running-cost chart for one model (or all of them): a line per ping count, the legend, and a day opened in 30-minute blocks. */
+function ModelChart({ entry, entries, chartEntries, series, analysis, days, weeks }: {
+  entry: ModelEntry | null
+  entries: ModelEntry[]
+  chartEntries: ModelEntry[]
+  series: Series
+  analysis: CacheAnalysis
+  days: number[]
+  weeks: number
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation()
+  const [mode, setMode] = useState<ChartMode>('total')
+  const [hidden, setHidden] = useState<string[]>([NO_CACHE])
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const slots = days.length * SLOTS_PER_DAY
+  const chartMax = series.maxPings
+  const recommended = entry?.recommended ?? null
 
   const relative = (values: number[]): number[] => mode === 'total' ? values : values.map((value, slot) => value - series.counts[0][slot])
   const allLines: Line[] = [
@@ -280,7 +480,7 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
     ...(series.long
       ? [{ key: LONG, label: t('analytics.promptCache.legend.long'), stroke: LONG_COLOR.stroke, style: 'solid' as const, width: recommended === LONG ? 3 : 1.75, steps: relative(series.long), badge: recommended === LONG ? t('analytics.promptCache.legend.recommended') : undefined }]
       : []),
-    ...(chartMax > 0 && !single
+    ...(chartMax > 0 && !entry
       ? [{ key: PER_MODEL, label: t('analytics.promptCache.legend.perModel'), stroke: 'stroke-primary', style: 'solid' as const, width: 3, steps: relative(series.perModel) }]
       : []),
     ...(chartMax > 0
@@ -301,88 +501,72 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
     return best === series.counts.length ? LONG : best
   })
   const dayLabel = (index: number): string => new Date(days[index]).toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric' })
-  const pick = (key: string): void => { setPicked(key); setSelectedDay(null) }
 
   return (
-    <section className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wide text-dim">{t('analytics.promptCache.title')}</h3>
-        <span className="text-[10px] text-faint">{t('analytics.promptCache.note', { count: analysis.days })}</span>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 text-[11px] text-dim">{mode === 'saving' ? t('analytics.promptCache.chart.savingNote') : t('analytics.promptCache.chart.totalNote')}</p>
+        <Segmented
+          label={t('analytics.promptCache.chart.modeLabel')}
+          options={['total', 'saving'] as ChartMode[]}
+          value={mode}
+          onChange={setMode}
+          render={(value) => value === 'saving' ? t('analytics.promptCache.chart.saving') : t('analytics.promptCache.chart.total')}
+        />
       </div>
+      <Summary entry={entry} entries={entries} weeks={weeks} />
 
-      {settings && <SettingsBar entries={entries} controls={settings} />}
-      <CostTable entries={entries} maxPings={maxPings} weeks={weeks} selected={selected} multi={multi} onPick={pick} settings={settings} />
-
-      <div className="space-y-3 rounded-lg border border-border bg-surface px-3 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-primary">
-              {t('analytics.promptCache.chart.title', { model: single ? modelName(single.model.model) : t('analytics.promptCache.allModels') })}
-            </div>
-            <p className="mt-0.5 text-[11px] text-dim">{mode === 'saving' ? t('analytics.promptCache.chart.savingNote') : t('analytics.promptCache.chart.totalNote')}</p>
-          </div>
-          <Segmented
-            label={t('analytics.promptCache.chart.modeLabel')}
-            options={['total', 'saving'] as ChartMode[]}
-            value={mode}
-            onChange={setMode}
-            render={(entry) => entry === 'saving' ? t('analytics.promptCache.chart.saving') : t('analytics.promptCache.chart.total')}
-          />
+      <div className="flex flex-col gap-3 lg:flex-row">
+        <div className="min-w-0 flex-1">
+          {lines.length === 0 ? (
+            <p className="py-6 text-center text-xs text-dim">{t('analytics.promptCache.legend.allHidden')}</p>
+          ) : (
+            <LineChart
+              lines={lines}
+              first={0}
+              last={slots}
+              signed={mode === 'saving'}
+              ariaLabel={t('analytics.promptCache.chart.aria')}
+              pointLabel={(slot) => t('analytics.promptCache.chart.upTo', { day: dayLabel(Math.min(days.length - 1, Math.floor(Math.max(0, slot - 1) / SLOTS_PER_DAY))), time: new Date(analysis.from + slot * SLOT_MS).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) })}
+              gridSlots={days.slice(1).map((_, index) => (index + 1) * SLOTS_PER_DAY)}
+              shaded={days.map((start, index) => ({ start, index })).filter(({ start }) => [0, 6].includes(new Date(start).getDay())).map(({ index }) => [index * SLOTS_PER_DAY, (index + 1) * SLOTS_PER_DAY])}
+              selected={selectedDay === null ? null : [selectedDay * SLOTS_PER_DAY, (selectedDay + 1) * SLOTS_PER_DAY]}
+              onPick={(slot) => {
+                const day = Math.min(days.length - 1, Math.floor(slot / SLOTS_PER_DAY))
+                setSelectedDay(selectedDay === day ? null : day)
+              }}
+              footer={days.length <= MAX_DAY_BUTTONS ? (
+                <div className="mt-1 hidden sm:grid" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+                  {days.map((start, index) => (
+                    <button
+                      key={start}
+                      type="button"
+                      onClick={() => setSelectedDay(selectedDay === index ? null : index)}
+                      aria-pressed={selectedDay === index}
+                      title={dayBest[index] === null
+                        ? t('analytics.promptCache.chart.expand', { day: dayLabel(index) })
+                        : t('analytics.promptCache.chart.dayBest', { day: dayLabel(index), pings: choiceLabel(dayBest[index] ?? 0, t) })}
+                      className={clsx('flex min-w-0 flex-col items-center rounded py-0.5 text-[10px] leading-tight', selectedDay === index ? 'bg-accent-bg font-medium text-accent-fg' : 'text-faint hover:bg-surface-hover hover:text-secondary')}
+                    >
+                      <span className="truncate">{new Date(start).toLocaleDateString(i18n.language, { day: 'numeric' })}</span>
+                      <span className={clsx('font-semibold tabular-nums', dayBest[index] === null ? 'text-ghost' : choiceColor(dayBest[index] ?? 0).text)}>
+                        {dayBest[index] === LONG ? t('analytics.promptCache.longShort') : dayBest[index] ?? '–'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              caption={(
+                <div className={clsx('mt-1 justify-between text-[10px] text-faint', days.length <= MAX_DAY_BUTTONS ? 'flex sm:hidden' : 'flex')}>
+                  <span>{dayLabel(0)}</span>
+                  <span>{dayLabel(days.length - 1)}</span>
+                </div>
+              )}
+            />
+          )}
+          {chartMax > 0 && days.length <= MAX_DAY_BUTTONS && <p className="mt-1 hidden text-[10px] text-faint sm:block">{t('analytics.promptCache.chart.dayBestNote')}</p>}
         </div>
-        <Summary entry={single} entries={entries} weeks={weeks} />
-
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="min-w-0 flex-1">
-            {lines.length === 0 ? (
-              <p className="py-6 text-center text-xs text-dim">{t('analytics.promptCache.legend.allHidden')}</p>
-            ) : (
-              <LineChart
-                lines={lines}
-                first={0}
-                last={slots}
-                signed={mode === 'saving'}
-                ariaLabel={t('analytics.promptCache.chart.aria')}
-                pointLabel={(slot) => t('analytics.promptCache.chart.upTo', { day: dayLabel(Math.min(days.length - 1, Math.floor(Math.max(0, slot - 1) / SLOTS_PER_DAY))), time: new Date(analysis.from + slot * SLOT_MS).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) })}
-                gridSlots={days.slice(1).map((_, index) => (index + 1) * SLOTS_PER_DAY)}
-                shaded={days.map((start, index) => ({ start, index })).filter(({ start }) => [0, 6].includes(new Date(start).getDay())).map(({ index }) => [index * SLOTS_PER_DAY, (index + 1) * SLOTS_PER_DAY])}
-                selected={selectedDay === null ? null : [selectedDay * SLOTS_PER_DAY, (selectedDay + 1) * SLOTS_PER_DAY]}
-                onPick={(slot) => {
-                  const day = Math.min(days.length - 1, Math.floor(slot / SLOTS_PER_DAY))
-                  setSelectedDay(selectedDay === day ? null : day)
-                }}
-                footer={days.length <= MAX_DAY_BUTTONS ? (
-                  <div className="mt-1 hidden sm:grid" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
-                    {days.map((start, index) => (
-                      <button
-                        key={start}
-                        type="button"
-                        onClick={() => setSelectedDay(selectedDay === index ? null : index)}
-                        aria-pressed={selectedDay === index}
-                        title={dayBest[index] === null
-                          ? t('analytics.promptCache.chart.expand', { day: dayLabel(index) })
-                          : t('analytics.promptCache.chart.dayBest', { day: dayLabel(index), pings: choiceLabel(dayBest[index] ?? 0, t) })}
-                        className={clsx('flex min-w-0 flex-col items-center rounded py-0.5 text-[10px] leading-tight', selectedDay === index ? 'bg-accent-bg font-medium text-accent-fg' : 'text-faint hover:bg-surface-hover hover:text-secondary')}
-                      >
-                        <span className="truncate">{new Date(start).toLocaleDateString(i18n.language, { day: 'numeric' })}</span>
-                        <span className={clsx('font-semibold tabular-nums', dayBest[index] === null ? 'text-ghost' : choiceColor(dayBest[index] ?? 0).text)}>
-                          {dayBest[index] === LONG ? t('analytics.promptCache.longShort') : dayBest[index] ?? '–'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                caption={(
-                  <div className={clsx('mt-1 justify-between text-[10px] text-faint', days.length <= MAX_DAY_BUTTONS ? 'flex sm:hidden' : 'flex')}>
-                    <span>{dayLabel(0)}</span>
-                    <span>{dayLabel(days.length - 1)}</span>
-                  </div>
-                )}
-              />
-            )}
-            {chartMax > 0 && days.length <= MAX_DAY_BUTTONS && <p className="mt-1 hidden text-[10px] text-faint sm:block">{t('analytics.promptCache.chart.dayBestNote')}</p>}
-          </div>
-          <Legend lines={allLines} hidden={hidden} signed={mode === 'saving'} days={analysis.days} onToggle={toggleLine} />
-        </div>
+        <Legend lines={allLines} hidden={hidden} signed={mode === 'saving'} days={analysis.days} onToggle={toggleLine} />
       </div>
 
       {selectedDay !== null && (
@@ -398,11 +582,7 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
           onClose={() => setSelectedDay(null)}
         />
       )}
-
-      <ModelPrices models={analysis.groups.flatMap((group) => group.models.map((model) => model.model))} />
-
-      <p className="text-[10px] text-faint">{t('analytics.cache.rulesAsOf', { date: CACHE_RULES_CHECKED })}</p>
-    </section>
+    </div>
   )
 }
 
