@@ -122,6 +122,10 @@
         "title": "Each model"
       },
       "noPings": "No pings",
+      "note_one": "Last {{count}} day",
+      "note_other": "Last {{count}} days",
+      "noteReadOnly_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
+      "noteReadOnly_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
       "pings_one": "{{count}} ping",
       "pings_other": "{{count}} pings",
       "prices": {
@@ -138,6 +142,29 @@
         "unknown": "Not in the price list; the analysis uses what your sessions were billed",
         "writeLong": "Cache write (long)",
         "writeShort": "Cache write (short)"
+      },
+      "recommend": {
+        "basis_one": "Based on {{sessions}} sessions, {{calls}} calls and {{breaks}} long breaks over {{count}} day, from {{sources}}",
+        "basis_other": "Based on {{sessions}} sessions, {{calls}} calls and {{breaks}} long breaks over {{count}} days, from {{sources}}",
+        "borrowed": "Too few long breaks: the setting is borrowed from models with the same cache lifetime, and Apply leaves this model as it is",
+        "costHead": "Cost per week",
+        "each": "each model's",
+        "note": "Each model pools its sessions from every tool that ran it. Costs are per week; the ping columns are what each setting saves a week over caching with no pings (green is the most, the outlined one is recommended). A long break is one longer than the cache lifetime: the only kind pings change.",
+        "recommendedHead": "Recommended",
+        "rowBasis": "{{sessions}} sessions · {{calls}} calls · {{breaks}} long breaks",
+        "saves": "Saves / week",
+        "savingHead": "Saves per week over no pings",
+        "setting": "Setting",
+        "sources": {
+          "claudeCode": "Claude Code",
+          "codex": "Codex",
+          "copilot": "Copilot",
+          "pi": "Pi"
+        },
+        "summary_one": "With each model on its recommended setting you'd save {{week}} a week ({{window}} over the last {{count}} day) compared with caching with no pings, and {{noCache}} a week compared with no cache at all.",
+        "summary_other": "With each model on its recommended setting you'd save {{week}} a week ({{window}} over the last {{count}} days) compared with caching with no pings, and {{noCache}} a week compared with no cache at all.",
+        "title": "Recommended setting per model",
+        "total": "All models"
       },
       "settings": {
         "applied": "Recommendations applied",
@@ -159,8 +186,8 @@
         "tableNote": "Prompt cost per week for each setting. Filled is in use (a model with no setting runs like No pings); outlined is recommended. Left on table is what the recommended setting would save each week. No cache is shown only to compare and is never recommended. Click a model to chart it.",
         "title": "Cache settings",
         "useAria": "{{model}}: use {{setting}}, {{cost}} a week",
-        "warmingTitle": "Pi's cacheWarming setting: on is \"idle\" (Pi may ping after you stop, as each model's setting says), off is Pi's default \"streaming\" (warm only while the agent works).",
-        "warming": "Idle cache warming"
+        "warming": "Idle cache warming",
+        "warmingTitle": "Pi's cacheWarming setting: on is \"idle\" (Pi may ping after you stop, as each model's setting says), off is Pi's default \"streaming\" (warm only while the agent works)."
       },
       "table": {
         "estimated": "estimated",
@@ -182,11 +209,7 @@
         "title": "Cost per week by ping count",
         "writeMultiple": "writes {{multiple}}x"
       },
-      "title": "Prompt cache",
-      "note_one": "Last {{count}} day",
-      "note_other": "Last {{count}} days",
-      "noteReadOnly_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
-      "noteReadOnly_other": "Last {{count}} days · read only: nothing here changes Pi's settings"
+      "title": "Prompt cache"
     },
     "prompts": {
       "cost": "Cost",

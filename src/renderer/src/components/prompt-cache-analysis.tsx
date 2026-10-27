@@ -6,8 +6,7 @@ import {
   SLOTS_PER_DAY,
   SLOT_MS,
   dayStarts,
-  optimalCounts,
-  recommendedSetting,
+  modelPools,
   slotBest,
   slotCosts,
   slotLong,
@@ -21,6 +20,7 @@ import {
   type CacheGroupAnalysis,
   type CacheGroupId,
   type CacheModelAnalysis,
+  type ModelPool,
   type PingSummary,
 } from '../../../shared/cache-analysis'
 import { CACHE_RULES_CHECKED } from '../../../shared/cache-policy'
@@ -131,9 +131,11 @@ interface ModelEntry {
   model: CacheModelAnalysis
   group: CacheGroupAnalysis
   summary: PingSummary
-  /** The recommended fixed count: its own cheapest, or its group's while it has too few breaks. */
+  /** The model under every tool that ran it; the recommendation comes from all of their breaks. */
+  pool: ModelPool
+  /** The recommended fixed count: the pool's cheapest, or its group's while the pool has too few breaks. */
   optimal: number
-  /** The recommended setting: that count, or the long lifetime when it costs less and the model has enough breaks to tell; null where the provider runs the cache. */
+  /** The recommended setting: that count, or the long lifetime when it costs less and the pool has enough breaks to tell; null where the provider runs the cache. */
   recommended: Choice | null
 }
 
@@ -161,10 +163,6 @@ function choiceTotal(entry: ModelEntry, choice: Choice): number {
   const { summary } = entry
   if (choice === LONG && summary.longTotal !== null) return summary.longTotal
   return summary.baseTotal + summary.totals[choice === LONG ? 0 : Math.min(choice, summary.totals.length - 1)]
-}
-
-function recommendedChoice(entry: Omit<ModelEntry, 'recommended'>): Choice | null {
-  return recommendedSetting(entry.group, entry.summary, entry.optimal)
 }
 
 function costRow(entry: ModelEntry, maxPings: number, weeks: number): CostRow {
@@ -246,16 +244,17 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
   const maxPings = Math.max(0, ...analysis.groups.map((group) => group.maxPings))
   const weeks = Math.max(analysis.days, 1) / 7
 
-  const entries = useMemo(() => {
-    const optimal = optimalCounts(analysis)
-    return analysis.groups
-      .flatMap((group) => group.models.map((model) => ({ model, group })))
-      .sort((a, b) => b.model.calls - a.model.calls)
-      .map(({ model, group }): ModelEntry => {
-        const entry = { model, group, summary: summarize([model], group.maxPings, analysis.days), optimal: optimal.get(model.model) ?? 0 }
-        return { ...entry, recommended: recommendedChoice(entry) }
-      })
-  }, [analysis])
+  const pools = useMemo(() => modelPools(analysis), [analysis])
+  const entries = useMemo(() => pools
+    .flatMap((pool) => pool.models.map((model): ModelEntry => ({
+      model,
+      group: pool.group,
+      summary: summarize([model], pool.group.maxPings, analysis.days),
+      pool,
+      optimal: pool.optimal,
+      recommended: pool.recommended,
+    })))
+    .sort((a, b) => b.model.calls - a.model.calls), [pools, analysis.days])
 
   // Open on the most used model that can be warmed and ran in the last week.
   const defaultKey = useMemo(() => {
@@ -285,6 +284,7 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
         <span className="text-[10px] text-faint">{t(settings ? 'analytics.promptCache.note' : 'analytics.promptCache.noteReadOnly', { count: analysis.days })}</span>
       </div>
 
+      <RecommendationTable pools={pools} weeks={weeks} days={analysis.days} />
       {settings && <SettingsBar entries={entries} controls={settings} />}
       <CostTable entries={entries} maxPings={maxPings} weeks={weeks} selected={open ?? ''} multi={multi} onPick={pick} settings={settings} />
 
@@ -581,6 +581,196 @@ function ModelChart({ entry, chartEntries, series, analysis, days }: {
 }
 
 /** Which tool ran a model, when it was not Pi. */
+const SOURCE_ORDER = ['pi', 'claude-code', 'codex', 'copilot'] as const
+type SessionSource = (typeof SOURCE_ORDER)[number]
+
+const SOURCE_KEYS = {
+  pi: 'analytics.promptCache.recommend.sources.pi',
+  'claude-code': 'analytics.promptCache.recommend.sources.claudeCode',
+  codex: 'analytics.promptCache.recommend.sources.codex',
+  copilot: 'analytics.promptCache.recommend.sources.copilot',
+} as const satisfies Record<SessionSource, string>
+
+function sourcesOf(models: CacheModelAnalysis[]): SessionSource[] {
+  const found = new Set<SessionSource>(models.map((model) => importSourceOf(model.model) ?? 'pi'))
+  return SOURCE_ORDER.filter((source) => found.has(source))
+}
+
+/** One pool's figures per week: what no cache and no pings cost, and what each count and the long cache save over no pings. */
+interface PoolRow {
+  pool: ModelPool
+  noCache: number | null
+  noPings: number
+  /** Index = ping count; null past what Pi sends the model. Index 0 is always 0. */
+  savings: Array<number | null>
+  long: number | null
+  /** Saving of the recommended setting; null where the provider runs the cache. */
+  recommended: number | null
+}
+
+function poolRow(pool: ModelPool, maxPings: number, weeks: number): PoolRow {
+  const { summary, group } = pool
+  const own = group.id === 'automatic' ? 0 : group.maxPings
+  const noPings = (summary.baseTotal + summary.totals[0]) / weeks
+  const savings = Array.from({ length: maxPings + 1 }, (_, count) => count <= own ? (summary.totals[0] - summary.totals[count]) / weeks : null)
+  const long = summary.longTotal === null ? null : noPings - summary.longTotal / weeks
+  const recommended = pool.recommended === null ? null : pool.recommended === LONG ? long ?? 0 : savings[pool.recommended] ?? 0
+  return { pool, noCache: summary.noCacheTotal > 0 ? summary.noCacheTotal / weeks : null, noPings, savings, long, recommended }
+}
+
+/**
+ * The headline: for each model, pooled across every tool that ran it, what
+ * each ping count saves a week over caching with no pings, the recommended
+ * setting, how much data it rests on, and the total saving.
+ */
+function RecommendationTable({ pools, weeks, days }: { pools: ModelPool[]; weeks: number; days: number }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const maxPings = Math.max(0, ...pools.map((pool) => pool.group.id === 'automatic' ? 0 : pool.group.maxPings))
+  const rows = pools.map((pool) => poolRow(pool, maxPings, weeks))
+  if (rows.length === 0) return null
+  const hasLong = rows.some((row) => row.long !== null)
+  const columns = Array.from({ length: maxPings }, (_, index) => index + 1)
+  const allModels = pools.flatMap((pool) => pool.models)
+  const sessions = sum(allModels.map((model) => model.sessions))
+  const calls = sum(allModels.map((model) => model.calls))
+  const breaks = sum(pools.map((pool) => pool.summary.longBreaks))
+  const sources = sourcesOf(allModels).map((source) => t(SOURCE_KEYS[source]))
+  const totalSaving = sum(rows.map((row) => Math.max(0, row.recommended ?? 0)))
+  const noCacheTotal = sum(rows.map((row) => row.noCache ?? row.noPings))
+  const recommendedTotal = sum(rows.map((row) => row.noPings - Math.max(0, row.recommended ?? 0)))
+  const total = (values: Array<number | null>): number => sum(values.map((value) => value ?? 0))
+  // All models: each at that count, capped at what Pi sends it.
+  const totalAt = (count: number): number => total(rows.map((row) => {
+    const own = row.savings.filter((value): value is number => value !== null)
+    return row.pool.group.id === 'automatic' ? 0 : own[Math.min(count, own.length - 1)]
+  }))
+
+  const savingCell = (key: string, value: number | null, best: boolean, recommended: boolean): React.JSX.Element => (
+    <td key={key} className="py-1.5 pl-2 text-right align-top tabular-nums">
+      {value === null ? <span className="text-ghost">–</span> : (
+        <span className={clsx(
+          'inline-block rounded px-1',
+          value >= 0.005 ? (best ? 'font-semibold text-success' : 'text-secondary') : 'text-dim',
+          recommended && 'ring-1 ring-success',
+        )}>
+          {money(value, true)}
+        </span>
+      )}
+    </td>
+  )
+
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-xs font-semibold text-primary">{t('analytics.promptCache.recommend.title')}</div>
+        <span className="text-[10px] text-faint">
+          {t('analytics.promptCache.recommend.basis', { sessions: sessions.toLocaleString(), calls: calls.toLocaleString(), breaks: breaks.toLocaleString(), count: days, sources: sources.join(', ') })}
+        </span>
+      </div>
+      <p className="mt-0.5 text-[11px] text-dim">{t('analytics.promptCache.recommend.note')}</p>
+      <div className="mt-1.5 overflow-x-auto">
+        <table className="w-full min-w-[760px] whitespace-nowrap text-xs">
+          <thead>
+            <tr className="text-[10px] text-faint">
+              <th rowSpan={2} className="pb-1 pl-2 text-left align-bottom font-medium">{t('analytics.promptCache.table.model')}</th>
+              <th colSpan={2} className="pl-2 text-right font-medium">{t('analytics.promptCache.recommend.recommendedHead')}</th>
+              <th colSpan={2} className="pl-4 text-right font-medium">{t('analytics.promptCache.recommend.costHead')}</th>
+              <th colSpan={columns.length + (hasLong ? 1 : 0)} className="pl-2 pr-2 text-center font-medium">{t('analytics.promptCache.recommend.savingHead')}</th>
+            </tr>
+            <tr className="text-[10px] text-faint">
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.recommend.setting')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.recommend.saves')}</th>
+              <th className="pb-1 pl-4 text-right font-medium">{t('analytics.promptCache.table.noCache')}</th>
+              <th className="pb-1 pl-2 text-right font-medium">{t('analytics.promptCache.models.regular')}</th>
+              {columns.map((count) => (
+                <th key={count} className="pb-1 pl-2 text-right font-medium">
+                  <span className="inline-flex items-center gap-1">
+                    <span className={clsx('h-0.5 w-2.5 rounded', PING_COLORS[count % PING_COLORS.length].fill)} />
+                    {pingsLabel(count, t)}
+                  </span>
+                </th>
+              ))}
+              {hasLong && <th className="pb-1 pl-2 pr-2 text-right font-medium" title={t('analytics.promptCache.table.longTitle')}>{t('analytics.promptCache.table.long')}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const { pool } = row
+              const automatic = pool.group.id === 'automatic'
+              const options = [...row.savings.slice(1).map((value) => value ?? -Infinity), row.long ?? -Infinity]
+              const bestIndex = options.reduce((best, value, index) => (value > options[best] + 1e-12 ? index : best), 0)
+              const best: Choice | null = options[bestIndex] > 0.005 ? (bestIndex === row.savings.length - 1 ? LONG : bestIndex + 1) : null
+              const poolSessions = sum(pool.models.map((model) => model.sessions))
+              const poolCalls = sum(pool.models.map((model) => model.calls))
+              return (
+                <tr key={pool.key} className="border-t border-border/60">
+                  <td className="py-1.5 pl-2 pr-2 align-top">
+                    <div className="font-mono text-primary">{pool.id}</div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-dim">
+                      {sourcesOf(pool.models).map((source) => <span key={source} className="rounded-full bg-card px-1.5 font-medium">{t(SOURCE_KEYS[source])}</span>)}
+                      <span>{t(LIFETIME_KEYS[pool.group.id])}</span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-dim">
+                      <span>{t('analytics.promptCache.recommend.rowBasis', { sessions: poolSessions.toLocaleString(), calls: poolCalls.toLocaleString(), breaks: pool.summary.longBreaks.toLocaleString() })}</span>
+                      {!automatic && (
+                        <span className={clsx('rounded-full px-1.5 font-medium', CONFIDENCE_CLASSES[pool.summary.confidence])}>{t(CONFIDENCE_KEYS[pool.summary.confidence])}</span>
+                      )}
+                    </div>
+                  </td>
+                  {automatic ? (
+                    <td colSpan={2} className="py-1.5 pl-2 text-right align-top text-[11px] text-dim">{t('analytics.promptCache.lifetime.automatic')}</td>
+                  ) : (
+                    <>
+                      <td
+                        className={clsx('py-1.5 pl-2 text-right align-top font-medium', pool.summary.confidence === 'none' ? 'text-dim' : 'text-primary')}
+                        title={pool.summary.confidence === 'none' ? t('analytics.promptCache.recommend.borrowed') : undefined}
+                      >
+                        {pool.recommended === null ? '–' : choiceLabel(pool.recommended, t)}
+                      </td>
+                      <td className={clsx('py-1.5 pl-2 text-right align-top tabular-nums', (row.recommended ?? 0) >= 0.005 ? 'font-semibold text-success' : 'text-dim')}>
+                        {row.recommended === null ? '–' : money(Math.max(0, row.recommended))}
+                      </td>
+                    </>
+                  )}
+                  <td className="py-1.5 pl-4 text-right align-top tabular-nums text-dim">{row.noCache === null ? '–' : money(row.noCache)}</td>
+                  <td className="py-1.5 pl-2 text-right align-top tabular-nums text-primary">{money(row.noPings)}</td>
+                  {automatic ? (
+                    <td colSpan={columns.length + (hasLong ? 1 : 0)} className="py-1.5 pl-2 pr-2 text-center align-top text-[11px] text-dim">{t('analytics.promptCache.table.providerRuns')}</td>
+                  ) : (
+                    <>
+                      {columns.map((count) => savingCell(String(count), row.savings[count], best === count, pool.recommended === count))}
+                      {hasLong && savingCell(LONG, row.long, best === LONG, pool.recommended === LONG)}
+                    </>
+                  )}
+                </tr>
+              )
+            })}
+            {rows.length > 1 && (
+              <tr className="border-t border-border-strong font-medium">
+                <td className="py-1.5 pl-2 pr-2 text-primary">{t('analytics.promptCache.recommend.total')}</td>
+                <td className="py-1.5 pl-2 text-right text-[11px] text-dim">{t('analytics.promptCache.recommend.each')}</td>
+                <td className="py-1.5 pl-2 text-right tabular-nums font-semibold text-success">{money(totalSaving)}</td>
+                <td className="py-1.5 pl-4 text-right tabular-nums text-dim">{money(noCacheTotal)}</td>
+                <td className="py-1.5 pl-2 text-right tabular-nums text-primary">{money(sum(rows.map((row) => row.noPings)))}</td>
+                {columns.map((count) => savingCell(String(count), totalAt(count), false, false))}
+                {hasLong && savingCell(LONG, total(rows.map((row) => row.pool.group.id === 'automatic' ? 0 : row.long ?? 0)), false, false)}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 rounded-md bg-success-bg px-2 py-1.5 text-[11px] text-secondary">
+        {t('analytics.promptCache.recommend.summary', {
+          week: money(totalSaving),
+          window: money(totalSaving * weeks),
+          count: days,
+          noCache: money(Math.max(0, noCacheTotal - recommendedTotal)),
+        })}
+      </p>
+    </div>
+  )
+}
+
 function SourceTag({ model }: { model: string }): React.JSX.Element | null {
   const { t } = useTranslation()
   const source = importSourceOf(model)
@@ -759,7 +949,7 @@ function SettingsBar({ entries, controls }: { entries: ModelEntry[]; controls: C
   const { state, busy } = controls
   const recommendations: CacheRecommendation[] = entries
     .filter((entry) => settable(entry) && entry.recommended !== null)
-    .map((entry) => ({ model: entry.model.model, setting: entry.recommended as CacheSetting, lowData: entry.summary.confidence === 'none' }))
+    .map((entry) => ({ model: entry.model.model, setting: entry.recommended as CacheSetting, lowData: entry.pool.summary.confidence === 'none' }))
   const pending = recommendations.filter((entry) => !entry.lowData && state.models[entry.model] !== entry.setting)
   const needsWarming = pending.some((entry) => typeof entry.setting === 'number' && entry.setting > 0)
   const apply = (): void => {
