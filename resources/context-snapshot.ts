@@ -149,6 +149,10 @@ export interface ContextSnapshot {
   lastRequestAt: number | null
   /** When Pi last sent a cache-warming refresh. */
   lastWarmAt: number | null
+  /** Pi's cache-warming refreshes (idle pings), which are billed like calls but are not in `calls`. */
+  pings?: PingTotals
+  /** The idle ping setting pi-analytics applies to the session's model; absent or null where Pi decides alone. */
+  pingPlan?: PingPlan | null
   /** The Pi process recording the session, so a reader can tell a live session from one whose process is gone. */
   process?: SnapshotProcess | null
   /** The session's display name (`/name`). */
@@ -160,6 +164,20 @@ export interface ContextSnapshot {
   activeTool?: string | null
   /** When the session ended: Pi quit, or switched to another session. */
   endedAt?: number | null
+}
+
+export interface PingTotals {
+  count: number
+  cost: number
+  /** When each ping finished and what it cost, newest last, at most `MAX_RECORDED_CALLS`. */
+  recent: [at: number, cost: number][]
+}
+
+export interface PingPlan {
+  /** Idle pings allowed after each message, or "long": the 1-hour cache, with none. */
+  setting: number | 'long'
+  /** `/done` or `/away` stopped them until the next message. */
+  stopped: boolean
 }
 
 export interface SnapshotProcess {
@@ -556,6 +574,31 @@ export function callFromMessage(message: unknown, fallbackAt: number): ModelCall
 
 export function emptyTotals(): ContextSnapshot['totals'] {
   return { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }
+}
+
+export function emptyPings(): PingTotals {
+  return { count: 0, cost: 0, recent: [] }
+}
+
+/**
+ * The ping a session file's `usage` entry records (Pi writes one, of kind
+ * `cache_warm`, after each warming refresh), or null for any other entry.
+ */
+export function pingFromEntry(entry: unknown): ModelCall | null {
+  if (!isRecord(entry) || entry.type !== 'usage' || entry.kind !== 'cache_warm') return null
+  const at = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
+  return callFromMessage(
+    { role: 'assistant', usage: entry.usage, provider: entry.provider, model: entry.model, timestamp: Number.isFinite(at) ? at : undefined },
+    0
+  )
+}
+
+export function recordPing(pings: PingTotals, ping: Pick<ModelCall, 'at' | 'cost'>): void {
+  const cost = ping.cost.total > 0 ? ping.cost.total : ping.cost.input + ping.cost.output + ping.cost.cacheRead + ping.cost.cacheWrite
+  pings.count++
+  pings.cost += cost
+  pings.recent.push([ping.at, cost])
+  if (pings.recent.length > MAX_RECORDED_CALLS) pings.recent.splice(0, pings.recent.length - MAX_RECORDED_CALLS)
 }
 
 /** Append a call, keeping at most `MAX_RECORDED_CALLS` and every call in the totals. */

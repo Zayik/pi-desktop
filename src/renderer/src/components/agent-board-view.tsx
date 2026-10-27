@@ -25,8 +25,10 @@ import {
   contextWindow,
   lastCall,
   nextCallEstimate,
+  pingStatus,
   type BillingRow,
   type CacheState,
+  type PingStatus,
   type TokenKind,
 } from '../../../shared/context-view'
 import type { Translate } from '../../../shared/i18n'
@@ -161,11 +163,11 @@ interface CardModel {
  * panel and pi-analytics' session page render the same view.
  */
 /**
- * Stops idle cache pings for a main chat (pi-analytics' `/done`). Only Pi
- * Desktop provides it, and only while it can send the command to that chat;
- * the session page shows no button.
+ * Stops idle cache pings: pi-analytics' `/done` for a main chat, or `/away`
+ * for every chat. Only Pi Desktop provides it, and only while it can send the
+ * command to that chat; the session page shows no buttons.
  */
-export const StopWarmingContext = createContext<((sessionId: string) => void) | null>(null)
+export const StopWarmingContext = createContext<((sessionId: string, command: 'done' | 'away') => void) | null>(null)
 
 export function AgentBoardView({ snapshot, board, tasks, isStreaming, mainEffort }: {
   snapshot: ContextSnapshot | null
@@ -227,7 +229,7 @@ export function AgentBoardView({ snapshot, board, tasks, isStreaming, mainEffort
         totalTurns={summaries.reduce((sum, summary) => sum + summary.turns, 0)}
         running={runningCards.length + runningTasks.length + (isStreaming ? 1 : 0)}
         mainSnapshot={mainSnapshot}
-        fallbackCost={mainSnapshot?.totals.cost ?? 0}
+        fallbackCost={mainSnapshot ? mainSnapshot.totals.cost + (mainSnapshot.pings?.cost ?? 0) : 0}
       />
       {totals.models.length > 0 && <ModelBreakdown models={totals.models} />}
       {mainSnapshot && (
@@ -511,7 +513,7 @@ function AgentCard({ card, now, subagents }: {
   // The model the next call goes to: the recorder knows it, else the last call or switch.
   const currentId = (card.recorded ? snapshot.model?.id : null) ?? summary?.lastCall?.model ?? summary?.selectedModel?.model ?? snapshot.model?.id ?? null
   const otherModels = models.filter((model) => model.model !== currentId).length
-  const cost = summary?.cost ?? snapshot.totals.cost
+  const cost = summary?.cost ?? snapshot.totals.cost + (snapshot.pings?.cost ?? 0)
   const tokensIn = summary ? summary.input + summary.cacheRead + summary.cacheWrite : snapshot.totals.input + snapshot.totals.cacheRead + snapshot.totals.cacheWrite
   const tokensOut = summary?.output ?? snapshot.totals.output
   const toolLine = summary
@@ -588,10 +590,10 @@ function AgentCard({ card, now, subagents }: {
         </button>
       </div>
 
-      {isMain && <PromptCacheBlock snapshot={snapshot} cache={cache} subagents={subagents} inset />}
+      {isMain && <PromptCacheBlock snapshot={snapshot} cache={cache} now={now} subagents={subagents} inset />}
       {open && (
         <div className="mt-2 flex flex-col gap-3">
-          {!isMain && <PromptCacheBlock snapshot={snapshot} cache={cache} showCache={showCache} inset />}
+          {!isMain && <PromptCacheBlock snapshot={snapshot} cache={cache} now={now} showCache={showCache} inset />}
           <ContextBreakdownView snapshot={snapshot} partial={!card.recorded} />
         </div>
       )}
@@ -664,9 +666,10 @@ interface SubagentCost {
   turnCost: number
 }
 
-function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset = false }: {
+function PromptCacheBlock({ snapshot, cache, now, subagents, showCache = true, inset = false }: {
   snapshot: ContextSnapshot
   cache: CacheState
+  now: number
   subagents?: SubagentCost
   showCache?: boolean
   /** Inside a card: a tinted box instead of a bordered one. */
@@ -682,8 +685,7 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
     ? cache.remainingMs / (cache.lifetimeSeconds * 1000)
     : 0
   const live = cache.status === 'warm' || cache.status === 'expiring'
-  const stopWarming = useContext(StopWarmingContext)
-  const canStopWarming = live && stopWarming !== null && !snapshot.parentSessionId
+  const pings = pingStatus(snapshot, now)
 
   if (!showCache) {
     return (
@@ -721,6 +723,7 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
           />
         )}
       </div>
+      {pings && <PingLane snapshot={snapshot} status={pings} now={now} />}
 
       <div className="mt-2.5 grid grid-cols-3 gap-2">
         <CacheFigure
@@ -737,32 +740,110 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
         />
         <CacheFigure
           label={t('chat.contextPanel.cache.thisTurn')}
-          value={formatUsd(billing.turnTotal)}
-          detail={t('chat.contextPanel.tiles.calls', { count: billing.turnCallCount })}
+          value={formatUsd(billing.turnTotal + (pings?.sentCost ?? 0))}
+          detail={[
+            t('chat.contextPanel.tiles.calls', { count: billing.turnCallCount }),
+            pings && pings.sent > 0 ? t('chat.contextPanel.cache.pings.count', { count: pings.sent }) : null,
+          ].filter(Boolean).join(' · ')}
         />
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-dim">
-        {hitRate !== null && (
-          <span>{t('chat.contextPanel.cache.hitRate', { percent: Math.round(hitRate * 100) })}</span>
-        )}
-        {snapshot.cacheWarming && (
-          <span>{t('chat.contextPanel.cache.warming', { mode: snapshot.cacheWarming })}</span>
-        )}
-        {canStopWarming && (
-          <button
-            type="button"
-            onClick={() => stopWarming?.(snapshot.sessionId)}
-            title={t('chat.contextPanel.cache.doneTitle')}
-            className="ml-auto rounded border border-border px-1.5 text-[11px] text-muted hover:bg-surface-hover"
-          >
-            {t('chat.contextPanel.cache.done')}
-          </button>
-        )}
-      </div>
+      {hitRate !== null && (
+        <p className="mt-2 text-[11px] text-dim">{t('chat.contextPanel.cache.hitRate', { percent: Math.round(hitRate * 100) })}</p>
+      )}
 
       <BillingTableView rows={billing.rows} lastTotal={billing.lastTotal} turnTotal={billing.turnTotal} subagents={subagents} />
     </section>
+  )
+}
+
+/**
+ * The idle pings after you stop: one notch per ping the model's setting
+ * allows, each with its price, which ones went out, and when the next fires.
+ * Stop and Away show only while a ping is still coming.
+ */
+function PingLane({ snapshot, status, now }: { snapshot: ContextSnapshot; status: PingStatus; now: number }): React.JSX.Element {
+  const { t } = useTranslation()
+  const send = useContext(StopWarmingContext)
+  const since = snapshot.turnStartedAt ?? 0
+  const sentCosts = (snapshot.pings?.recent ?? []).filter(([at]) => at >= since).map(([, cost]) => cost)
+  const summary = status.mode === 'planned'
+    ? status.planned === 0
+      ? t('chat.contextPanel.cache.pings.noneSet')
+      : t('chat.contextPanel.cache.pings.sentOf', { sent: Math.min(status.sent, status.planned ?? 0), planned: status.planned })
+    : status.mode === 'long'
+      ? t('chat.contextPanel.cache.pings.long')
+      : status.mode === 'off'
+        ? t('chat.contextPanel.cache.pings.off', { mode: snapshot.cacheWarming ?? 'streaming' })
+        : status.sent > 0
+          ? t('chat.contextPanel.cache.pings.piSent', { count: status.sent })
+          : t('chat.contextPanel.cache.pings.pi')
+  const detail = status.nextAt !== null
+    ? t('chat.contextPanel.cache.pings.next', { time: formatCountdown(Math.max(0, status.nextAt - now)), cost: status.price !== null ? formatUsd(status.price) : '–' })
+    : status.stopped
+      ? t('chat.contextPanel.cache.pings.stopped')
+      : status.mode === 'planned' && status.planned !== null && status.planned > 0 && status.sent >= status.planned
+        ? t('chat.contextPanel.cache.pings.allSent')
+        : null
+  const notches = status.mode === 'planned' && status.planned ? status.planned : 0
+  const canSend = status.nextAt !== null && send !== null
+
+  return (
+    <div className="mt-2.5">
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-dim">{t('chat.contextPanel.cache.pings.title')}</span>
+        <span className="truncate text-secondary tabular-nums">{summary}</span>
+      </div>
+      {notches > 0 && (
+        <div className="mt-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${notches}, minmax(0, 1fr))` }}>
+          {Array.from({ length: notches }, (_, index) => {
+            const sent = index < status.sent
+            const next = !sent && index === status.sent && status.nextAt !== null
+            const cost = sent ? sentCosts[index] ?? status.price : status.price
+            return (
+              <div key={index} className="min-w-0" title={t(sent ? 'chat.contextPanel.cache.pings.notchSent' : 'chat.contextPanel.cache.pings.notchPlanned', { index: index + 1, cost: cost !== null ? formatUsd(cost) : '–' })}>
+                <div
+                  className={clsx(
+                    'h-1.5 rounded-sm',
+                    sent ? 'bg-success' : next ? 'bg-success/40' : 'bg-card',
+                    !sent && status.stopped && 'opacity-40'
+                  )}
+                />
+                <div className={clsx('mt-0.5 truncate text-center text-[10px] tabular-nums', sent ? 'text-secondary' : 'text-faint')}>
+                  {cost !== null ? `${sent ? '' : '~'}${formatUsd(cost)}` : '–'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {(detail || status.sentCost > 0 || canSend) && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-dim">
+          {detail && <span className="tabular-nums" role="timer" aria-live="off">{detail}</span>}
+          {status.sentCost > 0 && <span className="tabular-nums">{t('chat.contextPanel.cache.pings.spent', { cost: formatUsd(status.sentCost) })}</span>}
+          {canSend && (
+            <span className="ml-auto flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => send?.(snapshot.sessionId, 'done')}
+                title={t('chat.contextPanel.cache.pings.stopTitle')}
+                className="rounded border border-border px-1.5 text-[11px] text-muted hover:bg-surface-hover"
+              >
+                {t('chat.contextPanel.cache.pings.stop')}
+              </button>
+              <button
+                type="button"
+                onClick={() => send?.(snapshot.sessionId, 'away')}
+                title={t('chat.contextPanel.cache.pings.awayTitle')}
+                className="rounded border border-border px-1.5 text-[11px] text-muted hover:bg-surface-hover"
+              >
+                {t('chat.contextPanel.cache.pings.away')}
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

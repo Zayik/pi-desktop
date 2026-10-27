@@ -178,3 +178,27 @@ test('keeps the subagent questions this session has not answered', () => {
   ]
   assert.deepEqual(summarizeSession(entries, '/x.jsonl')?.openQuestions?.map((question) => question.body), ['question q2'])
 })
+
+test('counts Pi\'s idle pings in the cost but not as calls or active time', () => {
+  const ping = (id: string, parentId: string, offsetMs: number): Record<string, unknown> => ({
+    type: 'usage', id, parentId, timestamp: iso(offsetMs), kind: 'cache_warm', provider: 'anthropic', model: 'claude-sonnet-5-5',
+    usage: { input: 0, output: 1, cacheRead: 990, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.002 } },
+  })
+  const entries = [
+    header,
+    user('u1', null, 1_000, 'go'),
+    assistant('a1', 'u1', 5_000, 'claude-sonnet-5-5'),
+    ping('w1', 'a1', 275_000),
+    ping('w2', 'w1', 545_000),
+  ]
+  const summary = summarizeSession(entries, '/s/child.jsonl')
+  assert.ok(summary)
+  assert.equal(summary.calls, 1)
+  assert.ok(Math.abs(summary.cost - 0.014) < 1e-9)
+  assert.equal(summary.activeMs, 5_000)
+  assert.equal(summary.pings?.count, 2)
+  assert.deepEqual(summary.models.map((model) => [model.model, model.calls]), [['claude-sonnet-5-5', 1]])
+  const snapshot = snapshotFromSummary(summary, null, 'short')
+  assert.equal(snapshot.lastWarmAt, T0 + 545_000)
+  assert.equal(snapshot.pings?.count, 2)
+})

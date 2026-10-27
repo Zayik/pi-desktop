@@ -118,7 +118,6 @@
         "title": "各模型"
       },
       "noPings": "不保活",
-      "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
       "pings_other": "{{count}} 次保活",
       "prices": {
         "footnote": "倍数相对于输入价格，超过阈值后不变。超过阈值后，提示的每个令牌（无论是否缓存）都按较高一行计费。短横线表示缓存是自动的，写入不额外收费。你自己的会话按实际计费分析；这些标价用于日志中没有费用的情况。",
@@ -154,9 +153,8 @@
         "tableNote": "每种设置每周的提示词费用。填充的是使用中的设置（没有设置的模型按“不 ping”运行）；带边框的是推荐设置。可节省是推荐设置每周可省下的费用。无缓存仅供比较，从不推荐。点击模型可查看图表。",
         "title": "缓存设置",
         "useAria": "{{model}}：使用{{setting}}，每周 {{cost}}",
-        "warmingOff": "缓存预热已关闭",
-        "warmingOn": "缓存预热已开启",
-        "warmingTitle": "Pi 的 cacheWarming 设置：开启为 \"idle\"（停下后 Pi 可按各模型的设置发送 ping），关闭为 Pi 默认的 \"streaming\"（只在代理工作时预热）。"
+        "warmingTitle": "Pi 的 cacheWarming 设置：开启为 \"idle\"（停下后 Pi 可按各模型的设置发送 ping），关闭为 Pi 默认的 \"streaming\"（只在代理工作时预热）。",
+        "warming": "空闲缓存保温"
       },
       "table": {
         "estimated": "估算",
@@ -178,7 +176,9 @@
         "title": "按保温次数的每周花费",
         "writeMultiple": "写入 {{multiple}} 倍"
       },
-      "title": "提示缓存"
+      "title": "提示缓存",
+      "note_other": "最近 {{count}} 天",
+      "noteReadOnly_other": "最近 {{count}} 天 · 只读：这里不会更改 Pi 的设置"
     },
     "prompts": {
       "cost": "费用",
@@ -418,8 +418,6 @@
       },
       "cache": {
         "cold": "",
-        "done": "停止预热",
-        "doneTitle": "此对话不再发送空闲缓存 ping，直到你发送下一条消息（/done）",
         "hitRate": "",
         "modelChanged": "",
         "nextCold": "",
@@ -427,11 +425,30 @@
         "nextWarm": "",
         "nextWarmDetail": "",
         "none": "",
+        "pings": {
+          "allSent": "已全部发送",
+          "away": "我离开了",
+          "awayTitle": "在你于各个 Pi 对话发送下一条消息前，所有对话都不再发送空闲缓存保温 (/away)",
+          "count_other": "{{count}} 次保温",
+          "long": "1 小时缓存，无需保温",
+          "next": "下次保温 {{time}} 后 · {{cost}}",
+          "noneSet": "此模型未设置",
+          "notchPlanned": "第 {{index}} 次：约 {{cost}}",
+          "notchSent": "第 {{index}} 次：已发送，{{cost}}",
+          "off": "已关闭：缓存保温为 {{mode}}",
+          "pi": "由 Pi 按价格决定",
+          "piSent_other": "由 Pi 按价格决定 · 已发送 {{count}} 次",
+          "sentOf": "已发送 {{sent}} / {{planned}}",
+          "spent": "已花费 {{cost}}",
+          "stop": "停止保温",
+          "stopped": "已停止，直到你的下一条消息",
+          "stopTitle": "在你于此对话发送下一条消息前，不再发送空闲缓存保温 (/done)",
+          "title": "空闲保温"
+        },
         "thisTurn": "",
         "title": "",
         "titleWithLifetime": "",
         "unknown": "",
-        "warming": "",
         "warmLeft": ""
       },
       "category": {

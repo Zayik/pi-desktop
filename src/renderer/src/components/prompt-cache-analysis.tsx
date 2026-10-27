@@ -282,7 +282,7 @@ export function PromptCacheAnalysis({ analysis, settings }: { analysis: CacheAna
     <section className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-[10px] font-semibold uppercase tracking-wide text-dim">{t('analytics.promptCache.title')}</h3>
-        <span className="text-[10px] text-faint">{t('analytics.promptCache.note', { count: analysis.days })}</span>
+        <span className="text-[10px] text-faint">{t(settings ? 'analytics.promptCache.note' : 'analytics.promptCache.noteReadOnly', { count: analysis.days })}</span>
       </div>
 
       {settings && <SettingsBar entries={entries} controls={settings} />}
@@ -777,7 +777,7 @@ function SettingsBar({ entries, controls }: { entries: ModelEntry[]; controls: C
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-[11px] text-muted" title={t('analytics.promptCache.settings.warmingTitle')}>
             <input type="checkbox" checked={state.warming} disabled={busy} onChange={(event) => controls.onWarming(event.target.checked)} />
-            {t(state.warming ? 'analytics.promptCache.settings.warmingOn' : 'analytics.promptCache.settings.warmingOff')}
+            {t('analytics.promptCache.settings.warming')}
           </label>
           <button
             type="button"
@@ -828,7 +828,7 @@ function Legend({ lines, hidden, signed, days, onToggle }: { lines: Line[]; hidd
               <span className="flex min-w-0 items-center gap-1.5">
                 <LineSwatch line={line} />
                 <span className="truncate text-secondary">{line.label}</span>
-                {line.badge && <span className="shrink-0 rounded bg-accent px-1 text-[9px] font-semibold text-primary">{line.badge}</span>}
+                {line.badge && <span className="shrink-0 rounded bg-accent px-1 text-[9px] font-semibold text-white">{line.badge}</span>}
               </span>
               <span className="tabular-nums text-primary">{money(sum(line.steps), signed)}</span>
             </button>

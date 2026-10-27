@@ -160,6 +160,14 @@ export class IdleWarming {
     return 'warm'
   }
 
+  /** The setting for the Context panel's ping lane, or null to leave it to Pi. */
+  plan(): { setting: number | 'long'; stopped: boolean } | null {
+    const setting = this.setting()
+    if (setting === null) return null
+    const away = this.away.read()
+    return { setting, stopped: this.done || (away !== null && away >= this.lastMessageAt) }
+  }
+
   /** What `/done` and `/away` report. */
   describe(): string {
     const setting = this.setting()

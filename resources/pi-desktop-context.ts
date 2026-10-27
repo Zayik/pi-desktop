@@ -8,11 +8,15 @@ import {
   PARENT_SESSION_ENV,
   buildBreakdown,
   callFromMessage,
+  emptyPings,
   emptyTotals,
+  pingFromEntry,
   recordCall,
+  recordPing,
   snapshotFileName,
   snapshotModel,
   type ContextSnapshot,
+  type PingPlan,
   type SnapshotModel,
   type ToolDefinitionInput,
 } from './context-snapshot'
@@ -20,6 +24,18 @@ import {
 // Writes are coalesced: a turn fires several events within a few milliseconds.
 const WRITE_DELAY_MS = 200
 const MAX_WRITE_RETRIES = 3
+/** A warming refresh is a one-token reply; its usage entry is looked for this long after the decision. */
+const PING_SCAN_DELAYS_MS = [1_500, 4_000, 10_000, 30_000]
+
+export interface RecordContextOptions {
+  /** The idle ping setting for the session's model now (pi-analytics' per-model settings). */
+  pingPlan?: () => PingPlan | null
+}
+
+export interface ContextRecorder {
+  /** Write the snapshot again soon, after something it reads (the ping plan) changed. */
+  refresh(): void
+}
 
 /**
  * Loaded on its own (with `-e`) where pi-analytics is not: OMP. It records
@@ -36,7 +52,7 @@ export default function piDesktopContext(pi: ExtensionAPI): void {
  * Adds nothing to the context and changes nothing about the requests. The
  * snapshot is written to `<dir>/<session id>.json`.
  */
-export function recordContext(pi: ExtensionAPI, dir: string): void {
+export function recordContext(pi: ExtensionAPI, dir: string, options: RecordContextOptions = {}): ContextRecorder {
   // Read once at load: start() then overwrites it for the processes this one spawns.
   const parentSessionId = process.env[PARENT_SESSION_ENV] || null
   const processStartedAt = Math.round(Date.now() - process.uptime() * 1000)
@@ -54,6 +70,13 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
     timer = null
     if (!snapshot) return
     snapshot.updatedAt = Date.now()
+    if (options.pingPlan) {
+      try {
+        snapshot.pingPlan = options.pingPlan()
+      } catch {
+        snapshot.pingPlan = null
+      }
+    }
     const target = join(dir, snapshotFileName(snapshot.sessionId))
     const temp = `${target}.${process.pid}.tmp`
     try {
@@ -70,6 +93,41 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
 
   const scheduleWrite = (): void => {
     if (!timer) timer = setTimeout(write, WRITE_DELAY_MS)
+  }
+
+  /**
+   * Pings are not messages: Pi appends a `usage` entry to the branch after
+   * each refresh and tells extensions nothing, so the branch is read again.
+   * Returns true when it found a new one.
+   */
+  const readPings = (entries: unknown[]): boolean => {
+    if (!snapshot) return false
+    const pings = emptyPings()
+    for (const entry of entries) {
+      const ping = pingFromEntry(entry)
+      if (ping) recordPing(pings, ping)
+    }
+    const found = pings.count > (snapshot.pings?.count ?? 0)
+    snapshot.pings = pings
+    snapshot.lastWarmAt = pings.recent.at(-1)?.[0] ?? null
+    return found
+  }
+
+  let pingScan: ReturnType<typeof setTimeout> | null = null
+  const scanForPing = (ctx: ExtensionContext, attempt = 0): void => {
+    if (pingScan) clearTimeout(pingScan)
+    pingScan = setTimeout(() => {
+      pingScan = null
+      let found = false
+      try {
+        found = readPings(ctx.sessionManager.getBranch())
+      } catch {
+        // A replaced session: its own start reads its pings.
+      }
+      if (found) scheduleWrite()
+      else if (attempt + 1 < PING_SCAN_DELAYS_MS.length) scanForPing(ctx, attempt + 1)
+    }, PING_SCAN_DELAYS_MS[attempt])
+    pingScan.unref?.()
   }
 
   const modelCatalog = (ctx: ExtensionContext): SnapshotModel[] => {
@@ -112,6 +170,7 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
       turnStartedAt: null,
       lastRequestAt: null,
       lastWarmAt: null,
+      pings: emptyPings(),
       process: { pid: process.pid, startedAt: processStartedAt, cwd: ctx.cwd ?? process.cwd() },
       // Older Pi releases have neither; the session file still names the session.
       sessionName: ctx.sessionManager.getSessionName?.() ?? null,
@@ -135,6 +194,7 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
         snapshot.lastRequestAt = call.at
       }
     }
+    readPings(ctx.sessionManager.getBranch())
     // After a compaction the branch still holds the messages it replaced; only
     // the next request shows what the model really gets.
     snapshot.breakdown = buildBreakdown({
@@ -181,9 +241,11 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
     scheduleWrite()
   })
 
-  pi.on('cache_warming_decision', (event) => {
-    if (!snapshot || event.action !== 'warm') return
-    snapshot.lastWarmAt = Date.now()
+  // The event carries Pi's own action, not what a later handler (pi-analytics) answers,
+  // so the ping is counted only once its usage entry is on the branch.
+  pi.on('cache_warming_decision', (_event, ctx) => {
+    if (!snapshot) return
+    scanForPing(ctx)
     scheduleWrite()
   })
 
@@ -239,6 +301,7 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
 
   pi.on('session_shutdown', () => {
     if (timer) clearTimeout(timer)
+    if (pingScan) clearTimeout(pingScan)
     if (snapshot) {
       snapshot.agentRunning = false
       snapshot.activeTool = null
@@ -247,4 +310,6 @@ export function recordContext(pi: ExtensionAPI, dir: string): void {
     write()
     snapshot = null
   })
+
+  return { refresh: scheduleWrite }
 }
