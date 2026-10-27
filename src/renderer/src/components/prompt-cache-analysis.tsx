@@ -178,13 +178,6 @@ function costRow(entry: ModelEntry, maxPings: number, weeks: number): CostRow {
   }
 }
 
-/** No cache against the short cache with no pings: the writes cost more, the reads cost less. */
-function cacheEffect(summary: PingSummary, warmable: boolean, weeks: number): { writes: number | null; reads: number | null } {
-  if (!warmable || summary.noCacheTotal <= 0) return { writes: null, reads: null }
-  const now = summary.baseTotal + summary.totals[0]
-  return { writes: summary.writePremium / weeks, reads: (summary.noCacheTotal - (now - summary.writePremium)) / weeks }
-}
-
 /** Pi Desktop's handles on the cache settings; the HTML report has none and stays read only. */
 export interface CacheSettingsControls {
   state: CacheSettingsState
@@ -406,7 +399,7 @@ function ModelCard({ id, entry, entries, analysis, days, weeks, state, open, onT
       </button>
       {open && (
         <div className="border-t border-border px-3 pb-3 pt-2">
-          <ModelChart entry={entry} entries={entries} chartEntries={chartEntries} series={series} analysis={analysis} days={days} weeks={weeks} />
+          <ModelChart entry={entry} chartEntries={chartEntries} series={series} analysis={analysis} days={days} />
         </div>
       )}
     </div>
@@ -449,14 +442,12 @@ function Sparkline({ lines, weeks }: { lines: Line[]; weeks: number }): React.JS
 }
 
 /** The full running-cost chart for one model (or all of them): a line per ping count, the legend, and a day opened in 30-minute blocks. */
-function ModelChart({ entry, entries, chartEntries, series, analysis, days, weeks }: {
+function ModelChart({ entry, chartEntries, series, analysis, days }: {
   entry: ModelEntry | null
-  entries: ModelEntry[]
   chartEntries: ModelEntry[]
   series: Series
   analysis: CacheAnalysis
   days: number[]
-  weeks: number
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const [mode, setMode] = useState<ChartMode>('total')
@@ -514,7 +505,6 @@ function ModelChart({ entry, entries, chartEntries, series, analysis, days, week
           render={(value) => value === 'saving' ? t('analytics.promptCache.chart.saving') : t('analytics.promptCache.chart.total')}
         />
       </div>
-      <Summary entry={entry} entries={entries} weeks={weeks} />
 
       <div className="flex flex-col gap-3 lg:flex-row">
         <div className="min-w-0 flex-1">
@@ -584,39 +574,6 @@ function ModelChart({ entry, entries, chartEntries, series, analysis, days, week
       )}
     </div>
   )
-}
-
-/** One sentence on what to pick for the chart's model, or for all of them. */
-function Summary({ entry, entries, weeks }: { entry: ModelEntry | null; entries: ModelEntry[]; weeks: number }): React.JSX.Element {
-  const { t } = useTranslation()
-  const weekly = (value: number): string => money(value / weeks)
-  let text: string
-  if (entry === null) {
-    const now = sum(entries.map(({ summary }) => summary.baseTotal + summary.totals[0]))
-    const recommended = sum(entries.map((own) => choiceTotal(own, own.recommended ?? 0)))
-    const best = sum(entries.map(({ summary, group }) => summary.baseTotal + (group.id === 'automatic' ? summary.totals[0] : summary.perBreakTotal)))
-    text = t('analytics.promptCache.summary.all', { cost: weekly(recommended), now: weekly(now), saving: weekly(now - recommended), best: weekly(best) })
-  } else {
-    const { summary, group, model } = entry
-    const name = modelName(model.model)
-    const now = summary.baseTotal + summary.totals[0]
-    if (group.id === 'automatic') {
-      text = t('analytics.promptCache.summary.automatic', { model: name, cost: weekly(now) })
-    } else {
-      const choice = entry.recommended ?? 0
-      const recommended = choiceTotal(entry, choice)
-      const best = weekly(summary.baseTotal + summary.perBreakTotal)
-      text = now - recommended >= 0.005
-        ? t('analytics.promptCache.summary.saves', { model: name, pings: choiceLabel(choice, t), cost: weekly(recommended), now: weekly(now), saving: weekly(now - recommended), best })
-        : t('analytics.promptCache.summary.noSaving', { model: name, cost: weekly(now), best })
-      if (summary.confidence === 'none') text += ` ${t('analytics.promptCache.summary.thin', { count: model.longBreaks })}`
-      const effect = cacheEffect(summary, true, weeks)
-      if (effect.writes !== null && effect.reads !== null && model.writeMultiple !== null) {
-        text += ` ${t('analytics.promptCache.summary.vsNoCache', { noCache: weekly(summary.noCacheTotal), multiple: model.writeMultiple, writes: money(effect.writes), reads: money(effect.reads) })}`
-      }
-    }
-  }
-  return <p className="text-[13px] font-medium leading-snug text-primary">{text}</p>
 }
 
 /** Which tool ran a model, when it was not Pi. */

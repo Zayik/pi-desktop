@@ -165,15 +165,6 @@
         "warmingOn": "Cache warming on",
         "warmingTitle": "Pi's cacheWarming setting: on is \"idle\" (Pi may ping after you stop, as each model's setting says), off is Pi's default \"streaming\" (warm only while the agent works)."
       },
-      "summary": {
-        "all": "All models: with each model on its recommended count, prompts cost {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
-        "automatic": "{{model}} uses the provider's cache, which pings can't change: {{cost}} a week.",
-        "noSaving": "{{model}}: pings don't pay off here, so no pings is cheapest at {{cost}} a week. The best count at every break would cost {{best}}.",
-        "saves": "{{model}}: {{pings}} is cheapest, {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
-        "thin_one": "Only {{count}} long break so far, so this uses the count of models with the same cache lifetime.",
-        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime.",
-        "vsNoCache": "Against no cache ({{noCache}} a week), the {{multiple}}x cache writes add {{writes}} and the cheaper reads save {{reads}}, before any pings."
-      },
       "table": {
         "estimated": "estimated",
         "estimatedTitle": "Copilot logs only totals per run, so each call's prompt size is estimated from how the conversation grew; its timing is measured.",

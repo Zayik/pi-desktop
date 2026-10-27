@@ -158,14 +158,6 @@
         "warmingOn": "缓存预热已开启",
         "warmingTitle": "Pi 的 cacheWarming 设置：开启为 \"idle\"（停下后 Pi 可按各模型的设置发送 ping），关闭为 Pi 默认的 \"streaming\"（只在代理工作时预热）。"
       },
-      "summary": {
-        "all": "所有模型：每个模型使用推荐次数时，提示每周花费 {{cost}}，不发送时为 {{now}}，节省 {{saving}}。每次间隔都取最佳次数则为 {{best}}。",
-        "automatic": "{{model}} 使用服务商缓存，保温请求无法改变：每周 {{cost}}。",
-        "noSaving": "{{model}}：保温请求在这里不划算，不发送最省钱，每周 {{cost}}。每次间隔都取最佳次数则为 {{best}}。",
-        "saves": "{{model}}：{{pings}}最省钱，每周 {{cost}}，不发送时为 {{now}}，节省 {{saving}}。每次间隔都取最佳次数则为 {{best}}。",
-        "thin_other": "目前只有 {{count}} 次长间隔，因此沿用相同缓存时长模型的次数。",
-        "vsNoCache": "与不缓存（每周 {{noCache}}）相比，{{multiple}} 倍的缓存写入多花 {{writes}}，更便宜的读取省下 {{reads}}（未计保温请求）。"
-      },
       "table": {
         "estimated": "估算",
         "estimatedTitle": "Copilot 只记录每次运行的总量，因此每次调用的提示大小是根据对话增长估算的；时间是实测的。",
