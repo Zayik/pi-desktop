@@ -120,6 +120,10 @@ export const IPC_CHANNELS = {
   ANALYTICS_GET_SESSION_REPORT: 'analytics:get-session-report',
   ANALYTICS_GET_OVERVIEW: 'analytics:get-overview',
   ANALYTICS_REBUILD: 'analytics:rebuild',
+  ANALYTICS_GET_CACHE_SETTINGS: 'analytics:get-cache-settings',
+  ANALYTICS_SET_CACHE_SETTINGS: 'analytics:set-cache-settings',
+  ANALYTICS_SET_CACHE_WARMING: 'analytics:set-cache-warming',
+  ANALYTICS_SET_AWAY: 'analytics:set-away',
 
   // Diagnostics
   DIAGNOSTICS_GET: 'diagnostics:get',

@@ -18,6 +18,8 @@ export interface OpenAIPrice {
 
 /** GPT-5.6 and later bill cache writes, at this multiple of input for the 30-minute lifetime. */
 export const OPENAI_WRITE_30M = 1.25
+/** The 12-hour lifetime's writes cost this multiple of input. */
+export const OPENAI_WRITE_12H = 2.5
 
 const LONG_272K = 272_000
 

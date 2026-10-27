@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
 import { Bot, ChevronDown, MessageCircleQuestion } from 'lucide-react'
@@ -160,6 +160,13 @@ interface CardModel {
  * calls cost. Takes everything it shows as props, so Pi Desktop's Context
  * panel and pi-analytics' session page render the same view.
  */
+/**
+ * Stops idle cache pings for a main chat (pi-analytics' `/done`). Only Pi
+ * Desktop provides it, and only while it can send the command to that chat;
+ * the session page shows no button.
+ */
+export const StopWarmingContext = createContext<((sessionId: string) => void) | null>(null)
+
 export function AgentBoardView({ snapshot, board, tasks, isStreaming, mainEffort }: {
   snapshot: ContextSnapshot | null
   board: AgentBoard | null
@@ -675,6 +682,8 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
     ? cache.remainingMs / (cache.lifetimeSeconds * 1000)
     : 0
   const live = cache.status === 'warm' || cache.status === 'expiring'
+  const stopWarming = useContext(StopWarmingContext)
+  const canStopWarming = live && stopWarming !== null && !snapshot.parentSessionId
 
   if (!showCache) {
     return (
@@ -739,6 +748,16 @@ function PromptCacheBlock({ snapshot, cache, subagents, showCache = true, inset 
         )}
         {snapshot.cacheWarming && (
           <span>{t('chat.contextPanel.cache.warming', { mode: snapshot.cacheWarming })}</span>
+        )}
+        {canStopWarming && (
+          <button
+            type="button"
+            onClick={() => stopWarming?.(snapshot.sessionId)}
+            title={t('chat.contextPanel.cache.doneTitle')}
+            className="ml-auto rounded border border-border px-1.5 text-[11px] text-muted hover:bg-surface-hover"
+          >
+            {t('chat.contextPanel.cache.done')}
+          </button>
         )}
       </div>
 

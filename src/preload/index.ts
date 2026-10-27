@@ -99,6 +99,7 @@ import type { SubagentListResult, SubagentTranscriptRef, SubagentTranscriptResul
 import type { ContextSnapshot } from '../../resources/context-snapshot'
 import type { AgentBoard, AgentBoardRequest } from '../shared/agent-board'
 import type { AnalyticsReport, OverviewRequest } from '../shared/analytics-report'
+import type { CacheSetting, CacheSettingsState } from '../shared/cache-analysis'
 import { IPC_CHANNELS } from '../shared/ipc-contracts'
 
 // ─── Type Definitions for the Exposed API ────────────────────────────────────
@@ -431,6 +432,13 @@ interface PiDesktopAPI {
     getOverview(request: OverviewRequest): Promise<AnalyticsReport>
     /** Read every session file again. */
     rebuild(): Promise<void>
+    /** The per-model cache settings pi-analytics' warming reads, Pi's cache warming, and /away. */
+    getCacheSettings(): Promise<CacheSettingsState>
+    /** Set models' settings; null leaves a model to Pi. */
+    setCacheSettings(changes: Record<string, CacheSetting | null>): Promise<CacheSettingsState>
+    setCacheWarming(on: boolean): Promise<CacheSettingsState>
+    /** True stops idle pings in every chat until its next message; false lets them warm again. */
+    setAway(away: boolean): Promise<CacheSettingsState>
   }
 
   // Diagnostics report
@@ -768,6 +776,10 @@ const api: PiDesktopAPI = {
     getSessionReport: (sessionFile) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_SESSION_REPORT, sessionFile),
     getOverview: (request) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_OVERVIEW, request),
     rebuild: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_REBUILD),
+    getCacheSettings: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_CACHE_SETTINGS),
+    setCacheSettings: (changes) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_CACHE_SETTINGS, changes),
+    setCacheWarming: (on) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_CACHE_WARMING, on),
+    setAway: (away) => ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_AWAY, away),
   },
 
   diagnostics: {

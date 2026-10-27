@@ -106,7 +106,7 @@ export function applyPermissionModeToStartOptions(
     args.push('-e', PERMISSIONS_EXTENSION_PATH)
   }
   if (suggestsNextSteps) args.push('-e', NEXT_STEPS_EXTENSION_PATH)
-  // Only observes: records what fills the context, for the Context panel. A copy the user installed in Pi already loads.
+  // Records what fills the context, for the Context panel, and sends the idle pings set per model in Analytics. A copy the user installed in Pi already loads.
   const installedAnalytics = engine === 'pi' && piAnalyticsInstalled()
   const bundledAnalytics = engine === 'pi' && !installedAnalytics && existsSync(ANALYTICS_EXTENSION_PATH)
   if (bundledAnalytics) args.push('-e', ANALYTICS_EXTENSION_PATH)

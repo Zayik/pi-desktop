@@ -6,7 +6,9 @@
  * cost at each count, so a chart can add them up over any span and any mix
  * of models, and the CLI prints the same totals.
  */
-import { PI_REFRESH_AT, cacheProfile, callTotals, gapCostsByPings, measurePrices, piMaxIdlePings, promptTokens, type CacheRoute } from './cache-policy'
+import { PI_REFRESH_AT, cacheProfile, callTotals, gapCostsByPings, measurePrices, piMaxIdlePings, promptTokens, tokenPrice, type CacheRoute } from './cache-policy'
+import { longPromptTier, tierMultiple } from './list-prices'
+import { isImportedModel } from './import-sources'
 import type { CacheCall, SessionAnalytics } from './session-analytics'
 
 export type CacheGroupId = '5m' | '30m' | 'automatic'
@@ -38,6 +40,8 @@ export interface CacheModelAnalysis {
   calls: number
   /** Calls whose input, reads and writes were spread from session totals (Copilot logs no per-call usage). */
   estimatedCalls: number
+  /** The model's long-prompt tier and how many calls fell in it, or null for a flat price. */
+  longPrompt: { over: number; multiple: number; calls: number } | null
   /** Measured prompt tokens, and the part of them read from the cache. */
   promptTokens: number
   readTokens: number
@@ -137,7 +141,8 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
     const all = runs.flat()
     if (all.length === 0) continue
     const profile = cacheProfile(model, all)
-    const prices = measurePrices(callTotals(all), profile, model)
+    const tier = longPromptTier(model)
+    const prices = measurePrices(callTotals(all, tier), profile, model)
     const ttlMs = profile.sweep?.ttlMs ?? 0
     const id: CacheGroupId = !profile.sweep || !prices ? 'automatic' : ttlMs >= 30 * MINUTE ? '30m' : '5m'
     const maxPings = id === 'automatic' ? 0 : piMaxIdlePings(ttlMs)
@@ -154,6 +159,7 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       group: id,
       calls: all.length,
       estimatedCalls: all.filter((call) => call[10] === 1).length,
+      longPrompt: tier ? { ...tier, calls: all.filter((call) => tierMultiple(tier, promptTokens(call)) > 1).length } : null,
       promptTokens: all.reduce((sum, call) => sum + promptTokens(call), 0),
       readTokens: all.reduce((sum, call) => sum + call[3], 0),
       longBreaks: 0,
@@ -190,7 +196,7 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       const uncached = new Map<number, number>()
       for (const call of all) {
         const slot = slotStart(call[0], start)
-        uncached.set(slot, (uncached.get(slot) ?? 0) + promptTokens(call) * prices.inputPrice)
+        uncached.set(slot, (uncached.get(slot) ?? 0) + promptTokens(call) * tokenPrice(prices, promptTokens(call)))
       }
       entry.noCache = [...uncached.entries()].sort((a, b) => a[0] - b[0])
       const longSpec = profile.family === 'anthropic' ? profile.policies.find((policy) => policy.id === profile.longPolicy) : undefined
@@ -365,6 +371,52 @@ export function optimalCounts(analysis: CacheAnalysis): Map<string, number> {
     for (const [model, count] of summarize(group.models, group.maxPings, analysis.days).modelBest) counts.set(model, count)
   }
   return counts
+}
+
+/** A fixed setting for one model: how many idle pings, or the long lifetime with none. */
+export type CacheSetting = number | 'long'
+
+/**
+ * The setting to recommend for a model: its best count (its group's while its
+ * own data is thin), or the long lifetime when that costs less and the model
+ * has enough breaks to tell. Null where the provider runs the cache. Never
+ * "no cache": the cheapest of these always caches.
+ */
+export function recommendedSetting(group: CacheGroupAnalysis, summary: PingSummary, optimal: number): CacheSetting | null {
+  if (group.id === 'automatic') return null
+  if (summary.longTotal !== null && summary.confidence !== 'none' && summary.longTotal < summary.baseTotal + summary.totals[optimal] - 1e-9) return 'long'
+  return optimal
+}
+
+/** The settings in use, as Pi Desktop shows them. */
+export interface CacheSettingsState {
+  /** `provider/model` to its setting; a model left out is left to Pi. */
+  models: Record<string, CacheSetting>
+  /** Pi pings after you stop (its cacheWarming is "idle"). */
+  warming: boolean
+  /** Pi's cacheWarming as set, or null for its default ("streaming"). */
+  warmingMode: string | null
+  /** When `/away` was last used, or null. */
+  away: number | null
+}
+
+export interface CacheRecommendation {
+  model: string
+  setting: CacheSetting
+  /** Too few breaks of its own: the count is borrowed from its group, and Apply leaves it alone. */
+  lowData: boolean
+}
+
+/** A recommended setting for every model Pi ran that can take one. */
+export function cacheRecommendations(analysis: CacheAnalysis): CacheRecommendation[] {
+  const optimal = optimalCounts(analysis)
+  return analysis.groups.flatMap((group) => group.models
+    .filter((model) => !isImportedModel(model.model))
+    .flatMap((model) => {
+      const summary = summarize([model], group.maxPings, analysis.days)
+      const setting = recommendedSetting(group, summary, optimal.get(model.model) ?? 0)
+      return setting === null ? [] : [{ model: model.model, setting, lowData: summary.confidence === 'none' }]
+    }))
 }
 
 /** The cheapest count for the gaps ending in each slot of a day, or null where no gap's count mattered. */

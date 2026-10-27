@@ -6,7 +6,7 @@ import type { AnalyticsReport, AnalyticsSignal, AnalyticsSessionKind } from '../
 import type { WorkCategory } from '../../../shared/session-analytics'
 import type { Translate } from '../../../shared/i18n'
 import { formatCompact } from '../utils/format-compact'
-import { PromptCacheAnalysis, money } from './prompt-cache-analysis'
+import { PromptCacheAnalysis, money, type CacheSettingsControls } from './prompt-cache-analysis'
 
 const CATEGORY_LABEL_KEYS = {
   test: 'analytics.category.test',
@@ -95,14 +95,14 @@ function signalText(signal: AnalyticsSignal, t: Translate): string {
 
 /** One report, for the session panel (narrow) or the Analytics view (wide). */
 /** `actions` sits under the signals. The prompt cache analysis follows them in the overall report. */
-export function AnalyticsReportView({ report, wide = false, actions }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode }): React.JSX.Element {
+export function AnalyticsReportView({ report, wide = false, actions, cacheSettings }: { report: AnalyticsReport; wide?: boolean; actions?: React.ReactNode; cacheSettings?: CacheSettingsControls }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <Tiles report={report} />
       <Signals signals={report.signals} />
       {actions}
-      {report.scope === 'overall' && <PromptCacheAnalysis analysis={report.cacheAnalysis} />}
+      {report.scope === 'overall' && <PromptCacheAnalysis analysis={report.cacheAnalysis} settings={cacheSettings} />}
       {report.scope === 'overall' && report.days.length > 1 && <DailyCost report={report} />}
       <div className={clsx('space-y-4', wide && 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0')}>
         <WorkByKind report={report} />
