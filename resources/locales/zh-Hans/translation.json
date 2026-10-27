@@ -69,7 +69,6 @@
         "modeLabel": "图表数值",
         "saving": "对比不发送",
         "savingNote": "每条曲线表示该保温次数相对不发送的花费：低于 $0 即节省。点击某一天在下方查看。",
-        "title": "按保温次数的累计提示花费 · {{model}}",
         "total": "总花费",
         "totalNote": "每条曲线表示该设置下的累计提示花费。右端最低的曲线最省钱。点击某一天在下方查看。",
         "upTo": "{{day}}，截至 {{time}}"
@@ -105,6 +104,19 @@
       },
       "longLabel": "1 小时缓存",
       "longShort": "L",
+      "models": {
+        "automatic": "此缓存由服务商管理，ping 无法改变",
+        "best": "最佳：{{setting}}",
+        "bestEach": "最佳：各模型各自的设置",
+        "count_one": "{{count}} 个模型",
+        "count_other": "{{count}} 个模型",
+        "hint": "每周提示成本。点击模型查看完整图表",
+        "inUse": "{{setting}}（使用中）",
+        "noCache": "不缓存",
+        "regular": "缓存，不 ping",
+        "saving": "省 {{saving}}",
+        "title": "各模型"
+      },
       "noPings": "不保活",
       "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
       "pings_other": "{{count}} 次保活",
@@ -145,14 +157,6 @@
         "warmingOff": "缓存预热已关闭",
         "warmingOn": "缓存预热已开启",
         "warmingTitle": "Pi 的 cacheWarming 设置：开启为 \"idle\"（停下后 Pi 可按各模型的设置发送 ping），关闭为 Pi 默认的 \"streaming\"（只在代理工作时预热）。"
-      },
-      "summary": {
-        "all": "所有模型：每个模型使用推荐次数时，提示每周花费 {{cost}}，不发送时为 {{now}}，节省 {{saving}}。每次间隔都取最佳次数则为 {{best}}。",
-        "automatic": "{{model}} 使用服务商缓存，保温请求无法改变：每周 {{cost}}。",
-        "noSaving": "{{model}}：保温请求在这里不划算，不发送最省钱，每周 {{cost}}。每次间隔都取最佳次数则为 {{best}}。",
-        "saves": "{{model}}：{{pings}}最省钱，每周 {{cost}}，不发送时为 {{now}}，节省 {{saving}}。每次间隔都取最佳次数则为 {{best}}。",
-        "thin_other": "目前只有 {{count}} 次长间隔，因此沿用相同缓存时长模型的次数。",
-        "vsNoCache": "与不缓存（每周 {{noCache}}）相比，{{multiple}} 倍的缓存写入多花 {{writes}}，更便宜的读取省下 {{reads}}（未计保温请求）。"
       },
       "table": {
         "estimated": "估算",

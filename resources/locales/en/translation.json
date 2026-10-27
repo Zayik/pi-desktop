@@ -71,7 +71,6 @@
         "modeLabel": "Chart values",
         "saving": "Compared with no pings",
         "savingNote": "Each line is what that ping count paid compared with no pings: below $0 saves money. Click a day to open it below.",
-        "title": "Running prompt cost by ping count · {{model}}",
         "total": "Total cost",
         "totalNote": "Each line is the running prompt cost with that setting. The lowest line at the right edge was cheapest. Click a day to open it below.",
         "upTo": "{{day}}, up to {{time}}"
@@ -109,6 +108,19 @@
       },
       "longLabel": "the 1-hour cache",
       "longShort": "L",
+      "models": {
+        "automatic": "The provider runs this cache; pings can't change it",
+        "best": "Best: {{setting}}",
+        "bestEach": "Best: each model's own setting",
+        "count_one": "{{count}} model",
+        "count_other": "{{count}} models",
+        "hint": "Prompt cost per week. Click a model to open its full chart",
+        "inUse": "{{setting}} (in use)",
+        "noCache": "No cache",
+        "regular": "Cache, no pings",
+        "saving": "saves {{saving}}",
+        "title": "Each model"
+      },
       "noPings": "No pings",
       "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
       "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
@@ -152,15 +164,6 @@
         "warmingOff": "Cache warming off",
         "warmingOn": "Cache warming on",
         "warmingTitle": "Pi's cacheWarming setting: on is \"idle\" (Pi may ping after you stop, as each model's setting says), off is Pi's default \"streaming\" (warm only while the agent works)."
-      },
-      "summary": {
-        "all": "All models: with each model on its recommended count, prompts cost {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
-        "automatic": "{{model}} uses the provider's cache, which pings can't change: {{cost}} a week.",
-        "noSaving": "{{model}}: pings don't pay off here, so no pings is cheapest at {{cost}} a week. The best count at every break would cost {{best}}.",
-        "saves": "{{model}}: {{pings}} is cheapest, {{cost}} a week instead of {{now}} with no pings, saving {{saving}}. The best count at every break would cost {{best}}.",
-        "thin_one": "Only {{count}} long break so far, so this uses the count of models with the same cache lifetime.",
-        "thin_other": "Only {{count}} long breaks so far, so this uses the count of models with the same cache lifetime.",
-        "vsNoCache": "Against no cache ({{noCache}} a week), the {{multiple}}x cache writes add {{writes}} and the cheaper reads save {{reads}}, before any pings."
       },
       "table": {
         "estimated": "estimated",
