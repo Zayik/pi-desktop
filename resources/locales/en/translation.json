@@ -122,8 +122,10 @@
         "title": "Each model"
       },
       "noPings": "No pings",
-      "note_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
-      "note_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
+      "note_one": "Last {{count}} day",
+      "note_other": "Last {{count}} days",
+      "noteReadOnly_one": "Last {{count}} day · read only: nothing here changes Pi's settings",
+      "noteReadOnly_other": "Last {{count}} days · read only: nothing here changes Pi's settings",
       "pings_one": "{{count}} ping",
       "pings_other": "{{count}} pings",
       "prices": {
@@ -140,6 +142,29 @@
         "unknown": "Not in the price list; the analysis uses what your sessions were billed",
         "writeLong": "Cache write (long)",
         "writeShort": "Cache write (short)"
+      },
+      "recommend": {
+        "basis_one": "Based on {{sessions}} sessions, {{calls}} calls and {{breaks}} long breaks over {{count}} day, from {{sources}}",
+        "basis_other": "Based on {{sessions}} sessions, {{calls}} calls and {{breaks}} long breaks over {{count}} days, from {{sources}}",
+        "borrowed": "Too few long breaks: the setting is borrowed from models with the same cache lifetime, and Apply leaves this model as it is",
+        "costHead": "Cost per week",
+        "each": "each model's",
+        "note": "Each model pools its sessions from every tool that ran it. Costs are per week; the ping columns are what each setting saves a week over caching with no pings (green is the most, the outlined one is recommended). A long break is one longer than the cache lifetime: the only kind pings change.",
+        "recommendedHead": "Recommended",
+        "rowBasis": "{{sessions}} sessions · {{calls}} calls · {{breaks}} long breaks",
+        "saves": "Saves / week",
+        "savingHead": "Saves per week over no pings",
+        "setting": "Setting",
+        "sources": {
+          "claudeCode": "Claude Code",
+          "codex": "Codex",
+          "copilot": "Copilot",
+          "pi": "Pi"
+        },
+        "summary_one": "With each model on its recommended setting you'd save {{week}} a week ({{window}} over the last {{count}} day) compared with caching with no pings, and {{noCache}} a week compared with no cache at all.",
+        "summary_other": "With each model on its recommended setting you'd save {{week}} a week ({{window}} over the last {{count}} days) compared with caching with no pings, and {{noCache}} a week compared with no cache at all.",
+        "title": "Recommended setting per model",
+        "total": "All models"
       },
       "settings": {
         "applied": "Recommendations applied",
@@ -161,8 +186,7 @@
         "tableNote": "Prompt cost per week for each setting. Filled is in use (a model with no setting runs like No pings); outlined is recommended. Left on table is what the recommended setting would save each week. No cache is shown only to compare and is never recommended. Click a model to chart it.",
         "title": "Cache settings",
         "useAria": "{{model}}: use {{setting}}, {{cost}} a week",
-        "warmingOff": "Cache warming off",
-        "warmingOn": "Cache warming on",
+        "warming": "Idle cache warming",
         "warmingTitle": "Pi's cacheWarming setting: on is \"idle\" (Pi may ping after you stop, as each model's setting says), off is Pi's default \"streaming\" (warm only while the agent works)."
       },
       "table": {
@@ -399,7 +423,7 @@
           "running_one": "{{count}} running",
           "running_other": "{{count}} running",
           "time": "Active time",
-          "tokens": "Tokens · all agents",
+          "tokens": "Tokens",
           "turns_one": "{{count}} turn",
           "turns_other": "{{count}} turns"
         }
@@ -436,8 +460,6 @@
       },
       "cache": {
         "cold": "Cold",
-        "done": "Stop warming",
-        "doneTitle": "No more idle cache pings for this chat until your next message in it (/done)",
         "hitRate": "Last call {{percent}}% from cache",
         "modelChanged": "Cold · model changed",
         "nextCold": "Next if expired",
@@ -445,11 +467,32 @@
         "nextWarm": "Next if warm",
         "nextWarmDetail": "reads context",
         "none": "No calls yet",
+        "pings": {
+          "allSent": "All sent",
+          "away": "I'm away",
+          "awayTitle": "No more idle cache pings in any Pi chat until your next message in each (/away)",
+          "count_one": "{{count}} ping",
+          "count_other": "{{count}} pings",
+          "long": "1-hour cache, none needed",
+          "next": "Next ping in {{time}} · {{cost}}",
+          "noneSet": "None set for this model",
+          "notchPlanned": "Ping {{index}}: about {{cost}}",
+          "notchSent": "Ping {{index}}: sent, {{cost}}",
+          "off": "Off: cache warming is {{mode}}",
+          "pi": "Pi decides by price",
+          "piSent_one": "Pi decides by price · {{count}} sent",
+          "piSent_other": "Pi decides by price · {{count}} sent",
+          "sentOf": "{{sent}} of {{planned}} sent",
+          "spent": "{{cost}} so far",
+          "stop": "Stop pings",
+          "stopped": "Stopped until your next message",
+          "stopTitle": "No more idle cache pings for this chat until your next message in it (/done)",
+          "title": "Idle pings"
+        },
         "thisTurn": "This turn",
         "title": "Prompt cache",
         "titleWithLifetime": "Prompt cache · {{lifetime}}",
         "unknown": "Lifetime unknown",
-        "warming": "Cache warming: {{mode}}",
         "warmLeft": "Warm · {{time}} left"
       },
       "category": {

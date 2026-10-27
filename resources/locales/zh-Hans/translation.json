@@ -118,7 +118,8 @@
         "title": "各模型"
       },
       "noPings": "不保活",
-      "note_other": "最近 {{count}} 天 · 只读：这里不会改动 Pi 的设置",
+      "note_other": "最近 {{count}} 天",
+      "noteReadOnly_other": "最近 {{count}} 天 · 只读：这里不会更改 Pi 的设置",
       "pings_other": "{{count}} 次保活",
       "prices": {
         "footnote": "倍数相对于输入价格，超过阈值后不变。超过阈值后，提示的每个令牌（无论是否缓存）都按较高一行计费。短横线表示缓存是自动的，写入不额外收费。你自己的会话按实际计费分析；这些标价用于日志中没有费用的情况。",
@@ -134,6 +135,27 @@
         "unknown": "不在价格表中；分析使用会话实际计费",
         "writeLong": "缓存写入（长）",
         "writeShort": "缓存写入（短）"
+      },
+      "recommend": {
+        "basis_other": "基于 {{count}} 天内来自 {{sources}} 的 {{sessions}} 个会话、{{calls}} 次调用和 {{breaks}} 次长间隔",
+        "borrowed": "长间隔太少：此设置借用自缓存寿命相同的模型，“应用”不会更改此模型",
+        "costHead": "每周费用",
+        "each": "各模型各自的",
+        "note": "每个模型汇总了所有运行过它的工具的会话。费用按周计算；保温列是每种设置相比不保温缓存每周节省的金额（绿色最多，带框的是推荐值）。长间隔指超过缓存寿命的间隔，只有这种间隔会受保温影响。",
+        "recommendedHead": "推荐",
+        "rowBasis": "{{sessions}} 个会话 · {{calls}} 次调用 · {{breaks}} 次长间隔",
+        "saves": "每周节省",
+        "savingHead": "相比不保温每周节省",
+        "setting": "设置",
+        "sources": {
+          "claudeCode": "Claude Code",
+          "codex": "Codex",
+          "copilot": "Copilot",
+          "pi": "Pi"
+        },
+        "summary_other": "若每个模型都使用推荐设置，与不保温的缓存相比每周可节省 {{week}}（最近 {{count}} 天共 {{window}}），与完全不缓存相比每周可节省 {{noCache}}。",
+        "title": "每个模型的推荐设置",
+        "total": "所有模型"
       },
       "settings": {
         "applied": "已应用建议",
@@ -154,8 +176,7 @@
         "tableNote": "每种设置每周的提示词费用。填充的是使用中的设置（没有设置的模型按“不 ping”运行）；带边框的是推荐设置。可节省是推荐设置每周可省下的费用。无缓存仅供比较，从不推荐。点击模型可查看图表。",
         "title": "缓存设置",
         "useAria": "{{model}}：使用{{setting}}，每周 {{cost}}",
-        "warmingOff": "缓存预热已关闭",
-        "warmingOn": "缓存预热已开启",
+        "warming": "空闲缓存保温",
         "warmingTitle": "Pi 的 cacheWarming 设置：开启为 \"idle\"（停下后 Pi 可按各模型的设置发送 ping），关闭为 Pi 默认的 \"streaming\"（只在代理工作时预热）。"
       },
       "table": {
@@ -418,8 +439,6 @@
       },
       "cache": {
         "cold": "",
-        "done": "停止预热",
-        "doneTitle": "此对话不再发送空闲缓存 ping，直到你发送下一条消息（/done）",
         "hitRate": "",
         "modelChanged": "",
         "nextCold": "",
@@ -427,11 +446,30 @@
         "nextWarm": "",
         "nextWarmDetail": "",
         "none": "",
+        "pings": {
+          "allSent": "已全部发送",
+          "away": "我离开了",
+          "awayTitle": "在你于各个 Pi 对话发送下一条消息前，所有对话都不再发送空闲缓存保温 (/away)",
+          "count_other": "{{count}} 次保温",
+          "long": "1 小时缓存，无需保温",
+          "next": "下次保温 {{time}} 后 · {{cost}}",
+          "noneSet": "此模型未设置",
+          "notchPlanned": "第 {{index}} 次：约 {{cost}}",
+          "notchSent": "第 {{index}} 次：已发送，{{cost}}",
+          "off": "已关闭：缓存保温为 {{mode}}",
+          "pi": "由 Pi 按价格决定",
+          "piSent_other": "由 Pi 按价格决定 · 已发送 {{count}} 次",
+          "sentOf": "已发送 {{sent}} / {{planned}}",
+          "spent": "已花费 {{cost}}",
+          "stop": "停止保温",
+          "stopped": "已停止，直到你的下一条消息",
+          "stopTitle": "在你于此对话发送下一条消息前，不再发送空闲缓存保温 (/done)",
+          "title": "空闲保温"
+        },
         "thisTurn": "",
         "title": "",
         "titleWithLifetime": "",
         "unknown": "",
-        "warming": "",
         "warmLeft": ""
       },
       "category": {

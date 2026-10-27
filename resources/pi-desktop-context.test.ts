@@ -14,7 +14,7 @@ let loadedCopies = 0
 type Handler = (event: Record<string, unknown>, ctx: unknown) => unknown
 
 /** Load a fresh copy of the extension (it reads its environment at load) against a fake Pi. */
-async function loadExtension(env: Record<string, string>, model: Record<string, unknown> | null = null): Promise<{ emit: (name: string, event?: Record<string, unknown>) => unknown }> {
+async function loadExtension(env: Record<string, string>, model: Record<string, unknown> | null = null, branch: unknown[] = []): Promise<{ emit: (name: string, event?: Record<string, unknown>) => unknown }> {
   for (const [name, value] of Object.entries(env)) process.env[name] = value
   const extension = await import(`${EXTENSION_URL}?copy=${++loadedCopies}`) as { default: (pi: ExtensionAPI) => void }
   const handlers = new Map<string, Handler>()
@@ -25,7 +25,7 @@ async function loadExtension(env: Record<string, string>, model: Record<string, 
     getSettings: () => ({ cacheWarming: 'idle' }),
   }
   const ctx = {
-    sessionManager: { getSessionId: () => SESSION_ID, getSessionFile: () => null, getBranch: () => [] },
+    sessionManager: { getSessionId: () => SESSION_ID, getSessionFile: () => null, getBranch: () => branch },
     getSystemPrompt: () => 'system',
     modelRegistry: { getAvailable: () => [] },
     model,
@@ -58,15 +58,25 @@ test('only observes Pi\'s requests and warming decisions', async () => {
   await withDir(async (dir) => {
     delete process.env.PI_CACHE_RETENTION
     const model: Record<string, unknown> = { provider: 'github-copilot', id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' }
-    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir }, model)
+    const branch: unknown[] = []
+    const { emit } = await loadExtension({ [CONTEXT_DIR_ENV]: dir }, model, branch)
     emit('session_start')
     emit('context_with_system', { messages: [] })
     assert.equal(emit('cache_warming_decision', { action: 'warm', continuationProbability: 0.15, warmCost: 0, missCost: 0 }), undefined)
     assert.equal(process.env.PI_CACHE_RETENTION, undefined)
     assert.equal(model.promptCache, undefined)
+    // Pi appends the refresh's usage once its one-token reply is back.
+    const warmedAt = Date.now()
+    branch.push({
+      type: 'usage', id: 'w1', parentId: null, timestamp: new Date(warmedAt).toISOString(), kind: 'cache_warm', provider: 'github-copilot', model: 'claude-sonnet-5-5',
+      usage: { input: 0, output: 1, cacheRead: 5_000, cacheWrite: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.0015 } },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 1_800))
     const snapshot = await readSnapshot(dir, emit)
     assert.equal(snapshot.cacheRetention, 'short')
-    assert.ok(typeof snapshot.lastWarmAt === 'number', 'a refresh Pi sends is noted')
+    assert.equal(snapshot.lastWarmAt, warmedAt, 'a refresh Pi sends is noted when its usage is on the branch')
+    assert.equal(snapshot.pings?.count, 1)
+    assert.equal(snapshot.pings?.cost, 0.0015)
   })
 })
 

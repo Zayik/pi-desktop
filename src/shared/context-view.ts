@@ -6,6 +6,12 @@
  */
 import type { CallCost, ContextSnapshot, ModelCall, TokenRates } from '../../resources/context-snapshot'
 
+/** Pi stops idle warming this long after the last real request (hard-coded in its cache warmer). */
+export const IDLE_WARMING_LIMIT_MS = 30 * 60_000
+/** Pi's chance that you continue while idle, and the saving a refresh must clear, when it decides alone. */
+const PI_IDLE_CONTINUATION = 0.15
+const PI_MINIMUM_SAVING = 0.05
+
 /** The countdown turns amber in its last minute. */
 export const CACHE_EXPIRING_MS = 60_000
 /** Context is highlighted from this share of the window, or this many tokens: every call resends it. */
@@ -184,4 +190,88 @@ export function billingTable(snapshot: ContextSnapshot): BillingTable {
 /** A provider's total, or the sum of the parts when it reports none. */
 function costTotal(cost: CallCost): number {
   return cost.total > 0 ? cost.total : cost.input + cost.output + cost.cacheRead + cost.cacheWrite
+}
+
+/** Pi refreshes at 90% of the lifetime, keeping at least ten seconds of margin. */
+export function pingDelayMs(lifetimeSeconds: number): number | null {
+  const ttl = lifetimeSeconds * 1000
+  if (ttl <= 10_000) return null
+  return Math.max(1, Math.floor(Math.min(ttl * 0.9, ttl - 10_000)))
+}
+
+export type PingMode =
+  /** pi-analytics' setting for this model: up to `planned` pings after each message. */
+  | 'planned'
+  /** The 1-hour cache: no pings needed. */
+  | 'long'
+  /** No setting: Pi pings only when its own price rule says it pays. */
+  | 'pi'
+  /** Pi's `cacheWarming` is not "idle", so nothing pings once the agent stops. */
+  | 'off'
+
+export interface PingStatus {
+  mode: PingMode
+  /** Pings allowed after the latest message (`planned` mode only). */
+  planned: number | null
+  /** Pings sent since the latest message, and what they cost. */
+  sent: number
+  sentCost: number
+  /** Every ping this session, and what they cost. */
+  totalCount: number
+  totalCost: number
+  /** What one ping costs: the last one's bill, else the context at the cache-read rate. */
+  price: number | null
+  /** When the next ping goes out, or null when none will. */
+  nextAt: number | null
+  /** `/done` or `/away` stopped the pings until the next message. */
+  stopped: boolean
+}
+
+/**
+ * The idle pings of a session: how many its setting allows, how many went out
+ * since the latest message, and when the next one fires. Null while there is
+ * nothing to say: no call yet, or a subagent (Pi decides those).
+ */
+export function pingStatus(snapshot: ContextSnapshot, now: number): PingStatus | null {
+  const cache = cacheState(snapshot, now)
+  if (cache.status === 'none' || snapshot.parentSessionId) return null
+  const since = snapshot.turnStartedAt ?? 0
+  const recent = snapshot.pings?.recent ?? []
+  const sentPings = recent.filter(([at]) => at >= since)
+  const sent = sentPings.length
+  const sentCost = sentPings.reduce((sum, [, cost]) => sum + cost, 0)
+  const plan = snapshot.pingPlan ?? null
+  // Pi's default, "streaming", stops warming when the agent stops.
+  const mode: PingMode = snapshot.cacheWarming !== 'idle'
+    ? 'off'
+    : plan === null ? 'pi' : plan.setting === 'long' ? 'long' : 'planned'
+  const planned = mode === 'planned' && typeof plan?.setting === 'number' ? plan.setting : null
+  const estimate = nextCallEstimate(snapshot)
+  const lastPing = recent.at(-1)?.[1]
+  const price = lastPing ?? estimate.warm
+  const stopped = plan?.stopped ?? false
+  const status: PingStatus = {
+    mode,
+    planned,
+    sent,
+    sentCost,
+    totalCount: snapshot.pings?.count ?? 0,
+    totalCost: snapshot.pings?.cost ?? 0,
+    price,
+    nextAt: null,
+    stopped,
+  }
+  const live = cache.status === 'warm' || cache.status === 'expiring'
+  if (!live || snapshot.agentRunning || stopped || cache.refreshedAt === null || cache.lifetimeSeconds === null) return status
+  if (mode === 'off' || mode === 'long' || (planned !== null && sent >= planned)) return status
+  if (mode === 'pi') {
+    // Pi's own rule: the chance you continue times what a miss costs, less the ping, must clear five cents.
+    if (estimate.warm === null || estimate.cold === null) return status
+    if (PI_IDLE_CONTINUATION * Math.max(0, estimate.cold - estimate.warm) - estimate.warm < PI_MINIMUM_SAVING) return status
+  }
+  const delay = pingDelayMs(cache.lifetimeSeconds)
+  if (delay === null) return status
+  const nextAt = cache.refreshedAt + delay
+  if (snapshot.lastRequestAt !== null && nextAt > snapshot.lastRequestAt + IDLE_WARMING_LIMIT_MS) return status
+  return { ...status, nextAt }
 }

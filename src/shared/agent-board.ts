@@ -9,9 +9,13 @@ import {
   MAX_RECORDED_CALLS,
   buildBreakdown,
   callFromMessage,
+  emptyPings,
+  pingFromEntry,
+  recordPing,
   type ContextBreakdown,
   type ContextSnapshot,
   type ModelCall,
+  type PingTotals,
   type SnapshotModel,
 } from '../../resources/context-snapshot'
 import { promptTokens } from './context-view'
@@ -84,6 +88,8 @@ export interface AgentSessionSummary {
   turnCalls: ModelCall[]
   /** When each call finished and what it cost, oldest first, for totals over a time span. */
   callCosts: [at: number, cost: number][]
+  /** Pi's cache-warming refreshes; their cost is in `cost` and their tokens in the totals, not in `calls`. */
+  pings?: PingTotals
   /** Prompt plus reply of the last call: what the next call resends. */
   contextTokens: number | null
   /** Estimated from the conversation on the current branch; no system prompt or tools. */
@@ -261,6 +267,7 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
     turnStartedAt: null,
     turnCalls: [],
     callCosts: [],
+    pings: emptyPings(),
     contextTokens: null,
     breakdown: null,
     openQuestions: [],
@@ -271,6 +278,12 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
   const answered = new Set<string>()
   for (const entry of entries) {
     if (entry === header) continue
+    // A ping is Pi's, sent while you are away: it is not activity.
+    const ping = pingFromEntry(entry)
+    if (ping) {
+      addPing(summary, ping)
+      continue
+    }
     const at = entryTime(entry)
     const sentAt = previousAt
     if (at !== null) {
@@ -357,6 +370,19 @@ export function summarizeSession(entries: UnknownRecord[], sessionFile: string):
   summary.models.sort((a, b) => b.calls - a.calls)
   summary.openQuestions = questions.filter((question) => !answered.has(question.requestId))
   return summary
+}
+
+/** A ping is billed like a call, so it counts in the cost and tokens, but it is not a request of the agent's. */
+function addPing(summary: AgentSessionSummary, ping: ModelCall): void {
+  const cost = callCost(ping)
+  summary.callCosts.push([ping.at, cost])
+  summary.input += ping.input
+  summary.output += ping.output
+  summary.cacheRead += ping.cacheRead
+  summary.cacheWrite += ping.cacheWrite
+  summary.cost += cost
+  if (ping.model) addModelUsage(summary.models, ping, cost, 0)
+  recordPing((summary.pings ??= emptyPings()), ping)
 }
 
 function addCall(summary: AgentSessionSummary, call: ModelCall, isModelCall: boolean, sentAt: number | null): void {
@@ -451,6 +477,7 @@ export function snapshotFromSummary(summary: AgentSessionSummary, model: Snapsho
     totals: { calls: summary.calls, input: summary.input, output: summary.output, cacheRead: summary.cacheRead, cacheWrite: summary.cacheWrite, cost: summary.cost },
     turnStartedAt: summary.turnStartedAt,
     lastRequestAt: summary.lastRequestAt,
-    lastWarmAt: null,
+    lastWarmAt: summary.pings?.recent.at(-1)?.[0] ?? null,
+    pings: summary.pings,
   }
 }

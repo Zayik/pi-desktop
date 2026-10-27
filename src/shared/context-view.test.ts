@@ -9,6 +9,7 @@ import {
   contextTokens,
   effectiveRates,
   nextCallEstimate,
+  pingStatus,
   turnCalls,
 } from './context-view'
 
@@ -137,4 +138,50 @@ test('flags a context at 70% of the window or 300k tokens', () => {
   assert.equal(contextIsHigh(140_000, 200_000), true)
   assert.equal(contextIsHigh(300_000, 1_000_000), true)
   assert.equal(contextIsHigh(null, 200_000), false)
+})
+
+test('idle pings: counts the ones sent since the prompt and times the next at 90% of the lifetime', () => {
+  const idle = snapshot({
+    cacheWarming: 'idle',
+    pingPlan: { setting: 3, stopped: false },
+    pings: { count: 2, cost: 0.003, recent: [[200, 0.001], [271_000, 0.002]] },
+    lastWarmAt: 271_000,
+  })
+  const status = pingStatus(idle, 300_000)
+  assert.ok(status)
+  assert.equal(status.mode, 'planned')
+  assert.equal(status.planned, 3)
+  // The ping at 200 came before this turn's prompt (500).
+  assert.equal(status.sent, 1)
+  assert.equal(status.sentCost, 0.002)
+  assert.equal(status.totalCount, 2)
+  assert.equal(status.price, 0.002)
+  assert.equal(status.nextAt, 271_000 + 270_000)
+})
+
+test('idle pings: none come once the setting is used up, stopped, or warming is not idle', () => {
+  const base = { cacheWarming: 'idle', pings: { count: 1, cost: 0.001, recent: [[1_100, 0.001]] as [number, number][] }, lastWarmAt: 1_100 }
+  assert.equal(pingStatus(snapshot({ ...base, pingPlan: { setting: 1, stopped: false } }), 2_000)?.nextAt, null)
+  const stopped = pingStatus(snapshot({ ...base, pingPlan: { setting: 3, stopped: true } }), 2_000)
+  assert.equal(stopped?.stopped, true)
+  assert.equal(stopped?.nextAt, null)
+  assert.equal(pingStatus(snapshot({ ...base, pingPlan: { setting: 'long', stopped: false } }), 2_000)?.mode, 'long')
+  const streaming = pingStatus(snapshot({ pingPlan: { setting: 3, stopped: false } }), 2_000)
+  assert.equal(streaming?.mode, 'off')
+  assert.equal(streaming?.nextAt, null)
+  assert.equal(pingStatus(snapshot({ ...base, pingPlan: { setting: 3, stopped: false }, agentRunning: true }), 2_000)?.nextAt, null)
+})
+
+test('idle pings: without a setting Pi pings only when its price rule pays', () => {
+  // About 10K tokens: a miss costs cents at most, below Pi's five-cent bar.
+  const small = pingStatus(snapshot({ cacheWarming: 'idle' }), 2_000)
+  assert.equal(small?.mode, 'pi')
+  assert.equal(small?.nextAt, null)
+  const large = pingStatus(snapshot({ cacheWarming: 'idle', reportedTokens: 2_000_000 }), 2_000)
+  assert.equal(large?.nextAt, 900 + 270_000)
+})
+
+test('idle pings: Pi stops 30 minutes after the last real request', () => {
+  const late = snapshot({ cacheWarming: 'idle', pingPlan: { setting: 6, stopped: false }, lastWarmAt: 900 + 29 * 60_000 })
+  assert.equal(pingStatus(late, 900 + 29 * 60_000 + 1_000)?.nextAt, null)
 })

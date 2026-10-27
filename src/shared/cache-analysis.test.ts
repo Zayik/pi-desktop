@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SLOTS_PER_DAY, buildCacheAnalysis, optimalCounts, slotBest, slotCosts, slotLong, slotNoCache, summarize, weekSplit } from './cache-analysis'
+import { SLOTS_PER_DAY, baseModelId, buildCacheAnalysis, cacheRecommendations, modelPools, optimalCounts, slotBest, slotCosts, slotLong, slotNoCache, summarize, weekSplit } from './cache-analysis'
 import { SESSION_ANALYTICS_VERSION, type CacheCall, type SessionAnalytics } from './session-analytics'
 
 const MINUTE = 60_000
@@ -167,4 +167,28 @@ test('a 30 minute model has no longer lifetime Pi can pick', () => {
   const analysis = buildCacheAnalysis([session(day(DAY_ONE, [40]), ['openai/gpt-6-luna'])], DAY_ONE, DAY_ONE, DAY_ONE)
   assert.equal(analysis.groups[0].models[0].long, null)
   assert.equal(summarize(analysis.groups[0].models, 1, 1).longTotal, null)
+})
+
+test('one model is the same under every tool and provider', () => {
+  assert.equal(baseModelId('anthropic/claude-sonnet-5-5'), 'claude-sonnet-5-5')
+  assert.equal(baseModelId('github-copilot/claude-sonnet-5.5'), 'claude-sonnet-5-5')
+  assert.equal(baseModelId('claude-code/claude-sonnet-5-5-20260101'), 'claude-sonnet-5-5')
+  assert.equal(baseModelId('claude-code/claude-opus-5-5[1m]'), 'claude-opus-5-5')
+})
+
+test('a model pools its breaks from every tool, and Pi\'s own model takes the pooled recommendation', () => {
+  // Pi has too few breaks of its own; Claude Code ran the same model with many 12-minute breaks.
+  const sessions = [
+    session(day(DAY_ONE, [12]), ['anthropic/claude-sonnet-5-5']),
+    ...Array.from({ length: 12 }, (_, index) => session(day(DAY_ONE + index * 24 * 60 * MINUTE, [12, 12]), ['claude-code/claude-sonnet-5-5'])),
+  ]
+  const analysis = buildCacheAnalysis(sessions, DAY_ONE, DAY_ONE + 11 * 24 * 60 * MINUTE, DAY_ONE)
+  const pools = modelPools(analysis)
+  assert.equal(pools.length, 1)
+  const [pool] = pools
+  assert.deepEqual(pool.models.map((model) => model.model).sort(), ['anthropic/claude-sonnet-5-5', 'claude-code/claude-sonnet-5-5'])
+  assert.equal(pool.summary.longBreaks, 25)
+  assert.equal(pool.models.reduce((sum, model) => sum + model.sessions, 0), 13)
+  assert.ok(typeof pool.recommended === 'number' && pool.recommended >= 2, 'a 12-minute break needs pings to bridge it')
+  assert.deepEqual(cacheRecommendations(analysis), [{ model: 'anthropic/claude-sonnet-5-5', setting: pool.recommended, lowData: false }])
 })

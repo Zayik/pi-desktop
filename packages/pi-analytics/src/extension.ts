@@ -18,8 +18,8 @@ export default function piAnalytics(pi: ExtensionAPI): void {
   const dir = analyticsDir()
   // Read before the recorder's session start names this session for the processes it spawns.
   const subagent = Boolean(process.env[PARENT_SESSION_ENV])
-  recordContext(pi, contextDir(dir))
   const warming = new IdleWarming({ dir, subagent })
+  const recorder = recordContext(pi, contextDir(dir), { pingPlan: () => warming.plan() })
 
   pi.on('session_start', (_event, ctx) => warming.setModel(ctx.model))
   pi.on('model_select', (_event, ctx) => warming.setModel(ctx.model))
@@ -40,6 +40,7 @@ export default function piAnalytics(pi: ExtensionAPI): void {
     description: 'No more idle cache pings for this chat until your next message in it',
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       warming.markDone()
+      recorder.refresh()
       ctx.ui.notify(`Idle cache pings stopped for this chat until your next message (${warming.describe()}).`, 'info')
     },
   })
@@ -49,6 +50,7 @@ export default function piAnalytics(pi: ExtensionAPI): void {
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       markAway(Date.now(), dir)
       warming.markDone()
+      recorder.refresh()
       ctx.ui.notify('Idle cache pings stopped in every Pi chat. Each chat warms again after your next message in it.', 'info')
     },
   })

@@ -37,6 +37,9 @@ export interface CacheModelAnalysis {
   model: string
   route: CacheRoute
   group: CacheGroupId
+  /** Sessions with a call to the model, and the days they ran on. */
+  sessions: number
+  activeDays: number
   calls: number
   /** Calls whose input, reads and writes were spread from session totals (Copilot logs no per-call usage). */
   estimatedCalls: number
@@ -157,6 +160,8 @@ export function buildCacheAnalysis(sessions: SessionAnalytics[], from: number | 
       model,
       route: profile.route,
       group: id,
+      sessions: runs.length,
+      activeDays: new Set(all.map((call) => startOfDay(call[0]))).size,
       calls: all.length,
       estimatedCalls: all.filter((call) => call[10] === 1).length,
       longPrompt: tier ? { ...tier, calls: all.filter((call) => tierMultiple(tier, promptTokens(call)) > 1).length } : null,
@@ -407,16 +412,62 @@ export interface CacheRecommendation {
   lowData: boolean
 }
 
-/** A recommended setting for every model Pi ran that can take one. */
+/**
+ * The model a name runs, the same under every tool and provider:
+ * `anthropic/claude-sonnet-5-5`, `github-copilot/claude-sonnet-5.5` and
+ * `claude-code/claude-sonnet-5-5-20260101` are one model.
+ */
+export function baseModelId(model: string): string {
+  return model.slice(model.lastIndexOf('/') + 1).toLowerCase().replace(/\[[^\]]*\]$/, '').replace(/\./g, '-').replace(/-\d{8}$/, '')
+}
+
+/**
+ * One model's breaks from every tool that ran it (Pi, Claude Code, Codex,
+ * Copilot) with the same cache lifetime, so its recommendation rests on all
+ * of them. Pi's own models under it take that recommendation.
+ */
+export interface ModelPool {
+  key: string
+  /** `baseModelId` of its models. */
+  id: string
+  group: CacheGroupAnalysis
+  /** Most calls first. */
+  models: CacheModelAnalysis[]
+  summary: PingSummary
+  /** The recommended count: the pool's cheapest, or its group's while the pool's data is thin. */
+  optimal: number
+  recommended: CacheSetting | null
+}
+
+export function modelPools(analysis: CacheAnalysis): ModelPool[] {
+  const pools: ModelPool[] = []
+  for (const group of analysis.groups) {
+    const groupBest = summarize(group.models, group.maxPings, analysis.days).best
+    const byId = new Map<string, CacheModelAnalysis[]>()
+    for (const model of group.models) {
+      const id = baseModelId(model.model)
+      byId.set(id, [...(byId.get(id) ?? []), model])
+    }
+    for (const [id, models] of byId) {
+      const summary = summarize(models, group.maxPings, analysis.days)
+      const optimal = group.id === 'automatic' ? 0 : summary.confidence === 'none' ? groupBest : summary.best
+      pools.push({ key: `${group.id}:${id}`, id, group, models, summary, optimal, recommended: recommendedSetting(group, summary, optimal) })
+    }
+  }
+  return pools.sort((a, b) => sumCalls(b.models) - sumCalls(a.models))
+}
+
+function sumCalls(models: CacheModelAnalysis[]): number {
+  return models.reduce((sum, model) => sum + model.calls, 0)
+}
+
+/** A recommended setting for every model Pi ran that can take one, from its pool's data. */
 export function cacheRecommendations(analysis: CacheAnalysis): CacheRecommendation[] {
-  const optimal = optimalCounts(analysis)
-  return analysis.groups.flatMap((group) => group.models
-    .filter((model) => !isImportedModel(model.model))
-    .flatMap((model) => {
-      const summary = summarize([model], group.maxPings, analysis.days)
-      const setting = recommendedSetting(group, summary, optimal.get(model.model) ?? 0)
-      return setting === null ? [] : [{ model: model.model, setting, lowData: summary.confidence === 'none' }]
-    }))
+  return modelPools(analysis).flatMap((pool) => pool.recommended === null
+    ? []
+    : pool.models
+      .filter((model) => !isImportedModel(model.model))
+      .map((model) => ({ model: model.model, setting: pool.recommended as CacheSetting, lowData: pool.summary.confidence === 'none' })))
 }
 
 /** The cheapest count for the gaps ending in each slot of a day, or null where no gap's count mattered. */

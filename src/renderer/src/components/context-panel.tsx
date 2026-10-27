@@ -89,10 +89,10 @@ export function ContextPanel({ onClose }: { onClose: () => void }): React.JSX.El
   )
   const board = useAgentBoard(request)
   const engine = useAppStore((state) => state.piEngine)
-  // `/done` comes from pi-analytics, which Pi Desktop loads into Pi (not OMP); it reaches the open chat only.
+  // `/done` and `/away` come from pi-analytics, which Pi Desktop loads into Pi (not OMP); they reach the open chat only.
   const stopWarming = engine === 'pi' && !isStreaming
-    ? (target: string): void => {
-        if (target === useAppStore.getState().sessionState?.sessionId) void useAppStore.getState().sendPrompt('/done')
+    ? (target: string, command: 'done' | 'away'): void => {
+        if (target === useAppStore.getState().sessionState?.sessionId) void useAppStore.getState().sendPrompt(`/${command}`)
       }
     : null
   const [popOutError, setPopOutError] = useState<string | null>(null)

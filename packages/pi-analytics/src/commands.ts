@@ -2,6 +2,7 @@
  * The commands `pi-analytics` and Pi's `/analytics` share. Each returns the
  * lines to show; the caller prints them or puts them in a notification.
  */
+import { existsSync } from 'fs'
 import { ANALYTICS_RANGES, type AnalyticsRangeKey } from '../../../src/shared/analytics-report'
 import type { AnalyticsSource } from '../../../src/shared/session-analytics'
 import { IMPORT_SOURCE_NAMES, type ImportSource } from '../../../src/shared/import-sources'
@@ -164,12 +165,15 @@ export async function runCommand(args: string | string[], options: CommandOption
       const sources = await listSources({ dir, rebuild: flags.has('rebuild') })
       const day = (at: number | null): string => (at === null ? '?' : new Date(at).toISOString().slice(0, 10))
       return [
-        ...sources.roots.map(({ source, root }) => {
+        // Pi and OMP keep sessions in two folders, but they count as one source: one line each, naming the folders that exist.
+        ...[...new Set(sources.roots.map(({ source }) => source))].map((source) => {
+          const roots = sources.roots.filter((root) => root.source === source).map(({ root }) => root)
+          const shown = roots.filter((root) => existsSync(root)).join(', ') || roots.join(', ')
           const found = sources.counts.find((count) => count.source === source)
           const label = SOURCE_LABELS[source]
           return found
-            ? `${label}: ${found.sessions} session${found.sessions === 1 ? '' : 's'}, ${day(found.firstAt)} to ${day(found.lastAt)}, $${found.cost.toFixed(2)} at list prices (${root})`
-            : `${label}: no sessions found in ${root}`
+            ? `${label}: ${found.sessions} session${found.sessions === 1 ? '' : 's'}, ${day(found.firstAt)} to ${day(found.lastAt)}, $${found.cost.toFixed(2)} at list prices (${shown})`
+            : `${label}: no sessions found in ${shown}`
         }),
         ...(Object.keys(IMPORT_ENV) as ImportSource[])
           .filter((source) => !sources.roots.some((root) => root.source === source))
